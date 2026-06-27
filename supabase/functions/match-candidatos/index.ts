@@ -93,8 +93,11 @@ async function fetchCandidates(
   supabase: ReturnType<typeof createSupabaseClient>,
   estado: string,
 ): Promise<CandidatoRow[]> {
+  const year = Deno.env.get('ELECTION_YEAR') ?? '2026'
+  const view = `v_candidates_${year}`
+
   const { data, error } = await supabase
-    .from('v_candidates_2026')
+    .from(view)
     .select('politician_id, nome_urna, partido_atual, cargo')
     .eq('estado', estado)
 
