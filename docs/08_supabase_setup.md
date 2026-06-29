@@ -48,7 +48,7 @@ CREATE TYPE candidacy_status AS ENUM (
   'pre_candidato','registrado','deferido','indeferido',
   'cassado','eleito','nao_eleito','segundo_turno');
 CREATE TYPE brazilian_state AS ENUM (
-  'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG',
+  'AC','AL','AP','AM','BA','BR','CE','DF','ES','GO','MA','MT','MS','MG',
   'PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO');
 CREATE TYPE theme_category AS ENUM (
   'economia','saude','educacao','seguranca','meio_ambiente','direitos_sociais',

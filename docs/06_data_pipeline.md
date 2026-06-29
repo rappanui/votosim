@@ -1,210 +1,135 @@
 # VotoSim — Data Ingestion Pipeline
 
-**Context:** Scripts that populate the Supabase database with candidates, government plan positions, and alerts. Runs locally (Node.js 20) before the MVP launch, then weekly via cron. Read before running or modifying the ingestion scripts.
-
-> **Changed from base version:** extraction step now uses Gemini Flash via `@google/generative-ai` — removed the inconsistent Claude Haiku reference from the Lovable-era docs.
+**Context:** Overview of how the Supabase database is populated with candidates, positions, and alerts. Read before running scripts or planning new data sources. For hands-on commands, see `docs/11_pipeline_scripts.md`. For AI extraction details, see `docs/12_ai_extraction.md`. For deputies/senators strategy, see `docs/13_legislative_votes.md`.
 
 ---
 
-## Overview
+## Architecture
 
 ```
-TSE CSV (candidates)         → [ingest_tse.ts]       → politicians + candidacies
-DivulgaCandContas (plans)    → [ingest_plans.ts]      → candidacies.plano_governo_texto
-Câmara + Senado (votes)      → [ingest_votes.ts]      → politician_positions (votes)
-Gemini Flash (extraction)    → [extract_themes.ts]    → politician_positions (all)
-TSE CSV (criminal records)   → [ingest_alerts.ts]     → politician_alerts (ficha_suja)
+TSE CSV (consulta_cand)      → ingest-tse.ts         → politicians + candidacies + parties
+TSE ZIP (proposta_governo)   → extract-positions.ts   → politician_positions (governors/president)
+Câmara API (nominal votes)   → ingest-camara-votes.ts → politician_positions (federal deputies) [planned]
+Senado API (nominal votes)   → ingest-senado-votes.ts → politician_positions (senators) [planned]
+TSE PDF (party programs)     → ingest-party-programs.ts → politician_positions (proxy) [planned]
+TSE CSV (motivo_cassacao)    → ingest-alerts.ts       → politician_alerts
 ```
 
-All steps are idempotent (upsert) — safe to re-run without duplicating data.
+All scripts are idempotent (upsert) — safe to re-run without duplicating data.
 
 ---
 
-## Setup
+## Data Sources
 
-```bash
-npm install papaparse @google/generative-ai @supabase/supabase-js
+### Candidates (TSE CSV)
+
+```
+https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_{year}.zip
 ```
 
-Environment variables (`.env` in scripts folder):
+National CSV with all registered candidates. One row per candidacy. Contains: name, CPF, party, office, state, ballot number. Encoding: ISO-8859-1. Delimiter: `;`.
+
+CPF is stored as SHA-256 hash (`cpf_hash`) — raw CPF is never written to any table.
+
+### Government Plans (TSE CDN ZIPs)
+
 ```
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=eyJ...
-GEMINI_API_KEY=AIza...
+https://cdn.tse.jus.br/estatistica/sead/odsele/proposta_governo/proposta_governo_{year}_{UF}.zip
 ```
+
+One ZIP per state, containing PDF files. Filename pattern: `{year}{UF}{SQ_CANDIDATO}.pdf`. Only GOVERNADOR and PRESIDENTE candidates submit these. Extracted using `pdf2json` (not `pdf-parse` v2, which is ESM-incompatible).
+
+> DivulgaCandContas REST API (`divulgacandcontas.tse.jus.br`) was evaluated and abandoned: it returns 404 for 2022 data. The TSE CDN ZIPs approach is more reliable.
+
+### Criminal Records (TSE CSV)
+
+```
+https://cdn.tse.jus.br/estatistica/sead/odsele/motivo_cassacao/motivo_cassacao_{year}.zip
+```
+
+Contains candidates with electoral disqualifications. Has `SQ_CANDIDATO` but no CPF — the script builds a `SQ → cpf_hash` map from the candidates CSV at runtime.
+
+> Available only after TSE rulings (typically August–September of election year). Use 2022 file for development.
+
+### Legislative Votes (planned for MVP)
+
+See `docs/13_legislative_votes.md` for the Câmara and Senado API strategy.
 
 ---
 
-## Step 1 — TSE CSV Ingestion
+## Running the Pipeline
 
-TSE releases `consulta_cand_2026_BRASIL.csv` after official registration (July 2026). Before that, use the Câmara API for current deputies.
+See `docs/11_pipeline_scripts.md` for exact commands, flags, and download URLs.
 
-```typescript
-// scripts/ingest_tse.ts
-import { createClient } from '@supabase/supabase-js'
-import Papa from 'papaparse'
-import crypto from 'crypto'
-
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-
-const CARGO_MAP: Record<string, string> = {
-  'PRESIDENTE': 'presidente', 'VICE-PRESIDENTE': 'vice_presidente',
-  'SENADOR': 'senador', 'GOVERNADOR': 'governador',
-  'VICE-GOVERNADOR': 'vice_governador', 'DEPUTADO FEDERAL': 'deputado_federal',
-  'DEPUTADO ESTADUAL': 'deputado_estadual', 'DEPUTADO DISTRITAL': 'deputado_distrital',
-}
-
-const STATUS_MAP: Record<string, string> = {
-  'APTO': 'deferido', 'DEFERIDO': 'deferido',
-  'INAPTO': 'indeferido', 'INDEFERIDO': 'indeferido', 'CANCELADO': 'indeferido',
-}
-
-async function ingestTSECandidates(csvPath: string) {
-  const { data: rows } = Papa.parse(await Bun.file(csvPath).text(), {
-    header: true, delimiter: ';', encoding: 'latin1', skipEmptyLines: true,
-  })
-
-  for (const row of rows as any[]) {
-    const cargo = CARGO_MAP[row.DS_CARGO?.trim()]
-    if (!cargo) continue  // skip out-of-scope offices (vereador, prefeito)
-
-    const cpfHash = crypto.createHash('sha256')
-      .update(row.NR_CPF_CANDIDATO?.replace(/\D/g, '') ?? '').digest('hex')
-
-    const { data: pol } = await supabase.from('politicians').upsert({
-      cpf_hash: cpfHash, tse_id: row.SQ_CANDIDATO,
-      nome_completo: row.NM_CANDIDATO?.trim(), nome_urna: row.NM_URNA_CANDIDATO?.trim(),
-      partido_atual: row.SG_PARTIDO?.trim(),
-      genero: row.DS_GENERO === 'MASCULINO' ? 'M' : row.DS_GENERO === 'FEMININO' ? 'F' : 'O',
-      escolaridade: row.DS_GRAU_INSTRUCAO?.trim(), ocupacao: row.DS_OCUPACAO?.trim(),
-      ativo: true,
-    }, { onConflict: 'cpf_hash' }).select('id').single()
-
-    if (!pol) continue
-
-    await supabase.from('candidacies').upsert({
-      politician_id: pol.id, ano_eleicao: 2026, turno: 1,
-      cargo, estado: row.SG_UF?.trim(), numero_urna: row.NR_CANDIDATO?.trim(),
-      partido_eleicao: row.SG_PARTIDO?.trim(), numero_partido: parseInt(row.NR_PARTIDO) || null,
-      status: STATUS_MAP[row.DS_SITUACAO_CANDIDATURA?.trim()] ?? 'pre_candidato',
-      tse_sequencial: row.SQ_CANDIDATO,
-    }, { onConflict: 'politician_id,ano_eleicao,turno,cargo,estado' })
-  }
-}
-```
-
-> **Encoding:** TSE CSVs are ISO-8859-1 (latin1). Always parse with `encoding: 'latin1'`.  
-> **Rate limiting on DivulgaCandContas:** 1 req/s — use `await new Promise(r => setTimeout(r, 1000))` between calls.
+**Execution order:**
+1. `ingest-tse` — must run first (creates `politicians` records needed by all other scripts)
+2. `extract-positions` — depends on politicians in DB + PDF ZIPs downloaded locally
+3. `ingest-alerts` — depends on politicians in DB + `motivo_cassacao` CSV downloaded
 
 ---
 
-## Step 2 — Position Extraction via Gemini Flash
+## Key Technical Decisions
 
-Processes candidates without registered positions. Calls Gemini Flash for each one.
-
-```typescript
-// scripts/extract_themes.ts
-import { GoogleGenerativeAI } from '@google/generative-ai'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-
-const model = genAI.getGenerativeModel({
-  model: 'gemini-1.5-flash',
-  systemInstruction: `You are a political analyst specializing in Brazilian politics.
-Analyze public information about a politician and identify their positions on specific political themes.
-Respond ONLY with valid JSON, no text before or after, no markdown, no backticks.
-For each position: use only provided slugs, posicao: "favoravel"|"contrario"|"neutro",
-intensidade: 1 (weak) to 5 (signature issue), confianca: 0.0–1.0.
-Include ONLY positions with documentable evidence and at least one source.`,
-  generationConfig: { temperature: 0.1, responseMimeType: 'application/json' },
-})
-
-async function extractForCandidate(candidate: any, themeSlugs: string[]) {
-  const prompt = `
-Analyze the political positions of:
-Name: ${candidate.nome_urna}
-Party: ${candidate.partido_atual}
-Office: ${candidate.cargo} — ${candidate.estado}
-
-${candidate.plano_governo_texto
-  ? `Government plan (extracted from TSE PDF):\n${candidate.plano_governo_texto.slice(0, 4000)}`
-  : 'Government plan: not available'}
-
-Available theme slugs (use only these): ${themeSlugs.join(', ')}
-
-Return JSON: { "posicoes": [{ "slug": "...", "posicao": "favoravel", "intensidade": 4,
-"confianca": 0.85, "fontes": [{ "tipo": "plano_governo", "descricao": "...", "confiabilidade": "alta" }] }] }
-
-Include only positions with confianca >= 0.6 and at least one identifiable source.`
-
-  const result = await model.generateContent(prompt)
-  try {
-    return JSON.parse(result.response.text()).posicoes ?? []
-  } catch {
-    console.error('Failed to parse Gemini response for', candidate.nome_urna)
-    return []
-  }
-}
-
-async function runExtractionBatch(limit = 50) {
-  const { data: candidates } = await supabase
-    .from('v_candidates_2026').select('politician_id, nome_urna, partido_atual, cargo, estado, plano_governo_texto')
-    .not('politician_id', 'in', supabase.from('politician_positions').select('politician_id'))
-    .limit(limit)
-
-  const { data: themes } = await supabase.from('themes_catalog').select('id, slug').eq('ativo', true)
-  const themeSlugs = (themes ?? []).map(t => t.slug)
-  const themeMap = Object.fromEntries((themes ?? []).map(t => [t.slug, t.id]))
-
-  for (const candidate of candidates ?? []) {
-    const posicoes = await extractForCandidate(candidate, themeSlugs)
-
-    for (const pos of posicoes) {
-      const themeId = themeMap[pos.slug]
-      if (!themeId) continue
-      await supabase.from('politician_positions').upsert({
-        politician_id: candidate.politician_id, theme_id: themeId,
-        posicao: pos.posicao, intensidade: pos.intensidade,
-        fontes: pos.fontes, confianca_ia: pos.confianca,
-        gerado_por_ia: true, validado: pos.confianca >= 0.85,
-      }, { onConflict: 'politician_id,theme_id' })
-    }
-
-    await new Promise(r => setTimeout(r, 1000))  // 1 req/s — Gemini free tier: 10 RPM
-  }
-}
-```
+| Decision | Choice | Reason |
+|----------|--------|--------|
+| CPF storage | SHA-256 hash | LGPD compliance — PII never stored |
+| AI provider (scripts) | Groq / Llama 3.3 70B | Gemini REST free tier is 0 RPD; Groq free tier is 14,400 RPD |
+| AI provider (Edge Function) | Gemini 2.0 Flash | Deno-compatible via fetch; fast for session-time use |
+| PDF parsing | `pdf2json` | `pdf-parse` v2 has no default export in ESM context |
+| PDF source | TSE CDN ZIPs | DivulgaCand API returns 404 for 2022; ZIPs are more reliable |
+| Criminal records | `motivo_cassacao` CSV | Correct TSE dataset for disqualifications (not `certidao_quitacao`) |
 
 ---
 
-## Step 3 — Embeddings (v2 only)
+## Database Schema (key tables)
 
-Skip in MVP. See `base/06_data_pipeline.md` for the Voyage AI embedding step.
+**`politician_positions`** — one row per politician × theme:
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `politician_id` | UUID FK | |
+| `theme_id` | UUID FK | References `themes_catalog.id` — never a raw slug |
+| `posicao` | enum | `favoravel \| contrario \| neutro \| variavel` |
+| `intensidade` | SMALLINT 1–5 | 1=mentioned once, 5=signature issue |
+| `fontes` | JSONB | `[{tipo, descricao, url, data, confiabilidade}]` |
+| `gerado_por_ia` | BOOLEAN | `true` for Groq/Gemini extractions |
+| `validado` | BOOLEAN | Auto-`true` when `confianca_ia >= 0.85` |
+| `confianca_ia` | NUMERIC(3,2) | 0.0–1.0 |
+
+Unique constraint: `(politician_id, theme_id)`.
+
+**`politician_alerts`** — `ficha_suja` records from TSE:
+
+| Column | Notes |
+|--------|-------|
+| `tipo` | `'ficha_suja'` for TSE cassations |
+| `severidade` | `'critica'` |
+| `gerado_por_ia` | `false` (TSE is official source, not AI) |
+| `validado` | `true` (auto-validated for official TSE data) |
 
 ---
 
-## Schedule (weekly cron)
+## Election Year Switching
 
-| Step | When | Frequency |
-|---|---|---|
-| TSE CSV ingest | Sun 03:00 | Weekly (data changes slowly) |
-| Government plans (DivulgaCand) | Sun 04:00 | Weekly (new candidates only) |
-| Theme extraction (Gemini) | Mon 02:00 | Daily (process new candidates) |
-| Alert ingest (TSE CSV) | Mon 03:00 | Weekly |
+The Edge Function reads `ELECTION_YEAR` from Supabase secrets to select the correct view:
+- `2022` → queries `v_candidates_2022`
+- `2026` → queries `v_candidates_2026`
 
-Configure as Supabase Edge Functions scheduled tasks (Dashboard → Edge Functions → Schedule).
+When 2026 data is released:
+1. Run `ingest-tse` with 2026 CSV (`ELECTION_YEAR = 2026` in the script constant)
+2. Run `extract-positions` for 2026 state ZIPs
+3. Change Edge Function secret `ELECTION_YEAR` to `2026`
+4. 2022 rows remain as historical data — no cleanup needed
 
 ---
 
-## Cost Estimate
+## 2022 Seed Status (as of 2026-06-29)
 
-| Step | Volume (2026 election) | Cost |
-|---|---|---|
-| TSE CSV ingestion | ~30,000 candidates | R$0 |
-| Government plan extraction (Gemini Flash) | ~30,000 × ~1,000 tokens | ~R$15 total |
-| Embeddings (Voyage AI, v2) | ~30,000 × ~300 tokens | R$0 (free tier 200M/mo) |
-| **Total per election cycle** | | **~R$15–30** |
-
-> **Critical:** Keep billing OFF in the Google Cloud project used for Gemini. Enabling billing eliminates the free tier (1,500 req/day, 10 RPM) and charges for every call.
+| Step | Status | Notes |
+|------|--------|-------|
+| `ingest-tse` national | ✅ Complete | 28,486 inserted; ~836 skipped (WSL2 connection timeouts) |
+| `ingest-tse --estado=SP` | ✅ Complete | 3,622 SP candidates fully re-ingested |
+| `extract-positions --estado=SP` | ✅ Complete | 13/15 PDFs processed; 1 unreadable (scanned image), 1 error recovered |
+| `ingest-alerts` | ✅ Complete | 1,012 alerts from `motivo_cassacao_2022` |
+| Other states | 🔜 Pending | Requires downloading individual state ZIPs |
+| Deputies/senators | 🔜 Planned | See `docs/13_legislative_votes.md` |

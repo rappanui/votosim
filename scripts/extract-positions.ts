@@ -1,3 +1,9 @@
+import { parse } from 'csv-parse/sync'
+import { readFileSync, readdirSync } from 'fs'
+import { join, basename } from 'path'
+import { createRequire } from 'module'
+const require = createRequire(import.meta.url)
+const PDFParser = require('pdf2json') as new () => import('events').EventEmitter & { loadPDF: (p: string) => void }
 import { supabase } from './lib/supabase.js'
 import { extractPositions } from './lib/gemini.js'
 import { sleep } from './lib/sleep.js'
@@ -5,122 +11,220 @@ import { sleep } from './lib/sleep.js'
 // Change to 2026 when running Plan 5 (production ingestion)
 const ELECTION_YEAR = 2022
 
-const DIVULGACAND_URL = 'https://divulgacandcontas.tse.jus.br/divulga/rest/v1/candidatura/buscar/'
 const RATE_LIMIT_DELAY_MS = 1_000
 
-interface CandidateToProcess {
-  id: string
-  nome_civil: string
-  nome_urna: string
-  cargo: string
-  estado: string
-  numero_urna: string
+// consulta_cand CSV columns used for SQ → cpf_hash lookup
+const COL_SQ  = 'SQ_CANDIDATO'
+const COL_CPF = 'NR_CPF_CANDIDATO'
+const COL_UF  = 'SG_UF'
+
+type CsvRow = Record<string, string>
+
+import { createHash } from 'crypto'
+
+function hashCpf(cpf: string): string {
+  return createHash('sha256').update(cpf.replace(/\D/g, '')).digest('hex')
 }
 
-/** Returns all candidates for ELECTION_YEAR that have no entries in politician_positions yet. */
-async function fetchCandidatesWithoutPositions(): Promise<CandidateToProcess[]> {
-  const [candidaciesResult, positionsResult] = await Promise.all([
-    supabase
-      .from('candidacies')
-      .select('politician_id, cargo, estado, numero_urna, politicians!inner(id, nome_urna)')
-      .eq('ano_eleicao', ELECTION_YEAR)
-      .eq('turno', 1)
-      .not('status', 'in', '("indeferido","cassado")'),
-    supabase
-      .from('politician_positions')
-      .select('politician_id'),
-  ])
-
-  if (candidaciesResult.error) throw new Error(`Failed to fetch candidacies: ${candidaciesResult.error.message}`)
-  if (positionsResult.error) throw new Error(`Failed to fetch positions: ${positionsResult.error.message}`)
-
-  const withPositions = new Set(
-    ((positionsResult.data ?? []) as Array<{ politician_id: string }>).map(p => p.politician_id),
-  )
-
-  type RawRow = {
-    politician_id: string
-    cargo: string
-    estado: string
-    numero_urna: string
-    politicians: { id: string; nome_urna: string }
+/** Builds SQ_CANDIDATO → cpf_hash map from the consulta_cand CSV. */
+function buildSqToCpfMap(csvPath: string): Map<string, string> {
+  const content = readFileSync(csvPath, 'latin1')
+  const rows: CsvRow[] = parse(content, { delimiter: ';', columns: true, skip_empty_lines: true })
+  const map = new Map<string, string>()
+  for (const row of rows) {
+    const sq  = row[COL_SQ]?.trim()
+    const cpf = row[COL_CPF]?.replace(/\D/g, '')
+    if (sq && cpf) map.set(sq, hashCpf(cpf))
   }
-
-  return ((candidaciesResult.data ?? []) as RawRow[])
-    .filter(row => !withPositions.has(row.politician_id))
-    .map(row => ({
-      id: row.politicians.id,
-      nome_civil: row.politicians.nome_urna,
-      nome_urna: row.politicians.nome_urna,
-      cargo: row.cargo,
-      estado: row.estado,
-      numero_urna: row.numero_urna,
-    }))
+  console.info(`[extract-positions] SQ→CPF map: ${map.size} entries`)
+  return map
 }
 
-async function fetchGovernmentPlan(
-  estado: string,
-  numeroUrna: string,
-): Promise<string | null> {
-  const url = `${DIVULGACAND_URL}${ELECTION_YEAR}/2/${estado}/${numeroUrna}/proposta`
-  const response = await fetch(url)
-  if (!response.ok) return null
+/** Extracts SQ_CANDIDATO from PDF filename pattern {ano}{UF}{SQ}.pdf */
+function sqFromFilename(filename: string): string | null {
+  // e.g. "2022SP250001612465.pdf" → "250001612465"
+  const match = basename(filename).match(/^\d{4}[A-Z]{2}(\d+)\.pdf$/i)
+  return match?.[1] ?? null
+}
 
-  const json = await response.json() as { arquivos?: Array<{ url?: string }> }
-  const pdfUrl = json.arquivos?.[0]?.url
-  if (!pdfUrl) return null
+async function parsePdf(pdfPath: string): Promise<string | null> {
+  return new Promise(resolve => {
+    const parser = new PDFParser()
+    parser.on('pdfParser_dataReady', (d: { Pages?: Array<{ Texts?: Array<{ R?: Array<{ T?: string }> }> }> }) => {
+      try {
+        const text = (d.Pages ?? [])
+          .flatMap(pg => (pg.Texts ?? []).map(t => {
+            try { return decodeURIComponent(t.R?.[0]?.T ?? '') } catch { return '' }
+          }))
+          .join(' ')
+        resolve(text.trim() || null)
+      } catch {
+        resolve(null)
+      }
+    })
+    parser.on('pdfParser_dataError', () => resolve(null))
+    parser.loadPDF(pdfPath)
+  })
+}
 
-  const textResponse = await fetch(pdfUrl)
-  return textResponse.ok ? textResponse.text() : null
+async function loadThemesMap(): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from('themes_catalog')
+    .select('id, slug')
+  if (error) throw new Error(`Failed to load themes: ${error.message}`)
+  const map = new Map<string, string>()
+  for (const row of (data ?? []) as Array<{ id: string; slug: string }>) {
+    map.set(row.slug, row.id)
+  }
+  console.info(`[extract-positions] Themes loaded: ${map.size}`)
+  return map
+}
+
+async function findPoliticianByCpfHash(cpfHash: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('politicians')
+    .select('id')
+    .eq('cpf_hash', cpfHash)
+    .maybeSingle()
+  return (data as { id: string } | null)?.id ?? null
 }
 
 async function savePositions(
   politicianId: string,
-  positions: Array<{ temaSlug: string; posicao: string; justificativa: string }>,
-): Promise<void> {
-  const rows = positions.map(p => ({
-    politician_id: politicianId,
-    theme_slug: p.temaSlug,
-    posicao: p.posicao,
-    justificativa: p.justificativa,
-    source: 'divulgacand_gemini',
-  }))
+  positions: import('./lib/gemini.js').PositionEntry[],
+  themesMap: Map<string, string>,
+): Promise<number> {
+  const rows = []
+  for (const p of positions) {
+    const themeId = themesMap.get(p.temaSlug)
+    if (!themeId) {
+      console.info(`[extract-positions] Unknown theme slug: ${p.temaSlug}`)
+      continue
+    }
+    rows.push({
+      politician_id: politicianId,
+      theme_id: themeId,
+      posicao: p.posicao,
+      intensidade: Math.round(p.intensidade),
+      fontes: [{ tipo: 'tse_pdf', descricao: p.justificativa, url: null, data: '2022', confiabilidade: p.confianca }],
+      gerado_por_ia: true,
+      validado: p.confianca >= 0.85,
+      confianca_ia: p.confianca,
+    })
+  }
+
+  if (rows.length === 0) return 0
 
   const { error } = await supabase
     .from('politician_positions')
-    .upsert(rows, { onConflict: 'politician_id,theme_slug' })
+    .upsert(rows, { onConflict: 'politician_id,theme_id' })
 
   if (error) throw new Error(`Failed to save positions: ${error.message}`)
+  return rows.length
 }
 
-/** Entry point. Processes all candidates that don't yet have positions in the DB. */
-async function main(): Promise<void> {
-  const candidates = await fetchCandidatesWithoutPositions()
-  console.info(`[extract-positions] ${candidates.length} candidates to process`)
+async function hasPoliticianPositions(politicianId: string): Promise<boolean> {
+  const { count } = await supabase
+    .from('politician_positions')
+    .select('*', { count: 'exact', head: true })
+    .eq('politician_id', politicianId)
+  return (count ?? 0) > 0
+}
 
-  for (const candidate of candidates) {
-    console.info(`[extract-positions] Processing: ${candidate.nome_urna}`)
+/**
+ * Entry point.
+ * Usage: npm run extract-positions -- <propostas-dir> <consulta_cand.csv> [--estado=SP]
+ *
+ * <propostas-dir>: directory containing extracted PDF files (e.g. data/propostas_2022)
+ * <consulta_cand.csv>: TSE candidates CSV used to resolve SQ_CANDIDATO → CPF
+ * --estado=SP: optional filter to process only one state (folder name inside propostas-dir)
+ */
+async function main(): Promise<void> {
+  const propostsDir = process.argv[2]
+  const candCsvPath = process.argv[3]
+  const estadoArg   = process.argv.find(a => a.startsWith('--estado='))?.split('=')[1]?.toUpperCase()
+
+  if (!propostsDir || !candCsvPath) {
+    console.error('Usage: npm run extract-positions -- <propostas-dir> <consulta_cand.csv> [--estado=SP]')
+    process.exit(1)
+  }
+
+  const sqMap = buildSqToCpfMap(candCsvPath)
+  const themesMap = await loadThemesMap()
+
+  // Collect all PDF files from state subdirectories
+  const stateFilter = estadoArg ? [estadoArg] : undefined
+  const states = readdirSync(propostsDir, { withFileTypes: true })
+    .filter(d => d.isDirectory() && (!stateFilter || stateFilter.includes(d.name.toUpperCase())))
+    .map(d => d.name)
+
+  if (states.length === 0) {
+    console.error(`[extract-positions] No state directories found in ${propostsDir}`)
+    process.exit(1)
+  }
+
+  const pdfs: Array<{ path: string; sq: string; uf: string }> = []
+  for (const uf of states) {
+    const dir = join(propostsDir, uf)
+    for (const file of readdirSync(dir).filter(f => f.endsWith('.pdf') && f !== 'leiame.pdf')) {
+      const sq = sqFromFilename(file)
+      if (sq) pdfs.push({ path: join(dir, file), sq, uf })
+    }
+  }
+
+  console.info(`[extract-positions] ${pdfs.length} PDFs to process (states: ${states.join(', ')})`)
+
+  let saved = 0
+  let skipped = 0
+  let errors = 0
+
+  for (const { path: pdfPath, sq, uf } of pdfs) {
+    const cpfHash = sqMap.get(sq)
+    if (!cpfHash) {
+      console.info(`[extract-positions] [SKIPPED] No CPF for SQ ${sq} (${uf})`)
+      skipped++
+      continue
+    }
+
+    const politicianId = await findPoliticianByCpfHash(cpfHash)
+    if (!politicianId) {
+      console.info(`[extract-positions] [SKIPPED] Politician not in DB for SQ ${sq}`)
+      skipped++
+      continue
+    }
+
+    if (await hasPoliticianPositions(politicianId)) {
+      console.info(`[extract-positions] [SKIPPED] Already has positions: SQ ${sq}`)
+      skipped++
+      continue
+    }
+
+    const text = await parsePdf(pdfPath)
+    if (!text?.trim()) {
+      console.info(`[extract-positions] [SKIPPED] Could not extract text from ${basename(pdfPath)}`)
+      skipped++
+      continue
+    }
 
     try {
-      const planText = await fetchGovernmentPlan(candidate.estado, candidate.numero_urna)
-
-      if (!planText) {
-        console.info(`[extract-positions] [SKIPPED] No government plan: ${candidate.nome_urna}`)
-        await sleep(RATE_LIMIT_DELAY_MS)
-        continue
+      const positions = await extractPositions(sq, text)
+      if (positions.length > 0) {
+        const count = await savePositions(politicianId, positions, themesMap)
+        console.info(`[extract-positions] Saved ${count} positions for SQ ${sq} (${uf})`)
+        saved++
+      } else {
+        console.info(`[extract-positions] No positions extracted for SQ ${sq}`)
+        skipped++
       }
-
-      const positions = await extractPositions(candidate.nome_civil, planText)
-      if (positions.length > 0) await savePositions(candidate.id, positions)
-      console.info(`[extract-positions] Saved ${positions.length} positions for ${candidate.nome_urna}`)
     } catch (err) {
-      console.error(`[extract-positions] Error for ${candidate.nome_urna}:`, err)
+      console.error(`[extract-positions] Error for SQ ${sq}:`, err)
+      errors++
     }
 
     await sleep(RATE_LIMIT_DELAY_MS)
   }
 
-  console.info('[extract-positions] Done.')
+  console.info(`[extract-positions] Done. Saved: ${saved}, skipped: ${skipped}, errors: ${errors}`)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })
