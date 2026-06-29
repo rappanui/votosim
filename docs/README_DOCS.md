@@ -27,8 +27,8 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 | Database | Supabase (PostgreSQL 15 + pgvector) | All data lives here |
 | Auth | None in MVP — stateless product | Supabase Auth available for future use |
 | Deploy | Vercel | Best-in-class Next.js integration; no platform lock-in |
-| AI — match (session) | Gemini Flash (Google AI Studio — free tier) | Called via Edge Function, no grounding |
-| AI — pipeline (extraction) | Gemini Flash (same model) | Extracts positions from government plans |
+| AI — match (session) | Groq → Cerebras → Mistral → score sem IA | Fallback chain in Edge Function (Deno); all free tier; see `docs/14_edge_function_ai.md` |
+| AI — pipeline (extraction) | Groq — Llama 3.3 70B Versatile | Extracts positions from gov plan PDFs; free tier (14,400 req/day) |
 | Electoral data | Official TSE, Câmara and Senado public APIs | No scraping |
 | Monetization | Google AdSense + premium report (v2) | |
 
@@ -85,10 +85,12 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 
 | Source | What it provides | Format |
 |---|---|---|
-| TSE Open Data (`dadosabertos.tse.jus.br`) | Candidates, parties, criminal records | CSV bulk |
-| DivulgaCandContas (`divulgacandcontas.tse.jus.br`) | Government plan per candidate | REST API |
-| Câmara (`dadosabertos.camara.gov.br`) | Nominal votes, deputies in office | REST API |
-| Senado (`dadosabertos.senado.leg.br`) | Votes, senators in office | REST API |
+| TSE CDN (`cdn.tse.jus.br/estatistica/sead/odsele/`) | Candidates CSV, government plan PDFs (governors only), cassation records | ZIP bulk |
+| Câmara (`dadosabertos.camara.leg.br`) | Nominal votes, proposition themes, deputies in office | CSV bulk + REST |
+| Senado (`legis.senado.leg.br/dadosabertos`) | Votes, senators in office | REST API |
+| TSE Partidos (`tse.jus.br/partidos/`) | Party programs (PDF) — proxy for deputies/senators without voting record | PDF |
+
+> DivulgaCandContas API was evaluated and abandoned — returns 404 for 2022 data and is unreliable for historical elections. Government plans are fetched from TSE CDN ZIPs instead.
 
 ### Database tables (all created — see `base/08_supabase_setup.md`)
 
@@ -117,9 +119,14 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 | File | Content |
 |---|---|
 | `README_DOCS.md` | **This file** — master reference |
-| `06_data_pipeline.md` | Ingestion pipeline with Gemini Flash for extraction |
+| `06_data_pipeline.md` | Pipeline architecture: scripts, data sources, execution order |
 | `09_nextjs_setup.md` | Next.js 15 project setup, env vars, Supabase client, folder structure |
 | `10_frontend_pages.md` | Page-by-page spec, TypeScript interfaces, state management |
+| `11_pipeline_scripts.md` | Practical script usage guide: commands, flags, download URLs, idempotency |
+| `12_ai_extraction.md` | AI providers (Gemini vs Groq), models, prompt structure, DB schema mapping |
+| `13_legislative_votes.md` | Data strategy for deputies and senators: Câmara/Senado APIs + party proxy |
+| `14_edge_function_ai.md` | Edge Function AI: provider chain (Groq→Cerebras→Mistral→score sem IA), error formats, mathematical fallback algorithm |
+| `15_local_testing_edge_function.md` | Local testing setup for Edge Functions: Deno-based runner, unit tests, dev.sh, why `import.meta.main` matters |
 
 ### DB docs — unchanged, still valid (in `base/`)
 
@@ -161,9 +168,22 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...   # safe to expose in browser
 
 Supabase Edge Functions secrets (Supabase Dashboard → Edge Functions → Secrets):
 ```
-SERVICE_ROLE_KEY=eyJ...     # bypasses RLS — NEVER expose in browser or .env.local
-GEMINI_API_KEY=AIza...      # Google AI Studio — keep billing OFF to preserve free tier
+SERVICE_ROLE_KEY=eyJ...       # bypasses RLS — NEVER expose in browser or .env.local
+GROQ_API_KEY=gsk_...          # console.groq.com — primary AI provider for match
+CEREBRAS_API_KEY=...          # inference.cerebras.ai — fallback #1
+MISTRAL_API_KEY=...           # console.mistral.ai (La Plateforme) — fallback #2
+ELECTION_YEAR=2022            # controls which view the Edge Function queries (2022 or 2026)
 ```
+
+Pipeline scripts (`scripts/.env` — never commit):
+```
+SUPABASE_URL=https://xxxx.supabase.co
+SERVICE_ROLE_KEY=eyJ...       # same key as above
+GROQ_API_KEY=gsk_...          # same key as above — reused for PDF extraction scripts
+```
+
+> The Edge Function AI chain (Groq→Cerebras→Mistral) and the pipeline scripts (Groq only) share the same `GROQ_API_KEY` value but different quota pools — Edge Function secrets and `scripts/.env` are separate environments.
+> `GEMINI_API_KEY` is no longer used anywhere — it can be deleted from Supabase secrets.
 
 > `NEXT_PUBLIC_` prefix = exposed in the browser bundle. Only public keys get this prefix.
 
