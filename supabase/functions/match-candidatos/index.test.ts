@@ -2,17 +2,21 @@
 import { assertEquals } from 'https://deno.land/std@0.208.0/assert/mod.ts'
 import {
   attachAlerts,
+  buildPartyResults,
   buildPrompt,
   countSimpleMatches,
   groupBy,
+  injectPartyResults,
   prefilterCandidates,
   sortAndLimitCargos,
   MAX_CANDIDATES_PER_CARGO,
+  MAX_EXEC_CANDIDATES,
+  MIN_SCORE_THRESHOLD,
   PREFILTER_LIMIT_DEFAULT,
   PREFILTER_LIMIT_DEPUTADO,
   type AlertRow,
 } from './index.ts'
-import type { CandidatoRow, MatchResult, PositionWithSlug, RespostaUsuario } from './ai-providers.ts'
+import type { CandidatoResultado, CandidatoRow, MatchResult, PositionWithSlug, RespostaUsuario } from './ai-providers.ts'
 
 // ─── groupBy ─────────────────────────────────────────────────────────────────
 
@@ -197,7 +201,41 @@ Deno.test('sortAndLimitCargos: sorts candidates by score descending', () => {
   assertEquals(output.cargos[0].candidatos[1].politicianId, 'p2')
 })
 
-Deno.test('sortAndLimitCargos: limits to MAX_CANDIDATES_PER_CARGO', () => {
+Deno.test('sortAndLimitCargos: filters out candidates below MIN_SCORE_THRESHOLD', () => {
+  const result: MatchResult = {
+    estado: 'SP',
+    totalCandidatosAnalisados: 3,
+    cargos: [{
+      cargo: 'senador',
+      candidatos: [
+        { politicianId: 'p1', nomeUrna: 'A', partido: 'PT', score: 80, temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [] },
+        { politicianId: 'p2', nomeUrna: 'B', partido: 'PL', score: 0, temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [] },
+        { politicianId: 'p3', nomeUrna: 'C', partido: 'MDB', score: 20, temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [] },
+      ],
+    }],
+  }
+
+  const output = sortAndLimitCargos(result)
+  assertEquals(output.cargos[0].candidatos.length, 1)
+  assertEquals(output.cargos[0].candidatos[0].politicianId, 'p1')
+})
+
+Deno.test('sortAndLimitCargos: removes cargo group when all candidates are below threshold', () => {
+  const result: MatchResult = {
+    estado: 'SP',
+    totalCandidatosAnalisados: 2,
+    cargos: [
+      { cargo: 'senador', candidatos: [{ politicianId: 'p1', nomeUrna: 'A', partido: 'PT', score: 80, temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [] }] },
+      { cargo: 'deputado_federal', candidatos: [{ politicianId: 'p2', nomeUrna: 'B', partido: 'PL', score: 0, temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [] }] },
+    ],
+  }
+
+  const output = sortAndLimitCargos(result)
+  assertEquals(output.cargos.length, 1)
+  assertEquals(output.cargos[0].cargo, 'senador')
+})
+
+Deno.test('sortAndLimitCargos: limits senador to MAX_CANDIDATES_PER_CARGO (5)', () => {
   const result: MatchResult = {
     estado: 'SP',
     totalCandidatosAnalisados: 10,
@@ -207,7 +245,7 @@ Deno.test('sortAndLimitCargos: limits to MAX_CANDIDATES_PER_CARGO', () => {
         politicianId: `p${i}`,
         nomeUrna: `C${i}`,
         partido: 'PT',
-        score: i * 10,
+        score: 40 + i * 5,  // all above MIN_SCORE_THRESHOLD
         temasAlinhados: [],
         temasDivergentes: [],
         temAlertas: false,
@@ -220,19 +258,171 @@ Deno.test('sortAndLimitCargos: limits to MAX_CANDIDATES_PER_CARGO', () => {
   assertEquals(output.cargos[0].candidatos.length, MAX_CANDIDATES_PER_CARGO)
 })
 
+Deno.test('sortAndLimitCargos: limits presidente and governador to MAX_EXEC_CANDIDATES (3)', () => {
+  const makeCargo = (cargo: string): MatchResult['cargos'][number] => ({
+    cargo,
+    candidatos: Array.from({ length: 6 }, (_, i) => ({
+      politicianId: `p${i}`,
+      nomeUrna: `C${i}`,
+      partido: 'PT',
+      score: 40 + i * 5,
+      temasAlinhados: [],
+      temasDivergentes: [],
+      temAlertas: false,
+      alertas: [],
+    })),
+  })
+
+  for (const cargo of ['presidente', 'governador']) {
+    const result: MatchResult = {
+      estado: 'SP',
+      totalCandidatosAnalisados: 6,
+      cargos: [makeCargo(cargo)],
+    }
+    const output = sortAndLimitCargos(result)
+    assertEquals(output.cargos[0].candidatos.length, MAX_EXEC_CANDIDATES,
+      `${cargo} should be limited to ${MAX_EXEC_CANDIDATES}`)
+  }
+})
+
 Deno.test('sortAndLimitCargos: orders cargos by CARGO_ORDER', () => {
+  const makeCandidato = (id: string) => ({
+    politicianId: id, nomeUrna: id, partido: 'PT', score: MIN_SCORE_THRESHOLD,
+    temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [],
+  })
   const result: MatchResult = {
     estado: 'SP',
     totalCandidatosAnalisados: 2,
     cargos: [
-      { cargo: 'deputado_federal', candidatos: [] },
-      { cargo: 'senador', candidatos: [] },
+      { cargo: 'deputado_federal', candidatos: [makeCandidato('p1')] },
+      { cargo: 'senador', candidatos: [makeCandidato('p2')] },
     ],
   }
 
   const output = sortAndLimitCargos(result)
   assertEquals(output.cargos[0].cargo, 'senador')
   assertEquals(output.cargos[1].cargo, 'deputado_federal')
+})
+
+// ─── buildPartyResults ────────────────────────────────────────────────────────
+
+Deno.test('buildPartyResults: returns empty array when no party positions', () => {
+  const candidates: CandidatoRow[] = [
+    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'senador' },
+  ]
+  const result = buildPartyResults(candidates, new Map(), [])
+  assertEquals(result.length, 0)
+})
+
+Deno.test('buildPartyResults: creates one entry per legislative cargo per party', () => {
+  const candidates: CandidatoRow[] = [
+    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'senador' },
+    { politician_id: 'p2', nome_urna: 'B', partido_atual: 'PT', cargo: 'deputado_federal' },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
+  ]
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+  ]
+  const result = buildPartyResults(candidates, new Map([['PT', positions]]), respostas)
+  assertEquals(result.length, 2)
+  assertEquals(result.map(r => r.cargo).sort(), ['deputado_federal', 'senador'])
+})
+
+Deno.test('buildPartyResults: sets isParty=true and correct politicianId', () => {
+  const candidates: CandidatoRow[] = [
+    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'senador' },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
+  ]
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+  ]
+  const result = buildPartyResults(candidates, new Map([['PT', positions]]), respostas)
+  assertEquals(result.length, 1)
+  assertEquals(result[0].candidato.isParty, true)
+  assertEquals(result[0].candidato.politicianId, 'party:PT')
+  assertEquals(result[0].candidato.partido, 'PT')
+  assertEquals(result[0].candidato.score, 100)
+})
+
+Deno.test('buildPartyResults: excludes parties without positions', () => {
+  const candidates: CandidatoRow[] = [
+    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'senador' },
+    { politician_id: 'p2', nome_urna: 'B', partido_atual: 'PL', cargo: 'senador' },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
+  ]
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+  ]
+  // PL has no entry in partyPositions
+  const result = buildPartyResults(candidates, new Map([['PT', positions]]), respostas)
+  assertEquals(result.length, 1)
+  assertEquals(result[0].candidato.partido, 'PT')
+})
+
+Deno.test('buildPartyResults: excludes non-legislative cargos (presidente, governador)', () => {
+  const candidates: CandidatoRow[] = [
+    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'presidente' },
+    { politician_id: 'p2', nome_urna: 'B', partido_atual: 'PT', cargo: 'governador' },
+    { politician_id: 'p3', nome_urna: 'C', partido_atual: 'PT', cargo: 'senador' },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
+  ]
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+  ]
+  const result = buildPartyResults(candidates, new Map([['PT', positions]]), respostas)
+  assertEquals(result.length, 1)
+  assertEquals(result[0].cargo, 'senador')
+})
+
+// ─── injectPartyResults ───────────────────────────────────────────────────────
+
+Deno.test('injectPartyResults: returns result unchanged when partyResults empty', () => {
+  const result: MatchResult = {
+    estado: 'SP',
+    totalCandidatosAnalisados: 1,
+    cargos: [{ cargo: 'senador', candidatos: [{ politicianId: 'p1', nomeUrna: 'A', partido: 'PT', score: 80, temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [] }] }],
+  }
+  const output = injectPartyResults(result, [])
+  assertEquals(output, result)
+})
+
+Deno.test('injectPartyResults: adds party candidato to existing cargo group', () => {
+  const result: MatchResult = {
+    estado: 'SP',
+    totalCandidatosAnalisados: 1,
+    cargos: [{ cargo: 'senador', candidatos: [{ politicianId: 'p1', nomeUrna: 'A', partido: 'PT', score: 80, temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [] }] }],
+  }
+  const partyEntry: CandidatoResultado = {
+    politicianId: 'party:PT', nomeUrna: 'PT', partido: 'PT', score: 90,
+    temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [], isParty: true,
+  }
+  const output = injectPartyResults(result, [{ cargo: 'senador', candidato: partyEntry }])
+  assertEquals(output.cargos[0].candidatos.length, 2)
+  assertEquals(output.cargos[0].candidatos.find(c => c.isParty)?.politicianId, 'party:PT')
+})
+
+Deno.test('injectPartyResults: creates new cargo group when cargo has no individual results', () => {
+  const result: MatchResult = {
+    estado: 'SP',
+    totalCandidatosAnalisados: 0,
+    cargos: [],
+  }
+  const partyEntry: CandidatoResultado = {
+    politicianId: 'party:PT', nomeUrna: 'PT', partido: 'PT', score: 70,
+    temasAlinhados: [], temasDivergentes: [], temAlertas: false, alertas: [], isParty: true,
+  }
+  const output = injectPartyResults(result, [{ cargo: 'senador', candidato: partyEntry }])
+  assertEquals(output.cargos.length, 1)
+  assertEquals(output.cargos[0].cargo, 'senador')
+  assertEquals(output.cargos[0].candidatos.length, 1)
 })
 
 // ─── buildPrompt ──────────────────────────────────────────────────────────────

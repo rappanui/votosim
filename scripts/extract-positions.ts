@@ -5,7 +5,7 @@ import { createRequire } from 'module'
 const require = createRequire(import.meta.url)
 const PDFParser = require('pdf2json') as new () => import('events').EventEmitter & { loadPDF: (p: string) => void }
 import { supabase } from './lib/supabase.js'
-import { extractPositions } from './lib/gemini.js'
+import { extractPositions } from './lib/groq.js'
 import { sleep } from './lib/sleep.js'
 
 // Change to 2026 when running Plan 5 (production ingestion)
@@ -91,7 +91,7 @@ async function findPoliticianByCpfHash(cpfHash: string): Promise<string | null> 
 
 async function savePositions(
   politicianId: string,
-  positions: import('./lib/gemini.js').PositionEntry[],
+  positions: import('./lib/groq.js').PositionEntry[],
   themesMap: Map<string, string>,
 ): Promise<number> {
   const rows = []

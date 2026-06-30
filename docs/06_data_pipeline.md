@@ -130,6 +130,7 @@ When 2026 data is released:
 | `ingest-tse` national | ✅ Complete | 28,486 inserted; ~836 skipped (WSL2 connection timeouts) |
 | `ingest-tse --estado=SP` | ✅ Complete | 3,622 SP candidates fully re-ingested |
 | `extract-positions --estado=SP` | ✅ Complete | 13/15 PDFs processed; 1 unreadable (scanned image), 1 error recovered |
+| `extract-positions --estado=BR` | ✅ Complete | 12/13 presidential PDFs processed; 1 unreadable (scanned image) |
 | `ingest-alerts` | ✅ Complete | 1,012 alerts from `motivo_cassacao_2022` |
-| Other states | 🔜 Pending | Requires downloading individual state ZIPs |
+| Other states (governors) | 🔜 Pending | Requires downloading individual state ZIPs |
 | Deputies/senators | 🔜 Planned | See `docs/13_legislative_votes.md` |

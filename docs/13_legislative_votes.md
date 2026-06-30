@@ -74,12 +74,12 @@ For candidates with no voting record (first-time legislators, candidates switchi
 |--------|-------------|------|--------|--------|
 | Presidente | TSE PDF | — | `extract-positions.ts` | ✅ Done |
 | Governador | TSE PDF | — | `extract-positions.ts` | ✅ Done |
-| Senador (incumbent) | Senado API (votes) | 1 | `ingest-senado-votes.ts` | 🔜 Planned |
-| Deputado Federal (incumbent) | Câmara API (votes) | 1 | `ingest-camara-votes.ts` | 🔜 Planned |
-| Deputado Federal (new) | Party program | 2 | `ingest-party-programs.ts` | 🔜 Planned |
-| Deputado Estadual | Party program (only viable source) | 2 | `ingest-party-programs.ts` | 🔜 Planned |
-| Deputado Distrital | Party program (only viable source) | 2 | `ingest-party-programs.ts` | 🔜 Planned |
-| Senador (new) | Party program | 2 | `ingest-party-programs.ts` | 🔜 Planned |
+| Senador (incumbent) | Senado API (votes) | 1 | `ingest-senado-votes.ts` | ✅ Done |
+| Deputado Federal (incumbent) | Câmara API (votes) | 1 | `ingest-camara-votes.ts` | ✅ Done |
+| Deputado Federal (new) | Party program | 2 | `ingest-party-programs.ts` | ✅ Done |
+| Deputado Estadual | Party program (only viable source) | 2 | `ingest-party-programs.ts` | ✅ Done |
+| Deputado Distrital | Party program (only viable source) | 2 | `ingest-party-programs.ts` | ✅ Done |
+| Senador (new) | Party program | 2 | `ingest-party-programs.ts` | ✅ Done |
 
 State assemblies (for deputados estaduais) have no unified national API — individual state systems are heterogeneous and out of scope for MVP.
 

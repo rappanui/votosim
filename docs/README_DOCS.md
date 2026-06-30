@@ -27,8 +27,8 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 | Database | Supabase (PostgreSQL 15 + pgvector) | All data lives here |
 | Auth | None in MVP — stateless product | Supabase Auth available for future use |
 | Deploy | Vercel | Best-in-class Next.js integration; no platform lock-in |
-| AI — match (session) | Groq → Cerebras → Mistral → score sem IA | Fallback chain in Edge Function (Deno); all free tier; see `docs/14_edge_function_ai.md` |
-| AI — pipeline (extraction) | Groq — Llama 3.3 70B Versatile | Extracts positions from gov plan PDFs; free tier (14,400 req/day) |
+| AI — match (session) | Deterministic math only | Edge Function; no AI calls; reproducible, auditable; see `docs/14_edge_function_ai.md` |
+| AI — pipeline (extraction) | Groq — Llama 3.3 70B → 8B fallback | Extracts positions from gov plan PDFs; free tier; see `docs/12_ai_extraction.md` |
 | Electoral data | Official TSE, Câmara and Senado public APIs | No scraping |
 | Monetization | Google AdSense + premium report (v2) | |
 
@@ -99,7 +99,8 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 | `politicians` | Physical person — one record per person |
 | `candidacies` | Candidacy per election/office/state |
 | `themes_catalog` | 14 political themes with questionnaire statements |
-| `politician_positions` | Position per politician per theme (extracted by Gemini) |
+| `politician_positions` | Position per politician per theme (AI-extracted or party proxy) |
+| `party_positions` | Position per party per theme (from official party programs) |
 | `politician_alerts` | Dirty record, investigations, controversies |
 | `parties` | Political parties with spectrum metadata |
 
@@ -127,6 +128,9 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 | `13_legislative_votes.md` | Data strategy for deputies and senators: Câmara/Senado APIs + party proxy |
 | `14_edge_function_ai.md` | Edge Function AI: provider chain (Groq→Cerebras→Mistral→score sem IA), error formats, mathematical fallback algorithm |
 | `15_local_testing_edge_function.md` | Local testing setup for Edge Functions: Deno-based runner, unit tests, dev.sh, why `import.meta.main` matters |
+| `16_2026_candidate_update.md` | Step-by-step guide to refresh data for 2026 elections: TSE file downloads, script order, switching `ELECTION_YEAR` secret |
+| `17_legislative_ingestion_scripts.md` | Practical guide for `ingest-party-programs`, `ingest-camara-votes`, `ingest-senado-votes`: pre-requisites, commands, expected output, run order |
+| `18_party_match.md` | Party match feature (voto de legenda): `party_positions` table, ingest script, Edge Function integration, how party entries appear in results |
 
 ### DB docs — unchanged, still valid (in `base/`)
 
@@ -152,6 +156,7 @@ MVP — apply in this order via SQL Editor:
   1. base/01_schema_politicians.md    enums + parties + politicians + candidacies + RLS
   2. base/02_schema_themes.v2.md     themes_catalog + politician_positions + views + RLS + 14-theme seed
   3. base/04_schema_alerts.md        politician_alerts + view + RLS
+  4. base/10_party_positions.sql     party_positions table + indexes + RLS (required for party match)
 
 Skip: base/03_schema_embeddings.md and the SQL function in base/05 — those are v2.
 ```
@@ -169,21 +174,18 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...   # safe to expose in browser
 Supabase Edge Functions secrets (Supabase Dashboard → Edge Functions → Secrets):
 ```
 SERVICE_ROLE_KEY=eyJ...       # bypasses RLS — NEVER expose in browser or .env.local
-GROQ_API_KEY=gsk_...          # console.groq.com — primary AI provider for match
-CEREBRAS_API_KEY=...          # inference.cerebras.ai — fallback #1
-MISTRAL_API_KEY=...           # console.mistral.ai (La Plateforme) — fallback #2
 ELECTION_YEAR=2022            # controls which view the Edge Function queries (2022 or 2026)
 ```
+
+> The Edge Function no longer calls any AI provider — scoring is deterministic math. `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `MISTRAL_API_KEY`, `GEMINI_API_KEY` are **not needed** in Edge Function secrets.
 
 Pipeline scripts (`scripts/.env` — never commit):
 ```
 SUPABASE_URL=https://xxxx.supabase.co
 SERVICE_ROLE_KEY=eyJ...       # same key as above
-GROQ_API_KEY=gsk_...          # same key as above — reused for PDF extraction scripts
+GROQ_API_KEY=gsk_...          # console.groq.com — used only by pipeline scripts, not Edge Function
+GEMINI_API_KEY=...            # kept in .env but not currently used (free tier quota is 0)
 ```
-
-> The Edge Function AI chain (Groq→Cerebras→Mistral) and the pipeline scripts (Groq only) share the same `GROQ_API_KEY` value but different quota pools — Edge Function secrets and `scripts/.env` are separate environments.
-> `GEMINI_API_KEY` is no longer used anywhere — it can be deleted from Supabase secrets.
 
 > `NEXT_PUBLIC_` prefix = exposed in the browser bundle. Only public keys get this prefix.
 

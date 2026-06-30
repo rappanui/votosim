@@ -40,6 +40,8 @@ export interface CandidatoResultado {
   temasDivergentes: string[]
   temAlertas: boolean
   alertas: unknown[]
+  /** True when this entry represents a party (voto de legenda), not an individual candidate. */
+  isParty?: boolean
 }
 
 export interface MatchResult {
@@ -177,11 +179,20 @@ async function callMistral(userContent: string): Promise<string> {
   return callOpenAICompat(MISTRAL_CONFIG, userContent)
 }
 
-// ─── Mathematical fallback (no AI) ────────────────────────────────────────────
+// ─── Deterministic scoring (no AI) ────────────────────────────────────────────
 
+// Maps politician posicao+intensidade to a 1–5 scale symmetric with voterToScale.
 export function posicaoToScale(posicao: string, intensidade: number): number {
   if (posicao === 'favoravel') return Math.min(5, 3 + (intensidade / 5) * 2)
   if (posicao === 'contrario') return Math.max(1, 3 - (intensidade / 5) * 2)
+  return 3
+}
+
+// Maps voter concordância+intensidade to the same 1–5 scale.
+// concordo+5 → 5.0, discordo+5 → 1.0, concordo+1 → 3.4, discordo+1 → 2.6
+export function voterToScale(concordancia: 'concordo' | 'discordo' | 'neutro', intensidade: number): number {
+  if (concordancia === 'concordo') return Math.min(5, 3 + (intensidade / 5) * 2)
+  if (concordancia === 'discordo') return Math.max(1, 3 - (intensidade / 5) * 2)
   return 3
 }
 
@@ -190,21 +201,46 @@ export function scoreCandidato(
   positions: PositionWithSlug[],
 ): { score: number; temasAlinhados: string[]; temasDivergentes: string[] } {
   const posMap = new Map(positions.map(p => [p.themeSlug, p]))
-  let total = 0, count = 0
+
+  // Candidates with zero coverage on any queried theme score 0 (no data to match on).
+  const hasAnyCoverage = respostas.some(r => r.concordancia !== 'neutro' && posMap.has(r.temaSlug))
+  if (!hasAnyCoverage) return { score: 0, temasAlinhados: [], temasDivergentes: [] }
+
+  let weightedSum = 0
+  let totalWeight = 0
   const temasAlinhados: string[] = []
   const temasDivergentes: string[] = []
 
   for (const r of respostas) {
+    if (r.concordancia === 'neutro') continue
+
+    // Voter intensidade weights how much this topic matters to them.
+    const weight = r.intensidade / 5
     const pos = posMap.get(r.temaSlug)
-    if (!pos) continue
-    const alignment = 1 - Math.abs(r.resposta - posicaoToScale(pos.posicao, pos.intensidade)) / 4
-    total += alignment
-    count++
-    if (alignment >= 0.75) temasAlinhados.push(r.temaSlug)
-    else if (alignment <= 0.25) temasDivergentes.push(r.temaSlug)
+
+    let alignment: number
+    if (pos && pos.posicao !== 'neutro') {
+      const vScale = voterToScale(r.concordancia, r.intensidade)
+      const pScale = posicaoToScale(pos.posicao, pos.intensidade)
+      alignment = 1 - Math.abs(vScale - pScale) / 4
+    } else {
+      // Missing or neutral politician position → treat as neutral (no information).
+      // This penalises sparse candidates vs those with full coverage.
+      alignment = 0.5
+    }
+
+    weightedSum += alignment * weight
+    totalWeight += weight
+
+    if (pos && pos.posicao !== 'neutro' && alignment >= 0.75) temasAlinhados.push(r.temaSlug)
+    else if (pos && pos.posicao !== 'neutro' && alignment <= 0.25) temasDivergentes.push(r.temaSlug)
   }
 
-  return { score: count === 0 ? 0 : Math.round((total / count) * 100), temasAlinhados, temasDivergentes }
+  return {
+    score: totalWeight === 0 ? 0 : Math.round((weightedSum / totalWeight) * 100),
+    temasAlinhados,
+    temasDivergentes,
+  }
 }
 
 export function scoreWithoutAI(data: FallbackData): MatchResult {
@@ -243,23 +279,12 @@ export function scoreWithoutAI(data: FallbackData): MatchResult {
   }
 }
 
-// ─── Fallback chain orchestrator ──────────────────────────────────────────────
+// ─── Score orchestrator ────────────────────────────────────────────────────────
 
-const AI_PROVIDERS: Array<{ name: string; call: (c: string) => Promise<string> }> = [
-  { name: 'groq', call: callGroq },
-  { name: 'cerebras', call: callCerebras },
-  { name: 'mistral', call: callMistral },
-]
-
-export async function callAI(userContent: string, fallback: FallbackData): Promise<MatchResult> {
-  for (const { name, call } of AI_PROVIDERS) {
-    try {
-      const text = await call(userContent)
-      return JSON.parse(text) as MatchResult
-    } catch (err: unknown) {
-      console.error(`[match-candidatos] ${name} failed:`, err instanceof Error ? err.message : String(err))
-    }
-  }
-  console.error('[match-candidatos] all providers failed — using mathematical fallback')
+// Always use deterministic math. AI providers are intentionally bypassed:
+// LLM-computed scores are non-reproducible and can introduce training-data bias
+// (e.g. boosting a party because the model "knows" their ideology). Exact,
+// auditable matches are required for a national civic tool.
+export async function callAI(_prompt: string, fallback: FallbackData): Promise<MatchResult> {
   return scoreWithoutAI(fallback)
 }
