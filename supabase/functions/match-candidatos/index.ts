@@ -176,7 +176,7 @@ export function buildPartyResults(
   for (const [sigla, cargoSet] of cargosPerParty) {
     const positions = partyPositionsByParty.get(sigla)
     if (!positions || positions.length === 0) continue
-    const { score, temasAlinhados, temasDivergentes } = scoreCandidato(respostas, positions)
+    const { alinhamento, cobertura, detalhesTemas } = scoreCandidato(respostas, positions)
     for (const cargo of cargoSet) {
       results.push({
         cargo,
@@ -184,9 +184,9 @@ export function buildPartyResults(
           politicianId: `party:${sigla}`,
           nomeUrna: sigla,
           partido: sigla,
-          score,
-          temasAlinhados,
-          temasDivergentes,
+          alinhamento,
+          cobertura,
+          detalhesTemas,
           temAlertas: false,
           alertas: [],
           isParty: true,
@@ -230,11 +230,11 @@ export function countSimpleMatches(
   const positionMap = new Map(positions.map(p => [p.themeSlug, p.posicao]))
   let matches = 0
   for (const answer of answers) {
-    if (answer.concordancia === 'neutro') continue
+    if (answer.resposta === 3) continue
     const posicao = positionMap.get(answer.temaSlug)
     if (!posicao) continue
-    if (answer.concordancia === 'concordo' && posicao === 'favoravel') matches++
-    if (answer.concordancia === 'discordo' && posicao === 'contrario') matches++
+    if (answer.resposta >= 4 && posicao === 'favoravel') matches++
+    if (answer.resposta <= 2 && posicao === 'contrario') matches++
   }
   return matches
 }
@@ -278,11 +278,11 @@ export function buildPrompt(
   return JSON.stringify({
     tarefa: 'Calcule o percentual de alinhamento temático. Retorne um objeto JSON.',
     instrucoes: [
-      'Para cada candidato, compare as respostas do eleitor com as posições documentadas.',
-      'concordo + favoravel = alinhado. discordo + contrario = alinhado. concordo + contrario = divergente. discordo + favoravel = divergente.',
+      'Para cada candidato, compare as respostas do eleitor (1=discordo total, 3=neutro, 5=concordo total) com as posições documentadas.',
+      'resposta>=4 + favoravel = alinhado. resposta<=2 + contrario = alinhado. resposta>=4 + contrario = divergente. resposta<=2 + favoravel = divergente.',
       'intensidade (1-5) indica força da posição — pese mais as posições de intensidade alta.',
-      'score: inteiro 0-100. NÃO use "vote em", "recomendo" ou "escolha" em nenhum campo.',
-      'temas_alinhados e temas_divergentes: liste apenas os slugs dos temas.',
+      'importancia (1-3) indica peso do tema para o eleitor — pese mais os temas de alta importancia.',
+      'alinhamento: inteiro 0-100. NÃO use "vote em", "recomendo" ou "escolha" em nenhum campo.',
     ],
     formatoEsperado: {
       cargos: [{
@@ -291,15 +291,18 @@ export function buildPrompt(
           politicianId: 'string',
           nomeUrna: 'string',
           partido: 'string',
-          score: 'number (0-100)',
-          temasAlinhados: ['string'],
-          temasDivergentes: ['string'],
+          alinhamento: 'number (0-100)',
+          cobertura: 'number (0-100)',
         }],
       }],
       totalCandidatosAnalisados: 'number',
       estado: 'string',
     },
-    respostasEleitor: answers,
+    respostasEleitor: answers.map(a => ({
+      temaSlug: a.temaSlug,
+      resposta: a.resposta,
+      importancia: a.importancia,
+    })),
     candidatos: candidateData,
   })
 }
@@ -336,8 +339,8 @@ export function sortAndLimitCargos(result: MatchResult): MatchResult {
     .map(grupo => ({
       ...grupo,
       candidatos: [...grupo.candidatos]
-        .filter(c => c.score >= MIN_SCORE_THRESHOLD)
-        .sort((a, b) => b.score - a.score)
+        .filter(c => c.alinhamento >= MIN_SCORE_THRESHOLD)
+        .sort((a, b) => b.alinhamento - a.alinhamento)
         .slice(0, EXEC_CARGOS.has(grupo.cargo) ? MAX_EXEC_CANDIDATES : MAX_CANDIDATES_PER_CARGO),
     }))
     .filter(g => g.candidatos.length > 0)

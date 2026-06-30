@@ -16,17 +16,14 @@ const CARGO_LABELS: Record<string, string> = {
   deputado_estadual: 'Deputado Estadual',
 }
 
-const buildPayload = (
-  perfil: { estado?: string; municipio?: string; faixaEtaria?: string },
-  respostas: PerfilUsuario['respostas'],
-): PerfilUsuario => ({
-  estado: perfil.estado ?? '',
-  municipio: perfil.municipio ?? '',
-  faixaEtaria: perfil.faixaEtaria ?? '',
-  respostas: respostas.filter(r => r.concordancia !== 'neutro'),
-  sessionToken: crypto.randomUUID(),
-  timestamp: new Date().toISOString(),
-})
+function buildPayload(estado: string, respostas: PerfilUsuario['respostas']): PerfilUsuario {
+  return {
+    estado,
+    respostas,
+    sessionToken: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+  }
+}
 
 async function callMatchFunction(payload: PerfilUsuario): Promise<MatchResult> {
   const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}${EDGE_FUNCTION_PATH}`
@@ -38,40 +35,31 @@ async function callMatchFunction(payload: PerfilUsuario): Promise<MatchResult> {
     },
     body: JSON.stringify(payload),
   })
-
   if (!response.ok) throw new Error(`Match function returned ${response.status}`)
   return response.json() as Promise<MatchResult>
 }
 
-const hasValidPerfil = (perfil: { estado?: string }): boolean => Boolean(perfil.estado)
-
-/** Displays candidate match results grouped by office after calling match-candidatos. */
-export default function ResultadoPage() {
+/** Displays candidate match results with dual metric and per-theme transparency panel. */
+export default function ResultadosPage() {
   const router = useRouter()
-  const { perfil, respostas } = useQuiz()
+  const { estado, respostas } = useQuiz()
 
   const [resultado, setResultado] = useState<MatchResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!hasValidPerfil(perfil)) {
-      router.push('/inicio')
-      return
-    }
-
-    const payload = buildPayload(perfil, respostas)
-
-    callMatchFunction(payload)
+    if (!estado) { router.push('/quiz'); return }
+    callMatchFunction(buildPayload(estado, respostas))
       .then(data => { setResultado(data); setLoading(false) })
-      .catch(err => { setError(err.message); setLoading(false) })
+      .catch(err => { setError((err as Error).message); setLoading(false) })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-highlight border-t-transparent" />
-        <p className="text-gray-500">Carregando candidatos…</p>
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
+        <p className="text-gray-500">Analisando candidatos…</p>
       </div>
     )
   }
@@ -79,14 +67,9 @@ export default function ResultadoPage() {
   if (error || !resultado) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
-        <p className="text-danger">
-          Erro ao carregar os resultados. Verifique sua conexão e tente novamente.
-        </p>
-        <button
-          onClick={() => router.push('/revisao')}
-          className="rounded-lg bg-highlight px-6 py-3 text-white"
-        >
-          Voltar e tentar novamente
+        <p className="text-red-600">Erro ao carregar os resultados. Verifique sua conexão e tente novamente.</p>
+        <button onClick={() => router.push('/quiz')} className="rounded-lg bg-blue-600 px-6 py-3 text-white">
+          Voltar ao questionário
         </button>
       </div>
     )
@@ -99,7 +82,7 @@ export default function ResultadoPage() {
         {resultado.totalCandidatosAnalisados} candidato
         {resultado.totalCandidatosAnalisados !== 1 ? 's' : ''} analisado
         {resultado.totalCandidatosAnalisados !== 1 ? 's' : ''} em {resultado.estado}.
-        Percentual de alinhamento temático — não é uma recomendação de voto.
+        Alinhamento e cobertura temática — não é uma recomendação de voto.
       </p>
 
       <div className="flex flex-col gap-10">
@@ -118,7 +101,7 @@ export default function ResultadoPage() {
       </div>
 
       <button
-        onClick={() => router.push('/revisao')}
+        onClick={() => router.push('/quiz')}
         className="mt-10 w-full rounded-lg border border-gray-300 px-6 py-3 text-sm text-gray-600 hover:bg-gray-50"
       >
         Refazer o questionário

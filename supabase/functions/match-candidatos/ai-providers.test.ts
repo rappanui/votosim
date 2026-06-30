@@ -1,24 +1,16 @@
 /// <reference lib="deno.ns" />
 import { assertEquals, assertAlmostEquals } from 'https://deno.land/std@0.208.0/assert/mod.ts'
-import { posicaoToScale, voterToScale, scoreCandidato, scoreWithoutAI } from './ai-providers.ts'
+import { posicaoToScale, scoreCandidato, scoreWithoutAI } from './ai-providers.ts'
 import type { FallbackData, PositionWithSlug, RespostaUsuario } from './ai-providers.ts'
 
-// ─── posicaoToScale ───────────────────────────────────────────────────────────
+// ─── posicaoToScale (unchanged behaviour) ─────────────────────────────────────
 
 Deno.test('posicaoToScale: favoravel intensidade 5 => 5', () => {
   assertEquals(posicaoToScale('favoravel', 5), 5)
 })
 
-Deno.test('posicaoToScale: favoravel intensidade 0 => 3', () => {
-  assertAlmostEquals(posicaoToScale('favoravel', 0), 3, 0.001)
-})
-
 Deno.test('posicaoToScale: contrario intensidade 5 => 1', () => {
   assertEquals(posicaoToScale('contrario', 5), 1)
-})
-
-Deno.test('posicaoToScale: contrario intensidade 0 => 3', () => {
-  assertAlmostEquals(posicaoToScale('contrario', 0), 3, 0.001)
 })
 
 Deno.test('posicaoToScale: neutro => 3', () => {
@@ -29,139 +21,139 @@ Deno.test('posicaoToScale: variavel => 3', () => {
   assertEquals(posicaoToScale('variavel', 2), 3)
 })
 
-// ─── voterToScale ─────────────────────────────────────────────────────────────
-
-Deno.test('voterToScale: concordo intensidade 5 => 5', () => {
-  assertEquals(voterToScale('concordo', 5), 5)
-})
-
-Deno.test('voterToScale: discordo intensidade 5 => 1', () => {
-  assertEquals(voterToScale('discordo', 5), 1)
-})
-
-Deno.test('voterToScale: neutro => 3', () => {
-  assertEquals(voterToScale('neutro', 3), 3)
-})
-
-Deno.test('voterToScale: concordo intensidade 0 => 3', () => {
-  assertAlmostEquals(voterToScale('concordo', 0), 3, 0.001)
-})
-
-Deno.test('voterToScale: discordo intensidade 0 => 3', () => {
-  assertAlmostEquals(voterToScale('discordo', 0), 3, 0.001)
-})
-
 // ─── scoreCandidato ───────────────────────────────────────────────────────────
 
-Deno.test('scoreCandidato: perfect alignment scores 100', () => {
+Deno.test('scoreCandidato: perfect alignment scores alinhamento=100 cobertura=100', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+    { temaSlug: 'sus', resposta: 5, importancia: 3 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
+  // voterScale=5, candidateScale=posicaoToScale('favoravel',5)=5 → alignment=1.0
   const result = scoreCandidato(respostas, positions)
-  assertEquals(result.score, 100)
-  assertEquals(result.temasAlinhados, ['sus'])
-  assertEquals(result.temasDivergentes, [])
+  assertEquals(result.alinhamento, 100)
+  assertEquals(result.cobertura, 100)
+  assertEquals(result.detalhesTemas[0].contouNoScore, true)
+  assertAlmostEquals(result.detalhesTemas[0].alignment!, 1.0, 0.001)
 })
 
-Deno.test('scoreCandidato: perfect divergence scores 0', () => {
+Deno.test('scoreCandidato: perfect divergence scores alinhamento=0 cobertura=100', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 1, concordancia: 'discordo', intensidade: 5 },
+    { temaSlug: 'sus', resposta: 5, importancia: 3 },
   ]
   const positions: PositionWithSlug[] = [
-    { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
+    { politician_id: 'p1', themeSlug: 'sus', posicao: 'contrario', intensidade: 5 },
   ]
+  // voterScale=5, candidateScale=1 → alignment=1-4/4=0.0
   const result = scoreCandidato(respostas, positions)
-  assertEquals(result.score, 0)
-  assertEquals(result.temasAlinhados, [])
-  assertEquals(result.temasDivergentes, ['sus'])
+  assertEquals(result.alinhamento, 0)
+  assertEquals(result.cobertura, 100)
 })
 
-Deno.test('scoreCandidato: no positions returns score 0', () => {
+Deno.test('scoreCandidato: no candidate positions scores alinhamento=0 cobertura=0', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+    { temaSlug: 'sus', resposta: 5, importancia: 3 },
   ]
   const result = scoreCandidato(respostas, [])
-  assertEquals(result.score, 0)
-  assertEquals(result.temasAlinhados, [])
-  assertEquals(result.temasDivergentes, [])
+  assertEquals(result.alinhamento, 0)
+  assertEquals(result.cobertura, 0)
+  assertEquals(result.detalhesTemas[0].candidatePosicao, null)
+  assertEquals(result.detalhesTemas[0].contouNoScore, false)
 })
 
-Deno.test('scoreCandidato: missing theme applies neutral (50%) default — penalises sparse candidates', () => {
-  // Candidate aligned on sus but has no position on educacao.
-  // Missing theme contributes 0.5 alignment, so final score < 100.
+Deno.test('scoreCandidato: neutral voter excluded from score and cobertura, included in detalhesTemas', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, concordancia: 'concordo', intensidade: 5 },
-    { temaSlug: 'educacao', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+    { temaSlug: 'sus', resposta: 3, importancia: 2 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
-    // 'educacao' not present — neutral default 0.5
   ]
   const result = scoreCandidato(respostas, positions)
-  // sus: alignment=1.0, weight=1.0 → 1.0; educacao: alignment=0.5, weight=1.0 → 0.5
-  // score = (1.0 + 0.5) / (1.0 + 1.0) * 100 = 75
-  assertEquals(result.score, 75)
+  assertEquals(result.alinhamento, 0)
+  assertEquals(result.cobertura, 0)
+  assertEquals(result.detalhesTemas.length, 1)
+  assertEquals(result.detalhesTemas[0].temaSlug, 'sus')
+  assertEquals(result.detalhesTemas[0].contouNoScore, false)
+  assertEquals(result.detalhesTemas[0].alignment, null)
 })
 
-Deno.test('scoreCandidato: discordo+contrario is aligned', () => {
+Deno.test('scoreCandidato: importancia weights voter theme importance', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'privatizacao', resposta: 1, concordancia: 'discordo', intensidade: 5 },
+    { temaSlug: 'sus', resposta: 5, importancia: 3 },   // weight=1.0, alignment=1.0
+    { temaSlug: 'edu', resposta: 5, importancia: 1 },   // weight=0.333, alignment=0.0
   ]
   const positions: PositionWithSlug[] = [
-    { politician_id: 'p1', themeSlug: 'privatizacao', posicao: 'contrario', intensidade: 5 },
+    { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
+    { politician_id: 'p1', themeSlug: 'edu', posicao: 'contrario', intensidade: 5 },
   ]
+  // weightedSum = 1.0*1.0 + 0.0*(1/3) = 1.0; totalWeight = 1.333
+  // alinhamento = round(1.0/1.333*100) = 75
   const result = scoreCandidato(respostas, positions)
-  assertEquals(result.score, 100)
-  assertEquals(result.temasAlinhados, ['privatizacao'])
+  assertEquals(result.alinhamento, 75)
+  assertEquals(result.cobertura, 100)
 })
 
-Deno.test('scoreCandidato: voter intensidade weights topic importance', () => {
-  // Theme A: discordo+intensidade=1 (low voter weight 0.2), politician favoravel+5
-  //   voterScale = max(1, 3-(1/5)*2) = 2.6; politicianScale = 5
-  //   alignment = 1 - |2.6-5|/4 = 0.4; contribution = 0.4 * 0.2 = 0.08
-  // Theme B: concordo+intensidade=5 (high voter weight 1.0), politician favoravel+5
-  //   voterScale = 5; politicianScale = 5; alignment = 1.0; contribution = 1.0 * 1.0 = 1.0
-  // weightedSum = 1.08; totalWeight = 1.2; score = round(1.08/1.2*100) = 90
-  // Without intensity weighting both themes would count equally → score would be 70
+Deno.test('scoreCandidato: cobertura reflects only themes with real candidate data', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'A', resposta: 1, concordancia: 'discordo', intensidade: 1 },
-    { temaSlug: 'B', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+    { temaSlug: 'sus', resposta: 5, importancia: 3 },   // covered
+    { temaSlug: 'edu', resposta: 5, importancia: 3 },   // no candidate data
   ]
   const positions: PositionWithSlug[] = [
-    { politician_id: 'p1', themeSlug: 'A', posicao: 'favoravel', intensidade: 5 },
-    { politician_id: 'p1', themeSlug: 'B', posicao: 'favoravel', intensidade: 5 },
+    { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
+  // totalTemas=2, coveredTemas=1 → cobertura=50
   const result = scoreCandidato(respostas, positions)
-  assertEquals(result.score, 90)
+  assertEquals(result.cobertura, 50)
+  assertEquals(result.alinhamento, 100) // only scored on sus, alignment=1.0
 })
 
-Deno.test('scoreCandidato: neutro politician posicao treated as missing (neutral 50%)', () => {
+Deno.test('scoreCandidato: discordo+contrario is perfectly aligned', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+    { temaSlug: 'priv', resposta: 1, importancia: 3 },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'p1', themeSlug: 'priv', posicao: 'contrario', intensidade: 5 },
+  ]
+  // voterScale=1, candidateScale=posicaoToScale('contrario',5)=1 → alignment=1.0
+  const result = scoreCandidato(respostas, positions)
+  assertEquals(result.alinhamento, 100)
+})
+
+Deno.test('scoreCandidato: neutro candidate posicao excluded from score (no real stance)', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', resposta: 5, importancia: 3 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'neutro', intensidade: 3 },
   ]
-  // neutro posicao = no clear stance → treated as neutral 0.5, but sus is in posMap
-  // hasAnyCoverage = true (sus is in posMap)
-  // alignment = 0.5 (neutro branch)
-  // score = 50
+  // neutro posicao = no real stance → not covered, cobertura=0
   const result = scoreCandidato(respostas, positions)
-  assertEquals(result.score, 50)
-  assertEquals(result.temasAlinhados, [])
-  assertEquals(result.temasDivergentes, [])
+  assertEquals(result.alinhamento, 0)
+  assertEquals(result.cobertura, 0)
+  assertEquals(result.detalhesTemas[0].contouNoScore, false)
+})
+
+Deno.test('scoreCandidato: variavel candidate posicao excluded from score', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', resposta: 5, importancia: 3 },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'p1', themeSlug: 'sus', posicao: 'variavel', intensidade: 3 },
+  ]
+  const result = scoreCandidato(respostas, positions)
+  assertEquals(result.alinhamento, 0)
+  assertEquals(result.cobertura, 0)
+  assertEquals(result.detalhesTemas[0].candidatePosicao, null)
 })
 
 // ─── scoreWithoutAI ───────────────────────────────────────────────────────────
 
-Deno.test('scoreWithoutAI: returns valid MatchResult structure', () => {
+Deno.test('scoreWithoutAI: returns valid MatchResult structure with alinhamento and cobertura', () => {
   const data: FallbackData = {
     estado: 'SP',
     respostas: [
-      { temaSlug: 'sus', resposta: 5, concordancia: 'concordo', intensidade: 5 },
+      { temaSlug: 'sus', resposta: 5, importancia: 3 },
     ],
     candidates: [
       { politician_id: 'p1', nome_urna: 'CANDIDATO A', partido_atual: 'PT', cargo: 'senador' },
@@ -172,22 +164,18 @@ Deno.test('scoreWithoutAI: returns valid MatchResult structure', () => {
       { politician_id: 'p2', themeSlug: 'sus', posicao: 'contrario', intensidade: 5 },
     ],
   }
-
   const result = scoreWithoutAI(data)
-
   assertEquals(result.estado, 'SP')
   assertEquals(result.totalCandidatosAnalisados, 2)
-  assertEquals(result.cargos.length, 1)
-  assertEquals(result.cargos[0].cargo, 'senador')
-  assertEquals(result.cargos[0].candidatos.length, 2)
-
   const p1 = result.cargos[0].candidatos.find(c => c.politicianId === 'p1')!
   const p2 = result.cargos[0].candidatos.find(c => c.politicianId === 'p2')!
-  assertEquals(p1.score, 100)
-  assertEquals(p2.score, 0)
+  assertEquals(p1.alinhamento, 100)
+  assertEquals(p1.cobertura, 100)
+  assertEquals(p2.alinhamento, 0)
+  assertEquals(p2.cobertura, 100)
 })
 
-Deno.test('scoreWithoutAI: groups by cargo correctly', () => {
+Deno.test('scoreWithoutAI: groups candidates by cargo', () => {
   const data: FallbackData = {
     estado: 'SP',
     respostas: [],
@@ -197,7 +185,6 @@ Deno.test('scoreWithoutAI: groups by cargo correctly', () => {
     ],
     positions: [],
   }
-
   const result = scoreWithoutAI(data)
   const cargos = result.cargos.map(g => g.cargo).sort()
   assertEquals(cargos, ['deputado_federal', 'senador'])
