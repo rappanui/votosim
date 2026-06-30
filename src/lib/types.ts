@@ -1,27 +1,24 @@
-/** Represents the voter's agreement with a theme statement. */
-export type Concordancia = 'concordo' | 'neutro' | 'discordo'
-
 /** Valid values for a questionnaire answer (Likert scale 1–5). */
 export type Resposta = 1 | 2 | 3 | 4 | 5
+
+/** Voter's declared importance weight for a theme (1=low, 2=medium, 3=high). */
+export type Importancia = 1 | 2 | 3
 
 export type AlertType = 'ficha_suja' | 'investigacao' | 'polemica'
 export type AlertSeverity = 'critica' | 'alta' | 'media' | 'baixa'
 export type BadgeCor = 'vermelho' | 'laranja' | 'cinza'
 
-/** A single voter answer for one quiz theme. Neutral answers are excluded from the Edge Function payload. */
+/** A single voter answer for one quiz theme.
+ * Only themes where the slider was interacted with are included in the payload. */
 export interface RespostaUsuario {
   temaSlug: string
-  resposta: Resposta
-  concordancia: Concordancia
-  /** Same numeric value as resposta — kept explicit to match Edge Function contract. */
-  intensidade: Resposta
+  resposta: Resposta       // 1=strongly disagree · 3=neutral · 5=strongly agree
+  importancia: Importancia // voter's declared weight for this theme
 }
 
-/** Voter profile collected on /perfil before the questionnaire. */
+/** Match request sent to the Edge Function. */
 export interface PerfilUsuario {
   estado: string
-  municipio: string
-  faixaEtaria: string
   respostas: RespostaUsuario[]
   sessionToken: string
   timestamp: string
@@ -36,15 +33,27 @@ export interface Alerta {
   badgeCor: BadgeCor
 }
 
+/** Per-theme breakdown enabling the transparency panel in results. */
+export interface TemaCandidatoDetalhe {
+  temaSlug: string
+  voterResposta: Resposta
+  voterImportancia: Importancia
+  candidatePosicao: number | null      // 1–5 via posicaoToScale; null = no data or variavel
+  candidateImportancia: number | null  // candidate platform centrality (DB intensidade)
+  alignment: number | null             // 0.0–1.0; null when voter neutral or no real candidate data
+  contouNoScore: boolean
+}
+
 export interface CandidatoResultado {
   politicianId: string
   nomeUrna: string
   partido: string
-  score: number
-  temasAlinhados: string[]
-  temasDivergentes: string[]
+  alinhamento: number        // 0–100
+  cobertura: number          // 0–100
+  detalhesTemas: TemaCandidatoDetalhe[]
   temAlertas: boolean
   alertas: Alerta[]
+  isParty?: boolean
 }
 
 export interface CargoResultado {
@@ -65,14 +74,4 @@ export interface TemaQuestionario {
   afirmacaoQuestionario: string
   contextoQuestionario: string
   notaEducativa: string
-}
-
-/**
- * Maps a 1–5 Likert answer to its concordância category.
- * Rule: 1–2 = discordo, 3 = neutro, 4–5 = concordo.
- */
-export function derivarConcordancia(resposta: number): Concordancia {
-  if (resposta <= 2) return 'discordo'
-  if (resposta === 3) return 'neutro'
-  return 'concordo'
 }

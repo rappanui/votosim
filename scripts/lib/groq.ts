@@ -14,9 +14,9 @@ const FALLBACK_MODEL = 'llama-3.1-8b-instant'
 const VALID_SLUGS = new Set([
   'reforma_tributaria', 'sus_saude_publica', 'privatizacao_estatais',
   'seguranca_publica_estadual', 'educacao_basica', 'meio_ambiente_desmatamento',
-  'reforma_previdencia', 'direitos_lgbtqia', 'porte_armas',
+  'reforma_previdencia', 'protecao_minorias', 'autonomia_individual',
   'bolsa_familia_transferencia', 'corrupcao_transparencia',
-  'politica_economica', 'politica_externa', 'pauta_moral_costumes',
+  'politica_economica', 'politica_externa', 'laicidade_valores',
 ])
 
 export interface PositionEntry {
@@ -59,9 +59,9 @@ Para cada tema com posição clara, inclua no array:
 
 Temas válidos (use apenas estes slugs exatos):
 reforma_tributaria, sus_saude_publica, privatizacao_estatais, seguranca_publica_estadual,
-educacao_basica, meio_ambiente_desmatamento, reforma_previdencia, direitos_lgbtqia,
-porte_armas, bolsa_familia_transferencia, corrupcao_transparencia,
-politica_economica, politica_externa, pauta_moral_costumes
+educacao_basica, meio_ambiente_desmatamento, reforma_previdencia, protecao_minorias,
+autonomia_individual, bolsa_familia_transferencia, corrupcao_transparencia,
+politica_economica, politica_externa, laicidade_valores
 
 Regras:
 - Omita temas sem posição explícita no texto; nunca invente posições.

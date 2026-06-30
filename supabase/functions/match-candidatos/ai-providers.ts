@@ -1,17 +1,14 @@
 /// <reference lib="deno.ns" />
-// ─── Exported types (consumed by index.ts) ────────────────────────────────────
+// ─── Exported types ────────────────────────────────────────────────────────────
 
 export interface RespostaUsuario {
   temaSlug: string
-  resposta: 1 | 2 | 3 | 4 | 5
-  concordancia: 'concordo' | 'neutro' | 'discordo'
-  intensidade: 1 | 2 | 3 | 4 | 5
+  resposta: 1 | 2 | 3 | 4 | 5   // 1=strongly disagree · 3=neutral · 5=strongly agree
+  importancia: 1 | 2 | 3         // voter weight: 1=low · 2=medium · 3=high
 }
 
 export interface MatchRequest {
   estado: string
-  municipio: string
-  faixaEtaria: string
   respostas: RespostaUsuario[]
   sessionToken: string
   timestamp: string
@@ -31,16 +28,27 @@ export interface PositionWithSlug {
   intensidade: number
 }
 
+export interface TemaCandidatoDetalhe {
+  temaSlug: string
+  voterResposta: 1 | 2 | 3 | 4 | 5
+  voterImportancia: 1 | 2 | 3
+  // Typed numeric for forward-compat with planned candidate schema migration (see spec §8).
+  // This iteration: converted from DB categorical via posicaoToScale(); null = no data.
+  candidatePosicao: number | null
+  candidateImportancia: number | null  // DB intensidade — platform centrality, display only
+  alignment: number | null             // 0.0–1.0; null when voter neutral or no real candidate data
+  contouNoScore: boolean
+}
+
 export interface CandidatoResultado {
   politicianId: string
   nomeUrna: string
   partido: string
-  score: number
-  temasAlinhados: string[]
-  temasDivergentes: string[]
+  alinhamento: number        // 0–100
+  cobertura: number          // 0–100
+  detalhesTemas: TemaCandidatoDetalhe[]
   temAlertas: boolean
   alertas: unknown[]
-  /** True when this entry represents a party (voto de legenda), not an individual candidate. */
   isParty?: boolean
 }
 
@@ -124,10 +132,8 @@ function buildRequestBody(config: ProviderConfig, userContent: string): string {
 
 async function callOpenAICompat(config: ProviderConfig, userContent: string): Promise<string> {
   if (!config.apiKey) throw new ProviderError(config.name, 0, 'API key not configured')
-
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS)
-
   try {
     const res = await fetch(config.url, {
       method: 'POST',
@@ -135,12 +141,10 @@ async function callOpenAICompat(config: ProviderConfig, userContent: string): Pr
       signal: controller.signal,
       body: buildRequestBody(config, userContent),
     })
-
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
       throw new ProviderError(config.name, res.status, body)
     }
-
     const data = await res.json() as OpenAICompatResponse
     return data.choices[0].message.content
   } finally {
@@ -181,65 +185,76 @@ async function callMistral(userContent: string): Promise<string> {
 
 // ─── Deterministic scoring (no AI) ────────────────────────────────────────────
 
-// Maps politician posicao+intensidade to a 1–5 scale symmetric with voterToScale.
+// Maps politician posicao+intensidade to a 1–5 scale.
+// Retained until candidate schema migrates to numeric posicao (see spec §8 — deferred).
 export function posicaoToScale(posicao: string, intensidade: number): number {
   if (posicao === 'favoravel') return Math.min(5, 3 + (intensidade / 5) * 2)
   if (posicao === 'contrario') return Math.max(1, 3 - (intensidade / 5) * 2)
   return 3
 }
 
-// Maps voter concordância+intensidade to the same 1–5 scale.
-// concordo+5 → 5.0, discordo+5 → 1.0, concordo+1 → 3.4, discordo+1 → 2.6
-export function voterToScale(concordancia: 'concordo' | 'discordo' | 'neutro', intensidade: number): number {
-  if (concordancia === 'concordo') return Math.min(5, 3 + (intensidade / 5) * 2)
-  if (concordancia === 'discordo') return Math.max(1, 3 - (intensidade / 5) * 2)
-  return 3
-}
-
 export function scoreCandidato(
   respostas: RespostaUsuario[],
   positions: PositionWithSlug[],
-): { score: number; temasAlinhados: string[]; temasDivergentes: string[] } {
+): { alinhamento: number; cobertura: number; detalhesTemas: TemaCandidatoDetalhe[] } {
   const posMap = new Map(positions.map(p => [p.themeSlug, p]))
-
-  // Candidates with zero coverage on any queried theme score 0 (no data to match on).
-  const hasAnyCoverage = respostas.some(r => r.concordancia !== 'neutro' && posMap.has(r.temaSlug))
-  if (!hasAnyCoverage) return { score: 0, temasAlinhados: [], temasDivergentes: [] }
 
   let weightedSum = 0
   let totalWeight = 0
-  const temasAlinhados: string[] = []
-  const temasDivergentes: string[] = []
+  let totalTemas = 0
+  let coveredTemas = 0
+  const detalhesTemas: TemaCandidatoDetalhe[] = []
 
   for (const r of respostas) {
-    if (r.concordancia === 'neutro') continue
-
-    // Voter intensidade weights how much this topic matters to them.
-    const weight = r.intensidade / 5
     const pos = posMap.get(r.temaSlug)
+    const hasRealStance = pos !== undefined && pos.posicao !== 'neutro' && pos.posicao !== 'variavel'
+    const candidatePosicao = hasRealStance
+      ? posicaoToScale(pos!.posicao, pos!.intensidade)
+      : null
+    const candidateImportancia = pos ? pos.intensidade : null
 
-    let alignment: number
-    if (pos && pos.posicao !== 'neutro') {
-      const vScale = voterToScale(r.concordancia, r.intensidade)
-      const pScale = posicaoToScale(pos.posicao, pos.intensidade)
-      alignment = 1 - Math.abs(vScale - pScale) / 4
-    } else {
-      // Missing or neutral politician position → treat as neutral (no information).
-      // This penalises sparse candidates vs those with full coverage.
-      alignment = 0.5
+    if (r.resposta === 3) {
+      detalhesTemas.push({
+        temaSlug: r.temaSlug,
+        voterResposta: r.resposta,
+        voterImportancia: r.importancia,
+        candidatePosicao,
+        candidateImportancia,
+        alignment: null,
+        contouNoScore: false,
+      })
+      continue
     }
 
-    weightedSum += alignment * weight
-    totalWeight += weight
+    totalTemas++
 
-    if (pos && pos.posicao !== 'neutro' && alignment >= 0.75) temasAlinhados.push(r.temaSlug)
-    else if (pos && pos.posicao !== 'neutro' && alignment <= 0.25) temasDivergentes.push(r.temaSlug)
+    let alignment: number | null = null
+    let contouNoScore = false
+
+    if (hasRealStance) {
+      coveredTemas++
+      alignment = 1 - Math.abs(r.resposta - candidatePosicao!) / 4
+      const weight = r.importancia / 3
+      weightedSum += alignment * weight
+      totalWeight += weight
+      contouNoScore = true
+    }
+
+    detalhesTemas.push({
+      temaSlug: r.temaSlug,
+      voterResposta: r.resposta,
+      voterImportancia: r.importancia,
+      candidatePosicao,
+      candidateImportancia,
+      alignment,
+      contouNoScore,
+    })
   }
 
   return {
-    score: totalWeight === 0 ? 0 : Math.round((weightedSum / totalWeight) * 100),
-    temasAlinhados,
-    temasDivergentes,
+    alinhamento: totalWeight === 0 ? 0 : Math.round((weightedSum / totalWeight) * 100),
+    cobertura: totalTemas === 0 ? 0 : Math.round((coveredTemas / totalTemas) * 100),
+    detalhesTemas,
   }
 }
 
@@ -253,7 +268,7 @@ export function scoreWithoutAI(data: FallbackData): MatchResult {
 
   const byCargo = new Map<string, CandidatoResultado[]>()
   for (const c of data.candidates) {
-    const { score, temasAlinhados, temasDivergentes } = scoreCandidato(
+    const { alinhamento, cobertura, detalhesTemas } = scoreCandidato(
       data.respostas,
       byCandidate.get(c.politician_id) ?? [],
     )
@@ -261,9 +276,9 @@ export function scoreWithoutAI(data: FallbackData): MatchResult {
       politicianId: c.politician_id,
       nomeUrna: c.nome_urna,
       partido: c.partido_atual,
-      score,
-      temasAlinhados,
-      temasDivergentes,
+      alinhamento,
+      cobertura,
+      detalhesTemas,
       temAlertas: false,
       alertas: [],
     }
@@ -282,9 +297,8 @@ export function scoreWithoutAI(data: FallbackData): MatchResult {
 // ─── Score orchestrator ────────────────────────────────────────────────────────
 
 // Always use deterministic math. AI providers are intentionally bypassed:
-// LLM-computed scores are non-reproducible and can introduce training-data bias
-// (e.g. boosting a party because the model "knows" their ideology). Exact,
-// auditable matches are required for a national civic tool.
+// LLM-computed scores are non-reproducible and can introduce training-data bias.
+// Exact, auditable matches are required for a national civic tool.
 export async function callAI(_prompt: string, fallback: FallbackData): Promise<MatchResult> {
   return scoreWithoutAI(fallback)
 }
