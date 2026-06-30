@@ -8,45 +8,57 @@
 
 | Context | Provider | Model | Purpose |
 |---------|----------|-------|---------|
-| Edge Function (`match-candidatos`) | Google Gemini | `gemini-2.0-flash` | Real-time match scoring during user session |
-| Pipeline scripts (`extract-positions`) | Groq | `llama-3.3-70b-versatile` | Batch extraction of positions from government plans |
+| Edge Function (`match-candidatos`) | None — deterministic math | — | Real-time match scoring; reproducible, auditable; see `docs/14_edge_function_ai.md` |
+| Pipeline scripts (`extract-positions`, `ingest-party-programs`) | Groq | `llama-3.3-70b-versatile` | Batch extraction of positions from government plan PDFs |
 
-These are deliberately separate — different environments (Deno vs. Node.js), different rate limits, and different latency requirements.
-
----
-
-## Edge Function: Gemini 2.0 Flash
-
-Calls Gemini via raw `fetch` to the REST endpoint `/v1beta/models/gemini-2.0-flash:generateContent`. This runs inside Supabase's Deno runtime where npm packages don't work.
-
-**Configuration (Supabase secrets):**
-- `GEMINI_API_KEY` — Google AI Studio key
-- `ELECTION_YEAR` — `'2022'` or `'2026'`; controls which view (`v_candidates_2022` vs `v_candidates_2026`) the function queries
-
-**Why Gemini for the Edge Function:** Deno-compatible via fetch; fast enough for a 30s session timeout; returns structured JSON with `responseMimeType: 'application/json'`.
+These are deliberately separate environments (Deno vs. Node.js) with different rate limits and latency requirements. The Edge Function uses no AI — see `docs/14_edge_function_ai.md` for the scoring formula.
 
 ---
 
-## Pipeline Scripts: Groq (Llama 3.3 70B)
+## Pipeline Scripts: Groq (Llama 3.3 70B → 8B fallback)
 
-The `extract-positions.ts` script uses `groq-sdk` via npm (`scripts/lib/gemini.ts` — file is misnamed, actually calls Groq).
+The scripts use `groq-sdk` via npm (`scripts/lib/groq.ts`).
+
+**Model selection:**
+
+| Model | Role | Daily limit |
+|-------|------|-------------|
+| `llama-3.3-70b-versatile` | Primary — more accurate, refuses to hallucinate from non-political text | 100K tokens/day |
+| `llama-3.1-8b-instant` | Fallback — triggered on 429 for `extract-positions` only | Separate quota |
+
+When the primary model returns HTTP 429, `extractPositions` can automatically retry with the 8B model — but only if `allowFallback: true` (see `ExtractOptions` below). `ingest-party-programs` sets `allowFallback: false` because the 8B model hallucinates positions from non-political documents. Both models can be exhausted in a large batch run; if both fail (or fallback is disabled), the party/candidate is skipped and logged.
 
 **Why Groq instead of Gemini for scripts:**
 
 | Reason | Detail |
 |--------|--------|
-| Gemini free tier is 0 RPD for scripts | `gemini-2.0-flash` via REST API requires billing enabled; free tier limit is literally 0 |
-| `gemini-1.5-flash` removed | Returns 404 on `v1beta` endpoint — no longer available |
-| Groq free tier is genuinely free | 14,400 req/day, 1,000 RPM for `llama-3.3-70b-versatile` — no credit card required |
-| Scale is small | ~280 total PDFs nationally (only GOVERNADOR + PRESIDENTE submit plans) — well within free tier |
+| Gemini free tier is 0 RPD | `gemini-2.0-flash` free tier: literally 0 requests per day |
+| `gemini-1.5-flash` removed | Returns 404 on `v1beta` endpoint |
+| Groq free tier is genuinely free | 100K tokens/day for 70B, separate quota for 8B |
+| Scale is small | ~280 TSE PDFs + 28 party programs — well within free tier per day |
 
 **`GROQ_API_KEY`:** Set in `scripts/.env` only. Never in `supabase/functions/` or `.env.local`.
 
 ---
 
+## `ExtractOptions` — Controlling Extraction Safety
+
+`extractPositions(name, text, options?)` in `scripts/lib/groq.ts` accepts:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `allowFallback` | `true` | When `false`, skips 8B fallback on rate limit. Use `false` for production ingestion — no data is better than hallucinated data |
+| `minConfidence` | `0` | Minimum `confianca` score (0–1) to accept an entry. `ingest-party-programs` uses `0.6` |
+
+**Why these options exist:** The 8B model hallucinates plausible-sounding political positions from legal registration documents (TSE `REGISTRO DE PARTIDO POLÍTICO` forms). The 70B model correctly returns `{ "posicoes": [] }` for the same documents. `ingest-party-programs` locks both options to prevent bad data from entering `party_positions`.
+
+`extract-positions` keeps defaults (`allowFallback: true`, `minConfidence: 0`) because it processes official TSE government plan PDFs which are genuine political documents.
+
+---
+
 ## Extraction Prompt
 
-Source: `scripts/lib/gemini.ts`, `extractPositions()` function.
+Source: `scripts/lib/groq.ts`, `extractPositions()` function.
 
 ```
 Input: First 8,000 chars of PDF text (parsed by pdf2json)
@@ -61,7 +73,11 @@ Per position:
   confianca  — 0.0–1.0 (model's self-reported confidence)
 ```
 
-Positions failing validation (unknown slug, out-of-range values) are silently dropped before DB write.
+The prompt includes an explicit instruction: if the document is not clearly a political program (e.g., it's a legal registration form, statute, or registration decision), the model must return `{ "posicoes": [] }` and not infer positions from the party's general ideology.
+
+Positions failing validation (unknown slug, out-of-range values, or `confianca` below `minConfidence`) are silently dropped before DB write.
+
+**Response key variants:** The parser accepts `posicoes`, `positions`, or `posições` as the top-level array key — models occasionally respond in English despite a Portuguese prompt.
 
 ---
 

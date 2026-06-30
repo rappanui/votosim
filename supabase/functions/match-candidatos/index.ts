@@ -2,12 +2,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
   callAI,
+  type CandidatoResultado,
   type CandidatoRow,
   type FallbackData,
   type MatchRequest,
   type MatchResult,
   type PositionWithSlug,
   type RespostaUsuario,
+  scoreCandidato,
 } from './ai-providers.ts'
 
 // ─── Local types ──────────────────────────────────────────────────────────────
@@ -29,7 +31,12 @@ export const CARGO_ORDER: string[] = [
 ]
 
 export const MAX_CANDIDATES_PER_CARGO = 5
+export const MAX_EXEC_CANDIDATES = 3
+export const MIN_SCORE_THRESHOLD = 35
+const EXEC_CARGOS = new Set(['presidente', 'governador'])
 export const DEPUTADO_CARGOS = new Set(['deputado_federal', 'deputado_estadual', 'deputado_distrital'])
+// Cargos where voters may choose the party (voto de legenda) instead of an individual.
+export const LEGISLATIVE_CARGOS = new Set(['senador', 'deputado_federal', 'deputado_estadual', 'deputado_distrital'])
 export const PREFILTER_LIMIT_DEPUTADO = 20
 export const PREFILTER_LIMIT_DEFAULT = 10
 
@@ -52,13 +59,19 @@ async function fetchCandidates(
   estado: string,
 ): Promise<CandidatoRow[]> {
   const year = Deno.env.get('ELECTION_YEAR') ?? '2026'
-  const { data, error } = await supabase
-    .from(`v_candidates_${year}`)
-    .select('politician_id, nome_urna, partido_atual, cargo')
-    .eq('estado', estado)
+  const view = `v_candidates_${year}`
+  const cols = 'politician_id, nome_urna, partido_atual, cargo'
 
-  if (error) throw new Error(`Failed to fetch candidates: ${error.message}`)
-  return (data ?? []) as CandidatoRow[]
+  // Fetch state candidates + national (president runs with estado='BR')
+  const [stateRes, nationalRes] = await Promise.all([
+    supabase.from(view).select(cols).eq('estado', estado),
+    supabase.from(view).select(cols).eq('estado', 'BR'),
+  ])
+
+  if (stateRes.error) throw new Error(`Failed to fetch candidates: ${stateRes.error.message}`)
+  if (nationalRes.error) throw new Error(`Failed to fetch national candidates: ${nationalRes.error.message}`)
+
+  return [...(stateRes.data ?? []), ...(nationalRes.data ?? [])] as CandidatoRow[]
 }
 
 async function loadThemeSlugMap(
@@ -116,6 +129,87 @@ async function fetchAlerts(
 
   if (error) throw new Error(`Failed to fetch alerts: ${error.message}`)
   return (data ?? []) as AlertRow[]
+}
+
+async function fetchPartyPositions(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  partySiglas: string[],
+  themeMap: Map<string, string>,
+): Promise<Map<string, PositionWithSlug[]>> {
+  if (partySiglas.length === 0) return new Map()
+  const { data, error } = await supabase
+    .from('party_positions')
+    .select('party_sigla, theme_id, posicao, intensidade')
+    .in('party_sigla', partySiglas)
+  if (error) {
+    // party_positions may not exist yet (migration pending) — degrade gracefully
+    console.warn('[match-candidatos] party_positions not available:', error.message)
+    return new Map()
+  }
+  const byParty = new Map<string, PositionWithSlug[]>()
+  for (const row of (data ?? []) as Array<{ party_sigla: string; theme_id: string; posicao: string; intensidade: number }>) {
+    const slug = themeMap.get(row.theme_id)
+    if (!slug) continue
+    const list = byParty.get(row.party_sigla) ?? []
+    list.push({ politician_id: row.party_sigla, themeSlug: slug, posicao: row.posicao, intensidade: row.intensidade })
+    byParty.set(row.party_sigla, list)
+  }
+  return byParty
+}
+
+// Returns one { cargo, candidato } entry per (party, legislative cargo) pair.
+// Parties with no data in partyPositionsByParty are excluded.
+export function buildPartyResults(
+  candidates: CandidatoRow[],
+  partyPositionsByParty: Map<string, PositionWithSlug[]>,
+  respostas: RespostaUsuario[],
+): Array<{ cargo: string; candidato: CandidatoResultado }> {
+  const cargosPerParty = new Map<string, Set<string>>()
+  for (const c of candidates) {
+    if (!LEGISLATIVE_CARGOS.has(c.cargo)) continue
+    const cargos = cargosPerParty.get(c.partido_atual) ?? new Set()
+    cargos.add(c.cargo)
+    cargosPerParty.set(c.partido_atual, cargos)
+  }
+
+  const results: Array<{ cargo: string; candidato: CandidatoResultado }> = []
+  for (const [sigla, cargoSet] of cargosPerParty) {
+    const positions = partyPositionsByParty.get(sigla)
+    if (!positions || positions.length === 0) continue
+    const { score, temasAlinhados, temasDivergentes } = scoreCandidato(respostas, positions)
+    for (const cargo of cargoSet) {
+      results.push({
+        cargo,
+        candidato: {
+          politicianId: `party:${sigla}`,
+          nomeUrna: sigla,
+          partido: sigla,
+          score,
+          temasAlinhados,
+          temasDivergentes,
+          temAlertas: false,
+          alertas: [],
+          isParty: true,
+        },
+      })
+    }
+  }
+  return results
+}
+
+// Merges party match entries into the existing MatchResult cargo groups.
+// Creates new cargo groups if needed (e.g. for cargos with zero individual matches above threshold).
+export function injectPartyResults(
+  result: MatchResult,
+  partyResults: Array<{ cargo: string; candidato: CandidatoResultado }>,
+): MatchResult {
+  if (partyResults.length === 0) return result
+  const cargoMap = new Map(result.cargos.map(g => [g.cargo, { ...g, candidatos: [...g.candidatos] }]))
+  for (const { cargo, candidato } of partyResults) {
+    if (!cargoMap.has(cargo)) cargoMap.set(cargo, { cargo, candidatos: [] })
+    cargoMap.get(cargo)!.candidatos.push(candidato)
+  }
+  return { ...result, cargos: [...cargoMap.values()] }
 }
 
 // ─── Pre-filter ───────────────────────────────────────────────────────────────
@@ -242,9 +336,11 @@ export function sortAndLimitCargos(result: MatchResult): MatchResult {
     .map(grupo => ({
       ...grupo,
       candidatos: [...grupo.candidatos]
+        .filter(c => c.score >= MIN_SCORE_THRESHOLD)
         .sort((a, b) => b.score - a.score)
-        .slice(0, MAX_CANDIDATES_PER_CARGO),
+        .slice(0, EXEC_CARGOS.has(grupo.cargo) ? MAX_EXEC_CANDIDATES : MAX_CANDIDATES_PER_CARGO),
     }))
+    .filter(g => g.candidatos.length > 0)
   return { ...result, cargos: orderedCargos }
 }
 
@@ -302,7 +398,17 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     const rawResult = await callAI(prompt, fallbackData)
-    const withAlerts = attachAlerts(rawResult, filteredAlerts)
+
+    // Party match: for legislative cargos, parties with program data can appear
+    // above individual candidates (voters may choose the party via voto de legenda)
+    const partySiglas = [...new Set(
+      candidates.filter(c => LEGISLATIVE_CARGOS.has(c.cargo)).map(c => c.partido_atual),
+    )]
+    const partyPositionsByParty = await fetchPartyPositions(supabase, partySiglas, themeMap)
+    const partyEntries = buildPartyResults(candidates, partyPositionsByParty, body.respostas)
+    const mergedResult = injectPartyResults(rawResult, partyEntries)
+
+    const withAlerts = attachAlerts(mergedResult, filteredAlerts)
     const finalResult = sortAndLimitCargos(withAlerts)
 
     return jsonResponse(finalResult)

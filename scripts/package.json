@@ -6,7 +6,11 @@
   "scripts": {
     "ingest-tse": "tsx ingest-tse.ts",
     "extract-positions": "tsx extract-positions.ts",
-    "ingest-alerts": "tsx ingest-alerts.ts"
+    "ingest-alerts": "tsx ingest-alerts.ts",
+    "ingest-party-programs": "tsx ingest-party-programs.ts",
+    "ingest-camara-votes": "tsx ingest-camara-votes.ts",
+    "ingest-senado-votes": "tsx ingest-senado-votes.ts",
+    "test": "tsx --test *.test.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

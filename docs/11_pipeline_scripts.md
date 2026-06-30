@@ -80,7 +80,38 @@ unzip data/proposta_governo_2022_SP.zip -d data/propostas_2022/SP/
 
 **DB columns written:** `politician_id`, `theme_id`, `posicao`, `intensidade`, `fontes` (JSONB), `gerado_por_ia: true`, `validado`, `confianca_ia`
 
-**Coverage:** Only GOVERNADOR and PRESIDENTE candidates submit PDFs to TSE. For deputies and senators, see `docs/13_legislative_votes.md`.
+**Coverage:** Only GOVERNADOR and PRESIDENTE candidates submit PDFs to TSE. For deputies and senators, see `docs/17_legislative_ingestion_scripts.md`.
+
+---
+
+## `ingest-party-programs` — Party Program Positions
+
+Reads party program PDFs from `scripts/data/party-programs/`, extracts political positions via Groq, and writes to both `party_positions` (party-level match) and `politician_positions` (proxy for members without data).
+
+```bash
+npm run ingest-party-programs
+# Optional: specify a custom PDF directory
+npm run ingest-party-programs -- data/party-programs
+```
+
+**PDF naming:** each file must be `{SIGLA}.pdf` (e.g., `PT.pdf`, `PL.pdf`). The sigla is extracted from the filename and used as the DB key.
+
+**Prerequisites:**
+1. Apply `docs/base/10_party_positions.sql` in Supabase SQL Editor (create `party_positions` table)
+2. `GROQ_API_KEY` in `scripts/.env`
+
+**What it does per party:**
+1. Parses PDF text via `pdf2json` (skips if no text — scanned image PDFs)
+2. Calls Groq 70B with `allowFallback: false` and `minConfidence: 0.6`
+3. Upserts to `party_positions` (conflict key: `party_sigla, theme_id`); skips `variavel` posicao
+4. Loads all politicians of that party with candidacies in `ELECTION_YEAR`
+5. For members without existing positions, inserts proxy rows to `politician_positions` with `confianca_ia = 0.55`
+
+**Idempotent:** safe to re-run — `party_positions` upserts, `politician_positions` uses `ignoreDuplicates: true`.
+
+**`allowFallback: false`:** The 8B fallback is disabled for this script. If the 70B daily quota is exhausted (100K tokens/day), affected parties are skipped entirely — no data is better than hallucinated positions from legal documents. Re-run after midnight UTC when the quota resets.
+
+> **PDF source matters.** The PDFs must be actual party political manifestos, not TSE registration or statute documents. See `docs/18_party_match.md` for details on the data quality issue.
 
 ---
 
