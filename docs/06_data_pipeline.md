@@ -7,15 +7,18 @@
 ## Architecture
 
 ```
-TSE CSV (consulta_cand)      → ingest-tse.ts         → politicians + candidacies + parties
-TSE ZIP (proposta_governo)   → extract-positions.ts   → politician_positions (governors/president)
-Câmara API (nominal votes)   → ingest-camara-votes.ts → politician_positions (federal deputies) [planned]
-Senado API (nominal votes)   → ingest-senado-votes.ts → politician_positions (senators) [planned]
-TSE PDF (party programs)     → ingest-party-programs.ts → politician_positions (proxy) [planned]
-TSE CSV (motivo_cassacao)    → ingest-alerts.ts       → politician_alerts
+TSE CSV (consulta_cand)      → ingest-tse.ts            → politicians + candidacies + parties
+TSE ZIP (proposta_governo)   → extract-positions.ts      → politician_positions [DEPRECATED — see note]
+Câmara API (nominal votes)   → ingest-camara-votes.ts   → politician_positions (federal deputies)
+Senado API (nominal votes)   → ingest-senado-votes.ts   → politician_positions (senators)
+TSE PDF (party programs)     → ingest-party-programs.ts → politician_positions (party proxy)
+Claude Code session (manual) → upsert via REST API       → politician_positions (executives + gaps)
+TSE CSV (motivo_cassacao)    → ingest-alerts.ts          → politician_alerts
 ```
 
 All scripts are idempotent (upsert) — safe to re-run without duplicating data.
+
+> **`extract-positions.ts` is deprecated for position enrichment.** The TSE government plan PDFs are propaganda documents: they produce `posicao: "favoravel"` on every theme for every candidate, covering only 5–8 of 14 themes. This makes the match algorithm meaningless. Use the tiered pipeline described in `docs/candidate-enrichment-strategy.md` instead. The script remains in the codebase for reference but should not be used to populate `politician_positions` for candidates that matter.
 
 ---
 

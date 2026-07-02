@@ -131,6 +131,8 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 | `16_2026_candidate_update.md` | Step-by-step guide to refresh data for 2026 elections: TSE file downloads, script order, switching `ELECTION_YEAR` secret |
 | `17_legislative_ingestion_scripts.md` | Practical guide for `ingest-party-programs`, `ingest-camara-votes`, `ingest-senado-votes`: pre-requisites, commands, expected output, run order |
 | `18_party_match.md` | Party match feature (voto de legenda): `party_positions` table, ingest script, Edge Function integration, how party entries appear in results |
+| `candidate-enrichment-strategy.md` | Tiered pipeline for enriching candidate positions: why the TSE PDF pipeline failed, 3-tier architecture, data quality standards, SP pilot plan, source type reference |
+| `candidate-enrichment-prompt.md` | LLM prompt (system + few-shot) for Groq/Claude to interpret candidate positions into the 14-theme schema. Includes validated Lula + Bolsonaro examples and Supabase upsert instructions |
 
 ### DB docs — unchanged, still valid (in `base/`)
 
