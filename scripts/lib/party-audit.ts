@@ -10,11 +10,15 @@ export interface PartyVerdict {
   themeCount: number
   distinctStances: number
   allFavoravel: boolean
+  dominantShare: number
   passes: boolean
 }
 
 /** Minimum themes a party must cover to be usable as a match fallback. */
 export const MIN_THEMES = 10
+
+/** No single stance may cover more than this share of a party's themes. */
+export const MAX_DOMINANT_SHARE = 0.80
 
 /**
  * Judges whether one party's stored positions are real data or the original
@@ -29,9 +33,21 @@ export function auditParty(
   const themeCount = stances.length
   const distinctStances = new Set(stances).size
   const allFavoravel = themeCount > 0 && stances.every(s => s === 'favoravel')
-  const passes = themeCount >= minThemes && distinctStances >= 2 && !allFavoravel
 
-  return { sigla, themeCount, distinctStances, allFavoravel, passes }
+  // Calculate dominant stance share
+  let dominantShare = 0
+  if (themeCount > 0) {
+    const stanceCounts = new Map<string, number>()
+    for (const stance of stances) {
+      stanceCounts.set(stance, (stanceCounts.get(stance) ?? 0) + 1)
+    }
+    const maxCount = Math.max(...Array.from(stanceCounts.values()))
+    dominantShare = maxCount / themeCount
+  }
+
+  const passes = themeCount >= minThemes && distinctStances >= 2 && !allFavoravel && dominantShare <= MAX_DOMINANT_SHARE
+
+  return { sigla, themeCount, distinctStances, allFavoravel, dominantShare, passes }
 }
 
 /** Aggregates per-party verdicts into the go/no-go decision for the fallback. */
