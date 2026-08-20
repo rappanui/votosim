@@ -5,7 +5,7 @@ const PDFParser = require('pdf2json') as new () => import('events').EventEmitter
 import { readdirSync } from 'fs'
 import { join, basename } from 'path'
 import { supabase } from './lib/supabase.js'
-import { extractPositions, type PositionEntry } from './lib/groq.js'
+import { enrichPositions, type EnrichmentEntry } from './lib/groq.js'
 import { sleep } from './lib/sleep.js'
 
 const ELECTION_YEAR = 2022
@@ -31,7 +31,7 @@ export interface PositionRow {
 
 export function buildPositionRows(
   politicianId: string,
-  entries: PositionEntry[],
+  entries: EnrichmentEntry[],
   themeMap: Map<string, string>,
   partySigla: string,
 ): PositionRow[] {
@@ -140,14 +140,14 @@ async function insertProxyPositions(rows: PositionRow[]): Promise<void> {
 
 async function upsertPartyPositions(
   sigla: string,
-  entries: import('./lib/groq.js').PositionEntry[],
+  entries: import('./lib/groq.js').EnrichmentEntry[],
   themeMap: Map<string, string>,
 ): Promise<number> {
-  // Deduplicate by temaSlug: keep the entry with highest confianca when AI returns duplicates
-  const deduped = new Map<string, import('./lib/groq.js').PositionEntry>()
+  // Deduplicate by temaSlug: keep the entry with highest confianca_ia when AI returns duplicates
+  const deduped = new Map<string, import('./lib/groq.js').EnrichmentEntry>()
   for (const entry of entries) {
     const existing = deduped.get(entry.temaSlug)
-    if (!existing || entry.confianca > existing.confianca) deduped.set(entry.temaSlug, entry)
+    if (!existing || entry.confianca_ia > existing.confianca_ia) deduped.set(entry.temaSlug, entry)
   }
 
   const rows = [...deduped.values()].flatMap(entry => {
@@ -218,7 +218,7 @@ async function main(): Promise<void> {
       continue
     }
 
-    const entries = await extractPositions(sigla, text, { allowFallback: false, minConfidence: 0.6 })
+    const entries = await enrichPositions(sigla, text, { allowFallback: false, minConfidence: 0.6 })
     if (entries.length === 0) {
       console.warn(`[ingest-party-programs] [SKIPPED] No positions extracted for ${sigla}`)
       await sleep(RATE_LIMIT_DELAY_MS)

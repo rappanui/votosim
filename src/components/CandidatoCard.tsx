@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { AlertaBadge } from './AlertaBadge'
-import type { CandidatoResultado, TemaCandidatoDetalhe } from '@/lib/types'
+import type { CandidatoResultado, TemaCandidatoDetalhe, VoterPosicao } from '@/lib/types'
 
 function getBarColor(alinhamento: number): string {
   if (alinhamento >= 75) return 'bg-success'
@@ -12,17 +12,23 @@ function getBarColor(alinhamento: number): string {
 }
 
 function getTemaIcon(d: TemaCandidatoDetalhe): string {
-  if (d.voterResposta === 3 && d.voterImportancia >= 2) return '●'  // curious
-  if (d.alignment === null) return '○'                                // no data
-  if (d.alignment >= 0.75) return '✓'                                // aligned
-  if (d.alignment <= 0.25) return '✗'                                // divergent
-  return '─'                                                          // partial
+  if (d.voterPosicao === 'neutro' && d.voterImportancia >= 2) return '●'  // curious
+  if (d.alignment === null) return '○'                                      // no data
+  if (d.alignment >= 0.75) return '✓'                                       // aligned
+  if (d.alignment <= 0.25) return '✗'                                       // divergent
+  return '─'                                                                 // partial
 }
 
 function candidateLabel(posicao: number | null): string {
   if (posicao === null) return '—'
   if (posicao <= 2) return 'contrário'
   if (posicao >= 4) return 'favorável'
+  return 'neutro'
+}
+
+function voterLabel(posicao: VoterPosicao): string {
+  if (posicao === 'contrario') return 'contrário'
+  if (posicao === 'favoravel') return 'favorável'
   return 'neutro'
 }
 
@@ -35,7 +41,7 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
   const barColor = getBarColor(candidato.alinhamento)
 
   const visibleTemas = candidato.detalhesTemas.filter(
-    d => d.voterResposta !== 3 || d.voterImportancia >= 2,
+    d => d.voterPosicao !== 'neutro' || d.voterImportancia >= 2,
   )
 
   return (
@@ -86,8 +92,13 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
               <span className="flex-1 text-xs text-gray-700">
                 {d.temaSlug.replace(/_/g, ' ')}
               </span>
-              <span className="text-xs text-gray-400">
-                você: {d.voterResposta} · candidato: {candidateLabel(d.candidatePosicao)}
+              <span className="flex items-center gap-1 text-xs text-gray-400">
+                você: {voterLabel(d.voterPosicao)} · candidato: {candidateLabel(d.candidatePosicao)}
+                {d.posicaoViaPartido && (
+                  <span className="rounded bg-blue-50 px-1 py-0.5 text-xs font-medium text-blue-600">
+                    partido
+                  </span>
+                )}
               </span>
             </div>
           ))}

@@ -17,45 +17,69 @@ describe('QuizCard', () => {
     expect(screen.getByText(/O governo deve aumentar o investimento/)).toBeInTheDocument()
   })
 
-  it('renders slider with initial value 3', () => {
+  it('renders all 3 position buttons immediately, before any interaction', () => {
     render(<QuizCard tema={makeTema()} onChange={() => {}} />)
-    const slider = screen.getByRole('slider')
-    expect(slider).toHaveValue('3')
+    expect(screen.getByText('Discordo')).toBeInTheDocument()
+    expect(screen.getByText('Neutro')).toBeInTheDocument()
+    expect(screen.getByText('Concordo')).toBeInTheDocument()
   })
 
-  it('hides importancia control before slider is moved', () => {
+  it('no position button is selected by default', () => {
+    render(<QuizCard tema={makeTema()} onChange={() => {}} />)
+    expect(screen.getByText('Discordo')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('Neutro')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('Concordo')).toHaveAttribute('aria-pressed', 'false')
+  })
+
+  it('importance section is hidden before any position button is clicked', () => {
     render(<QuizCard tema={makeTema()} onChange={() => {}} />)
     expect(screen.queryByText('Baixa')).not.toBeInTheDocument()
     expect(screen.queryByText('Média')).not.toBeInTheDocument()
     expect(screen.queryByText('Alta')).not.toBeInTheDocument()
+    expect(screen.queryByText('Quão importante é este tema para você?')).not.toBeInTheDocument()
   })
 
-  it('shows importancia control after slider is moved', () => {
+  it('importance section appears after clicking a position button', () => {
     render(<QuizCard tema={makeTema()} onChange={() => {}} />)
-    fireEvent.change(screen.getByRole('slider'), { target: { value: '5' } })
+    fireEvent.click(screen.getByText('Concordo'))
     expect(screen.getByText('Baixa')).toBeInTheDocument()
     expect(screen.getByText('Média')).toBeInTheDocument()
     expect(screen.getByText('Alta')).toBeInTheDocument()
+    expect(screen.getByText('Quão importante é este tema para você?')).toBeInTheDocument()
   })
 
-  it('calls onChange with resposta and default importancia=2 on first slider move', () => {
+  it('clicking Concordo calls onChange with favoravel and default importancia 2', () => {
     const onChange = jest.fn()
     render(<QuizCard tema={makeTema()} onChange={onChange} />)
-    fireEvent.change(screen.getByRole('slider'), { target: { value: '4' } })
-    expect(onChange).toHaveBeenCalledWith(4, 2)
+    fireEvent.click(screen.getByText('Concordo'))
+    expect(onChange).toHaveBeenCalledWith('favoravel', 2)
+  })
+
+  it('clicking Discordo calls onChange with contrario', () => {
+    const onChange = jest.fn()
+    render(<QuizCard tema={makeTema()} onChange={onChange} />)
+    fireEvent.click(screen.getByText('Discordo'))
+    expect(onChange).toHaveBeenCalledWith('contrario', 2)
+  })
+
+  it('clicking Neutro calls onChange with neutro', () => {
+    const onChange = jest.fn()
+    render(<QuizCard tema={makeTema()} onChange={onChange} />)
+    fireEvent.click(screen.getByText('Neutro'))
+    expect(onChange).toHaveBeenCalledWith('neutro', 2)
   })
 
   it('calls onChange with updated importancia when pill is clicked', () => {
     const onChange = jest.fn()
     render(<QuizCard tema={makeTema()} onChange={onChange} />)
-    fireEvent.change(screen.getByRole('slider'), { target: { value: '5' } })
+    fireEvent.click(screen.getByText('Concordo'))
     fireEvent.click(screen.getByText('Alta'))
-    expect(onChange).toHaveBeenLastCalledWith(5, 3)
+    expect(onChange).toHaveBeenLastCalledWith('favoravel', 3)
   })
 
-  it('restores previous answer when initialResposta is provided', () => {
-    render(<QuizCard tema={makeTema()} initialResposta={4} initialImportancia={3} onChange={() => {}} />)
-    expect(screen.getByRole('slider')).toHaveValue('4')
+  it('restores previous answer when initialPosicao is provided', () => {
+    render(<QuizCard tema={makeTema()} initialPosicao="favoravel" initialImportancia={3} onChange={() => {}} />)
+    expect(screen.getByText('Concordo')).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('Alta')).toBeInTheDocument()
   })
 

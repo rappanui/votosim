@@ -7,13 +7,14 @@
 ## Architecture
 
 ```
-TSE CSV (consulta_cand)      → ingest-tse.ts            → politicians + candidacies + parties
-TSE ZIP (proposta_governo)   → extract-positions.ts      → politician_positions [DEPRECATED — see note]
-Câmara API (nominal votes)   → ingest-camara-votes.ts   → politician_positions (federal deputies)
-Senado API (nominal votes)   → ingest-senado-votes.ts   → politician_positions (senators)
-TSE PDF (party programs)     → ingest-party-programs.ts → politician_positions (party proxy)
-Claude Code session (manual) → upsert via REST API       → politician_positions (executives + gaps)
-TSE CSV (motivo_cassacao)    → ingest-alerts.ts          → politician_alerts
+TSE CSV (consulta_cand)      → ingest-tse.ts             → politicians + candidacies + parties
+TSE ZIP (proposta_governo)   → extract-positions.ts       → politician_positions [DEPRECATED — see note]
+Câmara API (nominal votes)   → ingest-camara-votes.ts    → politician_positions (federal deputies)
+Senado API (nominal votes)   → ingest-senado-votes.ts    → politician_positions (senators)
+TSE PDF (party programs)     → ingest-party-programs.ts  → party_positions + politician_positions (proxy)
+text/PDF (per candidate)     → enrich-positions-groq.ts  → politician_positions (executives + gaps)
+TSE CSV (motivo_cassacao)    → ingest-alerts.ts           → politician_alerts
+coverage report              → check-coverage.ts          → stdout (audit tool, no DB writes)
 ```
 
 All scripts are idempotent (upsert) — safe to re-run without duplicating data.
@@ -66,8 +67,14 @@ See `docs/11_pipeline_scripts.md` for exact commands, flags, and download URLs.
 
 **Execution order:**
 1. `ingest-tse` — must run first (creates `politicians` records needed by all other scripts)
-2. `extract-positions` — depends on politicians in DB + PDF ZIPs downloaded locally
-3. `ingest-alerts` — depends on politicians in DB + `motivo_cassacao` CSV downloaded
+2. `ingest-camara-votes -- data/camara_2022` — deputados federais (Tier 1)
+3. `ingest-senado-votes` — senadores via API (Tier 1)
+4. `ingest-party-programs -- data/party-programs` — proxy positions for non-mandataries (Tier 2)
+5. `enrich-positions-groq -- --politician-id=UUID --input=file.txt` — executives + gap fill (Tier 3)
+6. `check-coverage -- --estado=SP` — verify coverage before releasing to production
+7. `ingest-alerts` — criminal records (can run at any time after step 1)
+
+> `extract-positions` (TSE ZIPs) is deprecated. Do not run it for new candidates.
 
 ---
 
@@ -126,14 +133,17 @@ When 2026 data is released:
 
 ---
 
-## 2022 Seed Status (as of 2026-06-29)
+## 2022 Seed Status (as of 2026-07-01)
 
 | Step | Status | Notes |
 |------|--------|-------|
 | `ingest-tse` national | ✅ Complete | 28,486 inserted; ~836 skipped (WSL2 connection timeouts) |
 | `ingest-tse --estado=SP` | ✅ Complete | 3,622 SP candidates fully re-ingested |
-| `extract-positions --estado=SP` | ✅ Complete | 13/15 PDFs processed; 1 unreadable (scanned image), 1 error recovered |
-| `extract-positions --estado=BR` | ✅ Complete | 12/13 presidential PDFs processed; 1 unreadable (scanned image) |
+| `ingest-camara-votes` | ✅ Complete | 3,733 positions for 521 deputies (360 vote sessions mapped) |
+| `ingest-senado-votes` | ✅ Complete | 402 positions for 39 senators (42 not matched by name) |
+| `ingest-party-programs` | ✅ Complete | 10/28 PDFs produced positions (18 were statute docs); 151,476 proxy rows |
+| `enrich-positions-groq` (SP pilot) | ✅ Complete | 13/13 presidentes 14/14; 3/3 main SP governors 13-14/14 |
 | `ingest-alerts` | ✅ Complete | 1,012 alerts from `motivo_cassacao_2022` |
-| Other states (governors) | 🔜 Pending | Requires downloading individual state ZIPs |
-| Deputies/senators | 🔜 Planned | See `docs/13_legislative_votes.md` |
+| `extract-positions` (TSE ZIPs) | ⚠️ Deprecated | Old data still in DB; will be overwritten by Tier 3 enrichment |
+| Other states (governors) | 🔜 Pending | Requires Tier 3 enrichment per governor |
+| SP minor governors (7) | 🟡 Partial | 4–11/14; candidates < 5% votes — acceptable for MVP |

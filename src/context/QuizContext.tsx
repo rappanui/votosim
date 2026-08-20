@@ -5,7 +5,7 @@ import type { RespostaUsuario } from '@/lib/types'
 
 export interface QuizState {
   estado: string
-  respostas: RespostaUsuario[]  // only themes where slider was interacted with
+  respostas: RespostaUsuario[]  // only themes the voter actively answered
   setEstado: (estado: string) => void
   setResposta: (resposta: RespostaUsuario) => void
   resetQuiz: () => void

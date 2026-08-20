@@ -4,12 +4,13 @@ import type { CandidatoResultado, TemaCandidatoDetalhe } from '@/lib/types'
 
 const makeDetalhe = (overrides: Partial<TemaCandidatoDetalhe> = {}): TemaCandidatoDetalhe => ({
   temaSlug: 'sus_saude_publica',
-  voterResposta: 5,
+  voterPosicao: 'favoravel',
   voterImportancia: 3,
   candidatePosicao: 5,
   candidateImportancia: 5,
   alignment: 1.0,
   contouNoScore: true,
+  posicaoViaPartido: false,
   ...overrides,
 })
 
@@ -100,10 +101,37 @@ describe('CandidatoCard', () => {
 
   it('shows ● icon for curious theme (voter neutral + importancia >= 2)', () => {
     const candidato = makeCandidate({
-      detalhesTemas: [makeDetalhe({ voterResposta: 3, voterImportancia: 2, alignment: null, contouNoScore: false })],
+      detalhesTemas: [makeDetalhe({ voterPosicao: 'neutro', voterImportancia: 2, alignment: null, contouNoScore: false })],
     })
     render(<CandidatoCard candidato={candidato} />)
     fireEvent.click(screen.getByText(/Ver detalhes por tema/))
     expect(screen.getByText('●')).toBeInTheDocument()
+  })
+
+  it('shows voter position as text label in theme breakdown', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [makeDetalhe({ voterPosicao: 'favoravel' })],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    expect(screen.getByText(/você: favorável/)).toBeInTheDocument()
+  })
+
+  it('shows partido badge when posicaoViaPartido is true', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [makeDetalhe({ posicaoViaPartido: true })],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    expect(screen.getByText('partido')).toBeInTheDocument()
+  })
+
+  it('does not show partido badge when posicaoViaPartido is false', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [makeDetalhe({ posicaoViaPartido: false })],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    expect(screen.queryByText('partido')).not.toBeInTheDocument()
   })
 })

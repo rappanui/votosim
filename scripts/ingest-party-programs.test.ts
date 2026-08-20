@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { filterNeedingPositions, buildPositionRows } from './ingest-party-programs.ts'
-import type { PositionEntry } from './lib/groq.ts'
+import type { EnrichmentEntry } from './lib/groq.ts'
 
 // ─── filterNeedingPositions ───────────────────────────────────────────────────
 
@@ -24,13 +24,14 @@ test('filterNeedingPositions: returns all when none have positions', () => {
 
 // ─── buildPositionRows ────────────────────────────────────────────────────────
 
-test('buildPositionRows: maps PositionEntry to DB row correctly', () => {
-  const entry: PositionEntry = {
+test('buildPositionRows: maps EnrichmentEntry to DB row correctly', () => {
+  const entry: EnrichmentEntry = {
     temaSlug: 'sus_saude_publica',
     posicao: 'favoravel',
     intensidade: 3,
     justificativa: 'Defende o fortalecimento do SUS',
-    confianca: 0.8,
+    confianca_ia: 0.8,
+    fontes: [{ tipo: 'ai_interpretacao', descricao: 'Programa PT', url: null, data: '2022', confiabilidade: 0.8 }],
   }
   const themeMap = new Map([['sus_saude_publica', 'uuid-123']])
   const rows = buildPositionRows('politician-id', [entry], themeMap, 'PT')
@@ -48,12 +49,13 @@ test('buildPositionRows: maps PositionEntry to DB row correctly', () => {
 })
 
 test('buildPositionRows: skips entries with unknown theme slugs', () => {
-  const entry: PositionEntry = {
+  const entry: EnrichmentEntry = {
     temaSlug: 'tema_inexistente',
     posicao: 'favoravel',
     intensidade: 3,
     justificativa: 'irrelevant',
-    confianca: 0.8,
+    confianca_ia: 0.8,
+    fontes: [],
   }
   const themeMap = new Map<string, string>()
   const rows = buildPositionRows('p1', [entry], themeMap, 'PT')
@@ -61,12 +63,13 @@ test('buildPositionRows: skips entries with unknown theme slugs', () => {
 })
 
 test('buildPositionRows: clamps intensidade to integer 1-5', () => {
-  const entry: PositionEntry = {
+  const entry: EnrichmentEntry = {
     temaSlug: 'educacao_basica',
     posicao: 'favoravel',
     intensidade: 4.7,
     justificativa: 'test',
-    confianca: 0.9,
+    confianca_ia: 0.9,
+    fontes: [],
   }
   const themeMap = new Map([['educacao_basica', 'uuid-edu']])
   const rows = buildPositionRows('p1', [entry], themeMap, 'PT')

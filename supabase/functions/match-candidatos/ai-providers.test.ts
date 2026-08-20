@@ -25,7 +25,7 @@ Deno.test('posicaoToScale: variavel => 3', () => {
 
 Deno.test('scoreCandidato: perfect alignment scores alinhamento=100 cobertura=100', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, importancia: 3 },
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -40,7 +40,7 @@ Deno.test('scoreCandidato: perfect alignment scores alinhamento=100 cobertura=10
 
 Deno.test('scoreCandidato: perfect divergence scores alinhamento=0 cobertura=100', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, importancia: 3 },
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'contrario', intensidade: 5 },
@@ -53,7 +53,7 @@ Deno.test('scoreCandidato: perfect divergence scores alinhamento=0 cobertura=100
 
 Deno.test('scoreCandidato: no candidate positions scores alinhamento=0 cobertura=0', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, importancia: 3 },
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
   ]
   const result = scoreCandidato(respostas, [])
   assertEquals(result.alinhamento, 0)
@@ -62,9 +62,9 @@ Deno.test('scoreCandidato: no candidate positions scores alinhamento=0 cobertura
   assertEquals(result.detalhesTemas[0].contouNoScore, false)
 })
 
-Deno.test('scoreCandidato: neutral voter excluded from score and cobertura, included in detalhesTemas', () => {
+Deno.test('scoreCandidato: neutro voter excluded from score and cobertura, included in detalhesTemas', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 3, importancia: 2 },
+    { temaSlug: 'sus', posicao: 'neutro', importancia: 2 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -80,8 +80,8 @@ Deno.test('scoreCandidato: neutral voter excluded from score and cobertura, incl
 
 Deno.test('scoreCandidato: importancia weights voter theme importance', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, importancia: 3 },   // weight=1.0, alignment=1.0
-    { temaSlug: 'edu', resposta: 5, importancia: 1 },   // weight=0.333, alignment=0.0
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },   // weight=1.0, alignment=1.0
+    { temaSlug: 'edu', posicao: 'favoravel', importancia: 1 },   // weight=0.333, alignment=0.0
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -96,8 +96,8 @@ Deno.test('scoreCandidato: importancia weights voter theme importance', () => {
 
 Deno.test('scoreCandidato: cobertura reflects only themes with real candidate data', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, importancia: 3 },   // covered
-    { temaSlug: 'edu', resposta: 5, importancia: 3 },   // no candidate data
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },   // covered
+    { temaSlug: 'edu', posicao: 'favoravel', importancia: 3 },   // no candidate data
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -110,7 +110,7 @@ Deno.test('scoreCandidato: cobertura reflects only themes with real candidate da
 
 Deno.test('scoreCandidato: discordo+contrario is perfectly aligned', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'priv', resposta: 1, importancia: 3 },
+    { temaSlug: 'priv', posicao: 'contrario', importancia: 3 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'priv', posicao: 'contrario', intensidade: 5 },
@@ -122,7 +122,7 @@ Deno.test('scoreCandidato: discordo+contrario is perfectly aligned', () => {
 
 Deno.test('scoreCandidato: neutro candidate posicao excluded from score (no real stance)', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, importancia: 3 },
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'neutro', intensidade: 3 },
@@ -136,7 +136,7 @@ Deno.test('scoreCandidato: neutro candidate posicao excluded from score (no real
 
 Deno.test('scoreCandidato: variavel candidate posicao excluded from score', () => {
   const respostas: RespostaUsuario[] = [
-    { temaSlug: 'sus', resposta: 5, importancia: 3 },
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'variavel', intensidade: 3 },
@@ -153,7 +153,7 @@ Deno.test('scoreWithoutAI: returns valid MatchResult structure with alinhamento 
   const data: FallbackData = {
     estado: 'SP',
     respostas: [
-      { temaSlug: 'sus', resposta: 5, importancia: 3 },
+      { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
     ],
     candidates: [
       { politician_id: 'p1', nome_urna: 'CANDIDATO A', partido_atual: 'PT', cargo: 'senador' },
