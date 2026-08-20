@@ -54,7 +54,7 @@ COMMENT ON COLUMN politician_positions.justificativa IS
 COMMENT ON COLUMN politician_positions.coerencia_tema IS
   'Whether conduct on this theme matched the declared platform. sem_historico when there is no record to compare.';
 COMMENT ON COLUMN politician_positions.source_ids IS
-  'References candidate_sources.id. Every displayed fact must trace to a catalogued source.';
+  'References candidate_sources.id. Every displayed fact must trace to a catalogued source. Not referentially enforced (plain UUID array) — candidate_sources.politician_id is what keeps this cascading together with politician_positions.';
 
 -- ─── enrichment_ledger ────────────────────────────────────────────────────────
 
@@ -87,6 +87,7 @@ COMMENT ON COLUMN enrichment_ledger.status IS
 CREATE TABLE candidate_sources (
   id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   candidacy_id     UUID NOT NULL REFERENCES candidacies(id) ON DELETE CASCADE,
+  politician_id    UUID NOT NULL REFERENCES politicians(id) ON DELETE CASCADE,
   tipo             source_tipo NOT NULL,
   camada           SMALLINT NOT NULL CHECK (camada BETWEEN 1 AND 3),
   titulo           TEXT,
@@ -101,9 +102,10 @@ CREATE TABLE candidate_sources (
 );
 
 CREATE INDEX idx_sources_candidacy ON candidate_sources (candidacy_id, destino_exibicao);
+CREATE INDEX idx_sources_politician ON candidate_sources (politician_id);
 
 COMMENT ON TABLE candidate_sources IS
-  'Every URL the pipeline touched for a candidate. Positions and alerts reference this catalogue instead of repeating URLs, so a displayed fact with no listed source is impossible by construction.';
+  'Every URL the pipeline touched for a candidate. Positions and alerts reference this catalogue instead of repeating URLs, so a displayed fact with no listed source is impossible by construction. Carries two foreign keys deliberately: politician_id exists because politician_positions.source_ids (a plain UUID array, not referentially enforced) references this table by politician, not by candidacy — so politician_id is what keeps the source catalogue cascading on the same axis as politician_positions when a politician row is deleted. candidacy_id records which specific election run the source was gathered for (e.g. a government plan filed for one candidacy) and cascades independently when that candidacy is deleted.';
 COMMENT ON COLUMN candidate_sources.camada IS
   '1 = primary/official (TSE, STF, TCU, MPF, Camara, Senado); 2 = reference press; 3 = fact-checking.';
 
