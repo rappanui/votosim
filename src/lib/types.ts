@@ -1,5 +1,5 @@
-/** Valid values for a questionnaire answer (Likert scale 1–5). */
-export type Resposta = 1 | 2 | 3 | 4 | 5
+/** Voter's explicit position on a quiz theme. */
+export type VoterPosicao = 'favoravel' | 'contrario' | 'neutro'
 
 /** Voter's declared importance weight for a theme (1=low, 2=medium, 3=high). */
 export type Importancia = 1 | 2 | 3
@@ -9,10 +9,10 @@ export type AlertSeverity = 'critica' | 'alta' | 'media' | 'baixa'
 export type BadgeCor = 'vermelho' | 'laranja' | 'cinza'
 
 /** A single voter answer for one quiz theme.
- * Only themes where the slider was interacted with are included in the payload. */
+ * Only themes the voter actively answered are stored and sent (unanswered = null, excluded). */
 export interface RespostaUsuario {
   temaSlug: string
-  resposta: Resposta       // 1=strongly disagree · 3=neutral · 5=strongly agree
+  posicao: VoterPosicao    // favoravel=Concordo · contrario=Discordo · neutro=Neutro
   importancia: Importancia // voter's declared weight for this theme
 }
 
@@ -36,12 +36,13 @@ export interface Alerta {
 /** Per-theme breakdown enabling the transparency panel in results. */
 export interface TemaCandidatoDetalhe {
   temaSlug: string
-  voterResposta: Resposta
+  voterPosicao: VoterPosicao
   voterImportancia: Importancia
   candidatePosicao: number | null      // 1–5 via posicaoToScale; null = no data or variavel
   candidateImportancia: number | null  // candidate platform centrality (DB intensidade)
-  alignment: number | null             // 0.0–1.0; null when voter neutral or no real candidate data
+  alignment: number | null             // 0.0–1.0; null when voter neutro or no real candidate data
   contouNoScore: boolean
+  posicaoViaPartido: boolean           // true when candidatePosicao is sourced from the party program, not the candidate directly
 }
 
 export interface CandidatoResultado {

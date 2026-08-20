@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuiz } from '@/context/QuizContext'
 import { QuizCard } from '@/components/QuizCard'
 import { createClient } from '@/lib/supabase'
-import type { TemaQuestionario, Resposta, Importancia } from '@/lib/types'
+import type { TemaQuestionario, VoterPosicao, Importancia } from '@/lib/types'
 
 const ESTADOS = [
   'AC','AL','AP','AM','BA','CE','DF','ES','GO',
@@ -46,11 +46,10 @@ export default function QuizPage() {
       .catch(err => { setLoadError((err as Error).message); setLoading(false) })
   }, [])
 
-  const nonNeutralCount = respostas.filter(r => r.resposta !== 3).length
-  const canSubmit = Boolean(estado) && nonNeutralCount >= 3
+  const canSubmit = Boolean(estado) && respostas.length >= 3
 
-  function handleCardChange(slug: string, resposta: Resposta, importancia: Importancia) {
-    setResposta({ temaSlug: slug, resposta, importancia })
+  function handleCardChange(slug: string, posicao: VoterPosicao, importancia: Importancia) {
+    setResposta({ temaSlug: slug, posicao, importancia })
   }
 
   if (loading) {
@@ -85,7 +84,7 @@ export default function QuizPage() {
             </select>
           </label>
           <span className="ml-auto text-sm text-gray-500">
-            {nonNeutralCount}/{temas.length} respondidas
+            {respostas.length}/{temas.length} respondidas
           </span>
         </div>
       </div>
@@ -98,9 +97,9 @@ export default function QuizPage() {
               <QuizCard
                 key={tema.slug}
                 tema={tema}
-                initialResposta={existing?.resposta}
+                initialPosicao={existing?.posicao}
                 initialImportancia={existing?.importancia}
-                onChange={(r, imp) => handleCardChange(tema.slug, r, imp)}
+                onChange={(p, imp) => handleCardChange(tema.slug, p, imp)}
               />
             )
           })}
@@ -111,8 +110,8 @@ export default function QuizPage() {
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
           <p className="text-xs text-gray-400">
             {!estado && 'Selecione seu estado para continuar.'}
-            {estado && nonNeutralCount < 3 && (
-              `Responda ao menos ${3 - nonNeutralCount} pergunta${3 - nonNeutralCount !== 1 ? 's' : ''} para continuar.`
+            {estado && respostas.length < 3 && (
+              `Responda ao menos ${3 - respostas.length} pergunta${3 - respostas.length !== 1 ? 's' : ''} para continuar.`
             )}
           </p>
           <button

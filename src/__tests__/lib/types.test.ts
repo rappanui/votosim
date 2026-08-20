@@ -1,14 +1,14 @@
 import type { RespostaUsuario, CandidatoResultado, TemaCandidatoDetalhe, PerfilUsuario } from '@/lib/types'
 
 describe('RespostaUsuario shape', () => {
-  it('accepts resposta 1-5 and importancia 1-3', () => {
-    const r: RespostaUsuario = { temaSlug: 'sus_saude_publica', resposta: 5, importancia: 3 }
-    expect(r.resposta).toBe(5)
+  it('accepts posicao and importancia', () => {
+    const r: RespostaUsuario = { temaSlug: 'sus_saude_publica', posicao: 'favoravel', importancia: 3 }
+    expect(r.posicao).toBe('favoravel')
     expect(r.importancia).toBe(3)
   })
 
   it('does not have concordancia or intensidade fields', () => {
-    const r: RespostaUsuario = { temaSlug: 'sus_saude_publica', resposta: 4, importancia: 2 }
+    const r: RespostaUsuario = { temaSlug: 'sus_saude_publica', posicao: 'favoravel', importancia: 2 }
     expect('concordancia' in r).toBe(false)
     expect('intensidade' in r).toBe(false)
   })
@@ -37,12 +37,13 @@ describe('TemaCandidatoDetalhe shape', () => {
   it('has candidatePosicao typed as number or null', () => {
     const d: TemaCandidatoDetalhe = {
       temaSlug: 'sus_saude_publica',
-      voterResposta: 5,
+      voterPosicao: 'favoravel',
       voterImportancia: 3,
       candidatePosicao: 4.6,
       candidateImportancia: 5,
       alignment: 0.9,
       contouNoScore: true,
+      posicaoViaPartido: false,
     }
     expect(typeof d.candidatePosicao).toBe('number')
   })
@@ -50,12 +51,13 @@ describe('TemaCandidatoDetalhe shape', () => {
   it('accepts null candidatePosicao when no data', () => {
     const d: TemaCandidatoDetalhe = {
       temaSlug: 'sus_saude_publica',
-      voterResposta: 5,
+      voterPosicao: 'favoravel',
       voterImportancia: 2,
       candidatePosicao: null,
       candidateImportancia: null,
       alignment: null,
       contouNoScore: false,
+      posicaoViaPartido: false,
     }
     expect(d.candidatePosicao).toBeNull()
   })

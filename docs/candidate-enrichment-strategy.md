@@ -31,17 +31,20 @@ A left-wing voter who filled all 14 themes would see Bolsonaro at 91% alignment 
 **Coverage:** Reliable for mandataries. Covers policy behavior, not rhetoric.
 
 ### Tier 2 — Party Programs (cheap AI, semi-automated)
-**Sources:** TSE party program PDFs (~33 parties)
+**Sources:** TSE party program PDFs (~33 parties, stored in `scripts/data/party-programs/`)
 
 **Scope:** All parties with representation; fills gaps for candidates without Tier 1 data
 
 **Method:**
-- Extract PDF text
-- Send to LLM with the enrichment prompt (see `candidate-enrichment-prompt.md`)
-- Store as party-level positions with lower weight (`confianca_ia: 0.70`, `validado: false`)
-- Party positions are injected as fallback when candidate has no direct data on a theme
+- Extract PDF text with `pdf2json`
+- Send to LLM via `enrichPositions()` in `scripts/lib/groq.ts` (framing-aware prompt)
+- Store party-level positions in `party_positions` table
+- Store proxy positions in `politician_positions` with `confianca_ia: 0.55` (proxy weight)
+- The `check-coverage.ts` script uses `confianca_ia ≥ 0.70` as the "enriched" threshold, so party proxy intentionally does NOT count as enriched coverage
 
-**Coverage:** Useful as fallback. Party ≠ candidate, so lower confidence. See `docs/18_party_match.md`.
+**Coverage:** Useful as fallback. Party ≠ candidate. 10 of 28 PDFs produced valid positions in 2022 — the others were statute documents, not government programs. See `docs/18_party_match.md`.
+
+**Known issue:** Several major parties (PT, PDT, PSB, PSOL, UNIÃO) submitted statute documents to the TSE instead of government programs. These PDFs cannot be enriched via this tier.
 
 ### Tier 3 — Manual AI-Assisted Research (per priority candidate)
 **Scope:**
@@ -59,7 +62,9 @@ A left-wing voter who filled all 14 themes would see Bolsonaro at 91% alignment 
 
 **Why Claude Code instead of Groq API:** Claude Code has web browsing + PDF reading built in, costs nothing extra on Pro, and produces far more reliable interpretations than a raw LLM call without search access.
 
-**For Groq / automated pipelines:** Use `docs/candidate-enrichment-prompt.md` as the system prompt. Works well for candidates with rich documentary evidence; less reliable for obscure candidates.
+**For Groq / automated pipelines:** Use `docs/candidate-enrichment-prompt.md` as the system prompt, or run `npm run enrich-positions -- --politician-id=UUID --input=file.txt` which calls `enrichPositions()`. Works well for candidates with rich documentary evidence; less reliable for obscure candidates.
+
+**Rate limit risk:** Groq's 70B free tier has daily quota limits. Running Tier 2 + Tier 3 in the same day exhausts the quota. Mitigation: run Tier 2 one day, Tier 3 the next; or switch providers (see AI platform comparison plan).
 
 ---
 
@@ -81,16 +86,20 @@ The match function (`supabase/functions/match-candidatos/index.ts`) reports `cob
 
 ## Rollout Plan
 
-1. **SP pilot (now):** Presidente + Governador SP + top 20 deputados federais SP
-   - Manual enrichment via Claude Code session
-   - Validates token cost and interpretation quality before scaling
+1. **SP pilot (done — 2026-07-01):** Presidente + Governador SP + deputados federais/senadores SP
+   - **13/13 presidentes:** 14/14 temas (manual + `enrich-positions-groq`)
+   - **3/3 governadores principais SP** (Haddad, Tarcísio, Rodrigo Garcia): 13-14/14
+   - **521 deputados federais SP:** posições via votações Câmara (Tier 1)
+   - **39 senadores:** posições via API Senado (Tier 1)
+   - **151,476 posições proxy** para politicos sem dados individuais (Tier 2)
+   - 7 governadores menores SP: 4-11/14 (candidatos < 5% votos, aceitável)
 
 2. **National executives:** 27 governors + presidential candidates for 2026
-   - Run per-candidate Claude Code sessions before election registration closes
+   - Run per-candidate `enrich-positions-groq` sessions before election registration closes
    - ~30 candidates, ~1 session per 2 candidates
 
 3. **Federal legislature:** 513 deputies + senators
-   - Primarily Tier 1 (voting records) — already partially automated
+   - Primarily Tier 1 (voting records) — partially done (521 deputados + 39 senadores)
    - Fill gaps with Tier 3 for candidates with <10 themes covered
 
 4. **State legislature:** Deputados estaduais — lowest priority, highest volume

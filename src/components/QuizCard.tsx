@@ -1,41 +1,43 @@
 'use client'
 
-import { useState, useId } from 'react'
-import type { TemaQuestionario, Resposta, Importancia } from '@/lib/types'
+import { useState } from 'react'
+import type { TemaQuestionario, VoterPosicao, Importancia } from '@/lib/types'
 
 interface QuizCardProps {
   tema: TemaQuestionario
-  initialResposta?: Resposta
+  initialPosicao?: VoterPosicao | null
   initialImportancia?: Importancia
-  onChange: (resposta: Resposta, importancia: Importancia) => void
+  onChange: (posicao: VoterPosicao, importancia: Importancia) => void
 }
+
+const POSICAO_BUTTONS: Array<{ value: VoterPosicao; label: string }> = [
+  { value: 'contrario', label: 'Discordo' },
+  { value: 'neutro',    label: 'Neutro'   },
+  { value: 'favoravel', label: 'Concordo' },
+]
 
 const IMPORTANCIA_LABELS: Record<number, string> = { 1: 'Baixa', 2: 'Média', 3: 'Alta' }
 
-export function QuizCard({ tema, initialResposta, initialImportancia, onChange }: QuizCardProps) {
-  const sliderId = useId()
-  const [resposta, setResposta] = useState<Resposta>(initialResposta ?? 3)
+export function QuizCard({ tema, initialPosicao, initialImportancia, onChange }: QuizCardProps) {
+  const [posicao, setPosicao] = useState<VoterPosicao | null>(initialPosicao ?? null)
   const [importancia, setImportancia] = useState<Importancia>(initialImportancia ?? 2)
-  const [touched, setTouched] = useState(initialResposta !== undefined)
   const [showInfo, setShowInfo] = useState(false)
 
-  function handleSliderChange(value: number) {
-    const r = value as Resposta
-    setResposta(r)
-    if (!touched) setTouched(true)
-    onChange(r, importancia)
+  function handlePosicaoChange(p: VoterPosicao) {
+    setPosicao(p)
+    onChange(p, importancia)
   }
 
   function handleImportanciaChange(imp: Importancia) {
     setImportancia(imp)
-    onChange(resposta, imp)
+    if (posicao !== null) onChange(posicao, imp)
   }
 
   return (
     <div
       data-testid="quiz-card"
       className={`rounded-xl border p-4 shadow-sm transition-all ${
-        touched ? 'border-highlight bg-white' : 'border-gray-200 bg-gray-50'
+        posicao !== null ? 'border-highlight bg-white' : 'border-gray-200 bg-gray-50'
       }`}
     >
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -59,42 +61,44 @@ export function QuizCard({ tema, initialResposta, initialImportancia, onChange }
         </div>
       )}
 
-      <div className="mb-3 flex flex-col gap-1">
-        <div className="flex justify-between text-xs text-gray-400">
-          <span>Discordo</span>
-          <span>Concordo</span>
-        </div>
-        <input
-          id={sliderId}
-          type="range"
-          role="slider"
-          min={1}
-          max={5}
-          step={1}
-          value={resposta}
-          onChange={e => handleSliderChange(Number(e.target.value))}
-          aria-label={`Concordância: ${tema.nome}`}
-          className="h-2 w-full cursor-pointer accent-highlight"
-        />
+      <div className="mb-3 flex gap-2">
+        {POSICAO_BUTTONS.map(btn => (
+          <button
+            key={btn.value}
+            type="button"
+            onClick={() => handlePosicaoChange(btn.value)}
+            aria-pressed={posicao === btn.value}
+            className={`flex-1 rounded-lg border py-2 text-sm font-medium transition-all ${
+              posicao === btn.value
+                ? 'border-highlight bg-highlight text-white'
+                : 'border-gray-200 text-gray-500 hover:border-gray-400'
+            }`}
+          >
+            {btn.label}
+          </button>
+        ))}
       </div>
 
-      {touched && (
-        <div className="flex gap-2">
-          {([1, 2, 3] as Importancia[]).map(imp => (
-            <button
-              key={imp}
-              type="button"
-              onClick={() => handleImportanciaChange(imp)}
-              aria-pressed={importancia === imp}
-              className={`flex-1 rounded-lg border py-1 text-xs font-medium transition-all ${
-                importancia === imp
-                  ? 'border-highlight bg-highlight text-white'
-                  : 'border-gray-200 text-gray-500 hover:border-gray-400'
-              }`}
-            >
-              {IMPORTANCIA_LABELS[imp]}
-            </button>
-          ))}
+      {posicao !== null && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs text-gray-500">Quão importante é este tema para você?</p>
+          <div className="flex gap-2">
+            {([1, 2, 3] as Importancia[]).map(imp => (
+              <button
+                key={imp}
+                type="button"
+                onClick={() => handleImportanciaChange(imp)}
+                aria-pressed={importancia === imp}
+                className={`flex-1 rounded-lg border py-1 text-xs font-medium transition-all ${
+                  importancia === imp
+                    ? 'border-highlight bg-highlight text-white'
+                    : 'border-gray-200 text-gray-500 hover:border-gray-400'
+                }`}
+              >
+                {IMPORTANCIA_LABELS[imp]}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>

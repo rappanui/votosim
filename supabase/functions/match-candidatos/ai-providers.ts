@@ -3,8 +3,8 @@
 
 export interface RespostaUsuario {
   temaSlug: string
-  resposta: 1 | 2 | 3 | 4 | 5   // 1=strongly disagree · 3=neutral · 5=strongly agree
-  importancia: 1 | 2 | 3         // voter weight: 1=low · 2=medium · 3=high
+  posicao: 'favoravel' | 'contrario' | 'neutro'  // voter's explicit position
+  importancia: 1 | 2 | 3                          // voter weight: 1=low · 2=medium · 3=high
 }
 
 export interface MatchRequest {
@@ -30,14 +30,15 @@ export interface PositionWithSlug {
 
 export interface TemaCandidatoDetalhe {
   temaSlug: string
-  voterResposta: 1 | 2 | 3 | 4 | 5
+  voterPosicao: 'favoravel' | 'contrario' | 'neutro'
   voterImportancia: 1 | 2 | 3
   // Typed numeric for forward-compat with planned candidate schema migration (see spec §8).
   // This iteration: converted from DB categorical via posicaoToScale(); null = no data.
   candidatePosicao: number | null
   candidateImportancia: number | null  // DB intensidade — platform centrality, display only
-  alignment: number | null             // 0.0–1.0; null when voter neutral or no real candidate data
+  alignment: number | null             // 0.0–1.0; null when voter neutro or no real candidate data
   contouNoScore: boolean
+  posicaoViaPartido: boolean           // true when candidatePosicao is sourced from the party program, not the candidate directly
 }
 
 export interface CandidatoResultado {
@@ -63,6 +64,7 @@ export interface FallbackData {
   candidates: CandidatoRow[]
   positions: PositionWithSlug[]
   estado: string
+  partyPositionsByParty?: Map<string, PositionWithSlug[]>  // keyed by partido_atual sigla
 }
 
 // ─── Internal types ────────────────────────────────────────────────────────────
@@ -196,8 +198,10 @@ export function posicaoToScale(posicao: string, intensidade: number): number {
 export function scoreCandidato(
   respostas: RespostaUsuario[],
   positions: PositionWithSlug[],
+  partyPositions?: PositionWithSlug[],
 ): { alinhamento: number; cobertura: number; detalhesTemas: TemaCandidatoDetalhe[] } {
   const posMap = new Map(positions.map(p => [p.themeSlug, p]))
+  const partyPosMap = new Map((partyPositions ?? []).map(p => [p.themeSlug, p]))
 
   let weightedSum = 0
   let totalWeight = 0
@@ -206,22 +210,29 @@ export function scoreCandidato(
   const detalhesTemas: TemaCandidatoDetalhe[] = []
 
   for (const r of respostas) {
-    const pos = posMap.get(r.temaSlug)
-    const hasRealStance = pos !== undefined && pos.posicao !== 'neutro' && pos.posicao !== 'variavel'
-    const candidatePosicao = hasRealStance
-      ? posicaoToScale(pos!.posicao, pos!.intensidade)
-      : null
-    const candidateImportancia = pos ? pos.intensidade : null
+    const candidatePos = posMap.get(r.temaSlug)
+    const partyPos = candidatePos === undefined ? partyPosMap.get(r.temaSlug) : undefined
+    const effectivePos = candidatePos ?? partyPos
+    const posicaoViaPartido = candidatePos === undefined && partyPos !== undefined
 
-    if (r.resposta === 3) {
+    const hasRealStance = effectivePos !== undefined &&
+      effectivePos.posicao !== 'neutro' &&
+      effectivePos.posicao !== 'variavel'
+    const candidatePosicao = hasRealStance
+      ? posicaoToScale(effectivePos!.posicao, effectivePos!.intensidade)
+      : null
+    const candidateImportancia = effectivePos ? effectivePos.intensidade : null
+
+    if (r.posicao === 'neutro') {
       detalhesTemas.push({
         temaSlug: r.temaSlug,
-        voterResposta: r.resposta,
+        voterPosicao: r.posicao,
         voterImportancia: r.importancia,
         candidatePosicao,
         candidateImportancia,
         alignment: null,
         contouNoScore: false,
+        posicaoViaPartido: posicaoViaPartido && hasRealStance,
       })
       continue
     }
@@ -233,7 +244,8 @@ export function scoreCandidato(
 
     if (hasRealStance) {
       coveredTemas++
-      alignment = 1 - Math.abs(r.resposta - candidatePosicao!) / 4
+      const voterScale = r.posicao === 'favoravel' ? 5 : 1
+      alignment = 1 - Math.abs(voterScale - candidatePosicao!) / 4
       const weight = r.importancia / 3
       weightedSum += alignment * weight
       totalWeight += weight
@@ -242,12 +254,13 @@ export function scoreCandidato(
 
     detalhesTemas.push({
       temaSlug: r.temaSlug,
-      voterResposta: r.resposta,
+      voterPosicao: r.posicao,
       voterImportancia: r.importancia,
       candidatePosicao,
       candidateImportancia,
       alignment,
       contouNoScore,
+      posicaoViaPartido: posicaoViaPartido && hasRealStance,
     })
   }
 
@@ -268,9 +281,11 @@ export function scoreWithoutAI(data: FallbackData): MatchResult {
 
   const byCargo = new Map<string, CandidatoResultado[]>()
   for (const c of data.candidates) {
+    const partyPositions = data.partyPositionsByParty?.get(c.partido_atual)
     const { alinhamento, cobertura, detalhesTemas } = scoreCandidato(
       data.respostas,
       byCandidate.get(c.politician_id) ?? [],
+      partyPositions,
     )
     const resultado: CandidatoResultado = {
       politicianId: c.politician_id,

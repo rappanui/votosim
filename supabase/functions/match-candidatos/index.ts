@@ -230,11 +230,11 @@ export function countSimpleMatches(
   const positionMap = new Map(positions.map(p => [p.themeSlug, p.posicao]))
   let matches = 0
   for (const answer of answers) {
-    if (answer.resposta === 3) continue
+    if (answer.posicao === 'neutro') continue
     const posicao = positionMap.get(answer.temaSlug)
     if (!posicao) continue
-    if (answer.resposta >= 4 && posicao === 'favoravel') matches++
-    if (answer.resposta <= 2 && posicao === 'contrario') matches++
+    if (answer.posicao === 'favoravel' && posicao === 'favoravel') matches++
+    if (answer.posicao === 'contrario' && posicao === 'contrario') matches++
   }
   return matches
 }
@@ -278,8 +278,8 @@ export function buildPrompt(
   return JSON.stringify({
     tarefa: 'Calcule o percentual de alinhamento temático. Retorne um objeto JSON.',
     instrucoes: [
-      'Para cada candidato, compare as respostas do eleitor (1=discordo total, 3=neutro, 5=concordo total) com as posições documentadas.',
-      'resposta>=4 + favoravel = alinhado. resposta<=2 + contrario = alinhado. resposta>=4 + contrario = divergente. resposta<=2 + favoravel = divergente.',
+      'Para cada candidato, compare a posição do eleitor (favoravel=Concordo, contrario=Discordo, neutro=Neutro — ignorar no score) com as posições documentadas.',
+      'posicao favoravel + candidato favoravel = alinhado. posicao contrario + candidato contrario = alinhado. posicao favoravel + candidato contrario = divergente. posicao contrario + candidato favoravel = divergente.',
       'intensidade (1-5) indica força da posição — pese mais as posições de intensidade alta.',
       'importancia (1-3) indica peso do tema para o eleitor — pese mais os temas de alta importancia.',
       'alinhamento: inteiro 0-100. NÃO use "vote em", "recomendo" ou "escolha" em nenhum campo.',
@@ -300,7 +300,7 @@ export function buildPrompt(
     },
     respostasEleitor: answers.map(a => ({
       temaSlug: a.temaSlug,
-      resposta: a.resposta,
+      posicao: a.posicao,
       importancia: a.importancia,
     })),
     candidatos: candidateData,
@@ -390,7 +390,15 @@ export async function handler(req: Request): Promise<Response> {
 
     const filteredIds = new Set(filteredCandidates.map(c => c.politician_id))
     const filteredPositions = positions.filter(p => filteredIds.has(p.politician_id))
-    const filteredAlerts = await fetchAlerts(supabase, [...filteredIds])
+    // Fetch party positions early: used for per-theme fallback on individual candidates
+    // AND for full party match entries (voto de legenda in legislative cargos).
+    const partySiglas = [...new Set(
+      candidates.filter(c => LEGISLATIVE_CARGOS.has(c.cargo)).map(c => c.partido_atual),
+    )]
+    const [filteredAlerts, partyPositionsByParty] = await Promise.all([
+      fetchAlerts(supabase, [...filteredIds]),
+      fetchPartyPositions(supabase, partySiglas, themeMap),
+    ])
 
     const prompt = buildPrompt(filteredCandidates, positionsByCandidate, body.respostas)
     const fallbackData: FallbackData = {
@@ -398,16 +406,14 @@ export async function handler(req: Request): Promise<Response> {
       candidates: filteredCandidates,
       positions: filteredPositions,
       estado: body.estado,
+      partyPositionsByParty,
     }
 
     const rawResult = await callAI(prompt, fallbackData)
 
-    // Party match: for legislative cargos, parties with program data can appear
-    // above individual candidates (voters may choose the party via voto de legenda)
-    const partySiglas = [...new Set(
-      candidates.filter(c => LEGISLATIVE_CARGOS.has(c.cargo)).map(c => c.partido_atual),
-    )]
-    const partyPositionsByParty = await fetchPartyPositions(supabase, partySiglas, themeMap)
+    // Party match entries: parties appear as standalone results for legislative cargos
+    // (voters may choose the party via voto de legenda). These are distinct from the
+    // per-theme party fallback above — here the party IS the candidate entry.
     const partyEntries = buildPartyResults(candidates, partyPositionsByParty, body.respostas)
     const mergedResult = injectPartyResults(rawResult, partyEntries)
 

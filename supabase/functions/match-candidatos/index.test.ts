@@ -20,8 +20,8 @@ import type { CandidatoResultado, CandidatoRow, MatchResult, PositionWithSlug, R
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function makeR(slug: string, resposta: 1 | 2 | 3 | 4 | 5, importancia: 1 | 2 | 3 = 2): RespostaUsuario {
-  return { temaSlug: slug, resposta, importancia }
+function makeR(slug: string, posicao: 'favoravel' | 'contrario' | 'neutro', importancia: 1 | 2 | 3 = 2): RespostaUsuario {
+  return { temaSlug: slug, posicao, importancia }
 }
 
 function makeCandidato(id: string, alinhamento: number, cobertura = 100): CandidatoResultado {
@@ -47,36 +47,36 @@ Deno.test('groupBy: groups items by key', () => {
 
 // ─── countSimpleMatches ───────────────────────────────────────────────────────
 
-Deno.test('countSimpleMatches: resposta>=4 + favoravel counts as match', () => {
+Deno.test('countSimpleMatches: posicao favoravel + candidato favoravel counts as match', () => {
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
-  assertEquals(countSimpleMatches('p1', { p1: positions }, [makeR('sus', 5)]), 1)
+  assertEquals(countSimpleMatches('p1', { p1: positions }, [makeR('sus', 'favoravel')]), 1)
 })
 
-Deno.test('countSimpleMatches: resposta<=2 + contrario counts as match', () => {
+Deno.test('countSimpleMatches: posicao contrario + candidato contrario counts as match', () => {
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'privatizacao', posicao: 'contrario', intensidade: 5 },
   ]
-  assertEquals(countSimpleMatches('p1', { p1: positions }, [makeR('privatizacao', 1)]), 1)
+  assertEquals(countSimpleMatches('p1', { p1: positions }, [makeR('privatizacao', 'contrario')]), 1)
 })
 
-Deno.test('countSimpleMatches: resposta=3 (neutro) is skipped', () => {
+Deno.test('countSimpleMatches: posicao neutro is skipped', () => {
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
-  assertEquals(countSimpleMatches('p1', { p1: positions }, [makeR('sus', 3)]), 0)
+  assertEquals(countSimpleMatches('p1', { p1: positions }, [makeR('sus', 'neutro')]), 0)
 })
 
-Deno.test('countSimpleMatches: resposta>=4 + contrario is not a match', () => {
+Deno.test('countSimpleMatches: posicao favoravel + candidato contrario is not a match', () => {
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'contrario', intensidade: 5 },
   ]
-  assertEquals(countSimpleMatches('p1', { p1: positions }, [makeR('sus', 5)]), 0)
+  assertEquals(countSimpleMatches('p1', { p1: positions }, [makeR('sus', 'favoravel')]), 0)
 })
 
 Deno.test('countSimpleMatches: unknown candidate returns 0', () => {
-  assertEquals(countSimpleMatches('unknown', {}, [makeR('sus', 5)]), 0)
+  assertEquals(countSimpleMatches('unknown', {}, [makeR('sus', 'favoravel')]), 0)
 })
 
 // ─── prefilterCandidates ─────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ Deno.test('prefilterCandidates: selects best-matching candidates', () => {
     best: [{ politician_id: 'best', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 }],
     worst: [{ politician_id: 'worst', themeSlug: 'sus', posicao: 'contrario', intensidade: 5 }],
   }
-  const result = prefilterCandidates(candidates, positionsByCandidate, [makeR('sus', 5)])
+  const result = prefilterCandidates(candidates, positionsByCandidate, [makeR('sus', 'favoravel')])
   // Both are within PREFILTER_LIMIT_DEFAULT(10), so both pass — 'best' should come first
   assertEquals(result[0].politician_id, 'best')
 })
@@ -252,7 +252,7 @@ Deno.test('buildPartyResults: creates one entry per legislative cargo per party'
   const positions: PositionWithSlug[] = [
     { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
-  const result = buildPartyResults(candidates, new Map([['PT', positions]]), [makeR('sus', 5)])
+  const result = buildPartyResults(candidates, new Map([['PT', positions]]), [makeR('sus', 'favoravel')])
   assertEquals(result.length, 2)
   assertEquals(result.map(r => r.cargo).sort(), ['deputado_federal', 'senador'])
 })
@@ -264,7 +264,7 @@ Deno.test('buildPartyResults: sets isParty=true and correct politicianId and ali
   const positions: PositionWithSlug[] = [
     { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
-  const result = buildPartyResults(candidates, new Map([['PT', positions]]), [makeR('sus', 5, 3)])
+  const result = buildPartyResults(candidates, new Map([['PT', positions]]), [makeR('sus', 'favoravel', 3)])
   assertEquals(result.length, 1)
   assertEquals(result[0].candidato.isParty, true)
   assertEquals(result[0].candidato.politicianId, 'party:PT')
@@ -280,7 +280,7 @@ Deno.test('buildPartyResults: excludes parties without positions', () => {
   const positions: PositionWithSlug[] = [
     { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
-  const result = buildPartyResults(candidates, new Map([['PT', positions]]), [makeR('sus', 5)])
+  const result = buildPartyResults(candidates, new Map([['PT', positions]]), [makeR('sus', 'favoravel')])
   assertEquals(result.length, 1)
   assertEquals(result[0].candidato.partido, 'PT')
 })
@@ -294,7 +294,7 @@ Deno.test('buildPartyResults: excludes non-legislative cargos (presidente, gover
   const positions: PositionWithSlug[] = [
     { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
-  const result = buildPartyResults(candidates, new Map([['PT', positions]]), [makeR('sus', 5)])
+  const result = buildPartyResults(candidates, new Map([['PT', positions]]), [makeR('sus', 'favoravel')])
   assertEquals(result.length, 1)
   assertEquals(result[0].cargo, 'senador')
 })
@@ -349,7 +349,7 @@ Deno.test('buildPrompt: returns valid JSON string', () => {
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
-  const prompt = buildPrompt(candidates, groupBy(positions, p => p.politician_id), [makeR('sus', 5)])
+  const prompt = buildPrompt(candidates, groupBy(positions, p => p.politician_id), [makeR('sus', 'favoravel')])
   // Must be parseable JSON
   const parsed = JSON.parse(prompt)
   assertEquals(typeof parsed.tarefa, 'string')
