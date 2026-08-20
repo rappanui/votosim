@@ -159,6 +159,7 @@ MVP — apply in this order via SQL Editor:
   2. base/02_schema_themes.v2.md     themes_catalog + politician_positions + views + RLS + 14-theme seed
   3. base/04_schema_alerts.md        politician_alerts + view + RLS
   4. base/10_party_positions.sql     party_positions table + indexes + RLS (required for party match)
+  5. base/11_sp0_foundation.sql     enrichment_ledger + candidate_sources + candidate_dossiers + column additions
 
 Skip: base/03_schema_embeddings.md and the SQL function in base/05 — those are v2.
 ```
