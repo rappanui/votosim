@@ -11,6 +11,7 @@
     "ingest-camara-votes": "tsx ingest-camara-votes.ts",
     "ingest-senado-votes": "tsx ingest-senado-votes.ts",
     "check-coverage": "tsx check-coverage.ts",
+    "audit-party-positions": "tsx audit-party-positions.ts",
     "enrich-positions": "tsx enrich-positions-groq.ts",
     "test": "tsx --test *.test.ts"
   },
