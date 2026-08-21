@@ -57,6 +57,23 @@ test('parseTseDate: returns null for TSE null sentinels', () => {
   assert.equal(parseTseDate('99/99/9999'), null)
 })
 
+test('parseTseDate: rejects impossible calendar dates', () => {
+  assert.equal(parseTseDate('31/02/2000'), null)
+  assert.equal(parseTseDate('31/04/2001'), null)
+})
+
+test('parseTseDate: accepts valid leap days', () => {
+  assert.equal(parseTseDate('29/02/2000'), '2000-02-29')
+})
+
+test('parseTseDate: rejects leap day in non-leap years', () => {
+  assert.equal(parseTseDate('29/02/2001'), null)
+})
+
+test('parseTseDate: recognizes actual TSE null sentinel without trailing hash', () => {
+  assert.equal(parseTseDate('#NULO'), null)
+})
+
 test('tierForCargo: executive and senate are researched in full', () => {
   assert.equal(tierForCargo('presidente'), 'total')
   assert.equal(tierForCargo('governador'), 'total')

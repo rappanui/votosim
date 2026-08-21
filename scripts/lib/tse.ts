@@ -72,8 +72,8 @@ export function mapCandidacyStatus(raw: string): string {
 
 /** Converts TSE's DD/MM/YYYY to ISO, or null for its null sentinels. */
 export function parseTseDate(raw: string): string | null {
-  const text = raw?.trim() ?? ''
-  if (!text || text === '#NULO#') return null
+  const text = nullableText(raw)
+  if (!text) return null
 
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text)
   if (!match) return null
@@ -83,7 +83,15 @@ export function parseTseDate(raw: string): string | null {
   const dayNum = Number(day)
   if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) return null
 
-  return `${year}-${month}-${day}`
+  // Round-trip through Date to catch impossible dates like 31/02/2000.
+  // The independent range checks above allow any day 1-31 and month 1-12,
+  // but Date.parse will reject (silently rolling) invalid calendar dates.
+  const iso = `${year}-${month}-${day}`
+  const parsed = new Date(`${iso}T00:00:00Z`)
+  if (Number.isNaN(parsed.getTime())) return null
+  if (parsed.toISOString().slice(0, 10) !== iso) return null
+
+  return iso
 }
 
 /** Which processing tier an office belongs to (spec D1). */
@@ -112,6 +120,6 @@ export function parseColigacao(raw: string | undefined): string | null {
   const text = nullableText(raw)
   if (!text) return null
 
-  const normalized = text.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+  const normalized = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
   return COALITION_SENTINELS.has(normalized) ? null : text
 }
