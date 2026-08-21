@@ -103,6 +103,9 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 | `party_positions` | Position per party per theme (from official party programs) |
 | `politician_alerts` | Dirty record, investigations, controversies |
 | `parties` | Political parties with spectrum metadata |
+| `enrichment_ledger` | Per-candidate per-stage pipeline progress (SP-0, 2026) |
+| `candidate_sources` | Catalogue of every URL the pipeline touched (SP-0, 2026) |
+| `candidate_dossiers` | Generated profile, spectrum and coherence index (SP-0, 2026) |
 
 ### Ready views
 
@@ -110,6 +113,7 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 - `v_candidates_2026_matchable` — candidates with data coverage for match
 - `v_candidate_alerts` — validated alerts ready for display
 - `v_politician_theme_coverage` — thematic coverage per candidate
+- `v_enrichment_queue` — candidates with outstanding enrichment work, in processing order
 
 ---
 
@@ -131,7 +135,10 @@ Electoral information tool for Brazilian voters. The user answers a 14-theme pol
 | `16_2026_candidate_update.md` | Step-by-step guide to refresh data for 2026 elections: TSE file downloads, script order, switching `ELECTION_YEAR` secret |
 | `17_legislative_ingestion_scripts.md` | Practical guide for `ingest-party-programs`, `ingest-camara-votes`, `ingest-senado-votes`: pre-requisites, commands, expected output, run order |
 | `18_party_match.md` | Party match feature (voto de legenda): `party_positions` table, ingest script, Edge Function integration, how party entries appear in results |
-| `candidate-enrichment-strategy.md` | Tiered pipeline for enriching candidate positions: why the TSE PDF pipeline failed, 3-tier architecture, data quality standards, SP pilot plan, source type reference |
+| `superpowers/specs/2026-08-20-candidate-data-pipeline-design.md` | **Current design.** AI moves from match time to ingestion; 528 full-census candidates for 2026; coherence axis; source catalogue. Supersedes `candidate-enrichment-strategy.md` |
+| `tse-2026-data-sources.md` | Where official 2026 data actually lives (TSE CKAN), every bulk archive URL, and the download and CSV traps that break naive scripts |
+| `sp0-schema-additions.md` | `enrichment_ledger`, `candidate_sources`, `candidate_dossiers`, new columns, and why the source catalogue carries two foreign keys |
+| `candidate-enrichment-strategy.md` | ⚠️ Superseded. Tiered pipeline for enriching candidate positions: why the TSE PDF pipeline failed, 3-tier architecture, data quality standards, SP pilot plan, source type reference |
 | `candidate-enrichment-prompt.md` | LLM prompt (system + few-shot) for Groq/Claude to interpret candidate positions into the 14-theme schema. Includes validated Lula + Bolsonaro examples and Supabase upsert instructions |
 
 ### DB docs — unchanged, still valid (in `base/`)
