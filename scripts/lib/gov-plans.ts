@@ -26,14 +26,15 @@ export function bulkArchiveUrl(dataset: BulkDataset, year: number): string {
 }
 
 /**
- * TSE names plan files {year}{UF}{SQ_CANDIDATO}.pdf. SQ_CANDIDATO is the join
- * key back to candidacies.tse_sequencial.
+ * TSE names plan files {year}{UF}{SQ_CANDIDATO}[_{part}].pdf. SQ_CANDIDATO is the join
+ * key back to candidacies.tse_sequencial. The optional part number is assigned when a plan
+ * is split across files; every 2026 presidential plan carries _01.
  */
-export function parsePlanFilename(filename: string): { year: number; uf: string; sequencial: string } | null {
+export function parsePlanFilename(filename: string): { year: number; uf: string; sequencial: string; parte: number | null } | null {
   const base = filename.split('/').pop() ?? filename
-  const match = /^(\d{4})([A-Z]{2})(\d{6,})\.pdf$/i.exec(base)
+  const match = /^(\d{4})([A-Z]{2})(\d{6,})(?:_(\d+))?\.pdf$/i.exec(base)
   if (!match) return null
 
-  const [, year, uf, sequencial] = match
-  return { year: Number(year), uf: uf.toUpperCase(), sequencial }
+  const [, year, uf, sequencial, partStr] = match
+  return { year: Number(year), uf: uf.toUpperCase(), sequencial, parte: partStr ? Number(partStr) : null }
 }
