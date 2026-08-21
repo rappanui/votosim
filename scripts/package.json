@@ -13,6 +13,7 @@
     "check-coverage": "tsx check-coverage.ts",
     "audit-party-positions": "tsx audit-party-positions.ts",
     "enrich-positions": "tsx enrich-positions-groq.ts",
+    "download-tse": "tsx download-tse.ts",
     "test": "tsx --test *.test.ts"
   },
   "dependencies": {
