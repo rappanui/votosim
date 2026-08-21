@@ -84,20 +84,37 @@ export function renderBrief(input: BriefInput): string {
   return lines.join('\n')
 }
 
-/** Reads the declared social accounts for one candidate from the TSE CSVs. */
-function loadSocialAccounts(sequencial: string): string[] {
-  if (!existsSync(SOCIAL_DIR)) return []
+/** Parses one social-accounts CSV and returns the URLs declared by `sequencial`. */
+function readSocialCsv(path: string, sequencial: string): string[] {
+  const content = readFileSync(path, 'latin1')
+  const rows: Record<string, string>[] = parse(content, { delimiter: ';', columns: true, skip_empty_lines: true })
   const urls: string[] = []
-
-  for (const file of readdirSync(SOCIAL_DIR).filter(f => f.endsWith('.csv'))) {
-    const content = readFileSync(`${SOCIAL_DIR}/${file}`, 'latin1')
-    const rows: Record<string, string>[] = parse(content, { delimiter: ';', columns: true, skip_empty_lines: true })
-    for (const row of rows) {
-      if (row['SQ_CANDIDATO']?.trim() === sequencial) urls.push(row['DS_URL']?.trim() ?? '')
-    }
+  for (const row of rows) {
+    if (row['SQ_CANDIDATO']?.trim() === sequencial) urls.push(row['DS_URL']?.trim() ?? '')
   }
-
   return urls.filter(Boolean)
+}
+
+/**
+ * Reads the declared social accounts for one candidate from the TSE CSVs.
+ *
+ * `rede_social_candidato_2026_${estado}.csv` holds exactly the rows for that
+ * election unit — presidential candidates carry `estado = 'BR'`, which maps to
+ * `_BR.csv`, the file holding the federal offices. `_BRASIL.csv` is the union
+ * of every per-unit file; reading it alongside the per-state files would read
+ * each candidate's rows twice, so it is read only as a fallback, alone, when
+ * the per-state file is missing.
+ */
+export function loadSocialAccounts(sequencial: string, estado: string): string[] {
+  if (!existsSync(SOCIAL_DIR)) return []
+
+  const perStatePath = `${SOCIAL_DIR}/rede_social_candidato_2026_${estado}.csv`
+  if (existsSync(perStatePath)) return readSocialCsv(perStatePath, sequencial)
+
+  console.warn(`[build-brief] no rede_social_candidato_2026_${estado}.csv, falling back to _BRASIL.csv`)
+  const fallbackPath = `${SOCIAL_DIR}/rede_social_candidato_2026_BRASIL.csv`
+  if (!existsSync(fallbackPath)) return []
+  return readSocialCsv(fallbackPath, sequencial)
 }
 
 /** Recursively lists PDF paths under the plans directory. */
@@ -154,7 +171,7 @@ async function main(): Promise<void> {
     numeroUrna: cand.numero_urna as string,
     tseSequencial: sequencial,
     planoTexto,
-    redesSociais: loadSocialAccounts(sequencial),
+    redesSociais: loadSocialAccounts(sequencial, cand.estado as string),
     temas: (temas ?? []).map(t => ({ slug: t.slug as string, afirmacao: t.afirmacao_questionario as string })),
   })
 
