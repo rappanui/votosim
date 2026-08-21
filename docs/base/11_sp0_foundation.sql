@@ -60,6 +60,17 @@ END $$;
 ALTER TYPE alert_type ADD VALUE IF NOT EXISTS 'incoerencia';
 ALTER TYPE alert_type ADD VALUE IF NOT EXISTS 'divergencia_espectro';
 
+-- ─── brazilian_state: 'BR' for national offices ───────────────────────────────
+
+-- The TSE candidate CSV carries SG_UF = 'BR' for presidente and vice-presidente,
+-- and the live database already accepts it (13 rows from 2022 sit there today).
+-- But docs/base/01_schema_politicians.md never listed it in the enum, so anyone
+-- rebuilding the schema from the docs gets a database that rejects every
+-- presidential candidacy. Verified on PostgreSQL 15 built from those docs:
+-- 'invalid input value for enum brazilian_state: "BR"'.
+-- This statement is a no-op against the live database and repairs a rebuilt one.
+ALTER TYPE brazilian_state ADD VALUE IF NOT EXISTS 'BR';
+
 -- ─── candidacies: processing tier, viability, federation/coalition detail ─────
 
 ALTER TABLE candidacies
