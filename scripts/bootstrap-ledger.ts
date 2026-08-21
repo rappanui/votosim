@@ -26,6 +26,7 @@ async function main(): Promise<void> {
       .from('candidacies')
       .select('id, cargo, tier_processamento')
       .eq('ano_eleicao', electionYear)
+      .order('id', { ascending: true })
       .range(from, from + PAGE_SIZE - 1)
 
     if (cargoFilter) query = query.eq('cargo', cargoFilter)
