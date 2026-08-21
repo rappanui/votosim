@@ -1,5 +1,5 @@
 import PDFParser from 'pdf2json'
-import { accessSync } from 'fs'
+import { accessSync, constants } from 'fs'
 
 /**
  * pdf2json's raw text output carries page-break markers and erratic whitespace.
@@ -22,7 +22,7 @@ export function cleanPdfText(raw: string): string {
 export function extractPdfText(path: string): Promise<string> {
   return new Promise((resolve, reject) => {
     try {
-      accessSync(path)
+      accessSync(path, constants.R_OK)
     } catch (err) {
       reject(err)
       return
@@ -40,7 +40,12 @@ export function extractPdfText(path: string): Promise<string> {
     })
 
     parser.on('pdfParser_dataReady', () => {
-      resolve(cleanPdfText(parser.getRawTextContent()))
+      const text = cleanPdfText(parser.getRawTextContent())
+      if (text.length === 0) {
+        reject(new Error(`PDF yielded no extractable text: ${path}. Likely cause: document is scanned or image-only.`))
+      } else {
+        resolve(text)
+      }
     })
 
     parser.loadPDF(path)
