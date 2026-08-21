@@ -77,7 +77,8 @@ CREATE TYPE candidacy_status AS ENUM (
 CREATE TYPE brazilian_state AS ENUM (
   'AC','AL','AP','AM','BA','CE','DF','ES','GO',
   'MA','MT','MS','MG','PA','PB','PR','PE','PI',
-  'RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+  'RJ','RN','RS','RO','RR','SC','SP','SE','TO',
+  'BR'   -- cargos nacionais: o TSE usa SG_UF = 'BR' para presidente e vice
 );
 ```
 
