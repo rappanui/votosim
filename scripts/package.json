@@ -19,6 +19,7 @@
     "verify-sp0": "tsx verify-sp0.ts",
     "bootstrap-ledger": "tsx bootstrap-ledger.ts",
     "build-brief": "tsx build-brief.ts",
+    "ingest-research": "tsx ingest-research.ts",
     "test": "tsx --test *.test.ts"
   },
   "dependencies": {
