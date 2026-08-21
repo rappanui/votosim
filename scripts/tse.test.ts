@@ -35,6 +35,14 @@ test('normalizeParty: removes internal spaces', () => {
   assert.equal(normalizeParty('PC do B'), 'PCdoB')
 })
 
+test('normalizeParty: maps the uppercase TSE spelling onto the canonical PCdoB', () => {
+  assert.equal(normalizeParty('PC DO B'), 'PCdoB')
+})
+
+test('normalizeParty: an uncollided acronym passes through unchanged', () => {
+  assert.equal(normalizeParty('PSOL'), 'PSOL')
+})
+
 test('mapCandidacyStatus: maps TSE situation text to the enum', () => {
   assert.equal(mapCandidacyStatus('DEFERIDO'), 'deferido')
   assert.equal(mapCandidacyStatus('Deferido com recurso'), 'deferido')

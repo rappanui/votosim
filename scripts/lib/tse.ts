@@ -53,9 +53,18 @@ export function parseCargo(raw: string): string | null {
   return CARGO_MAP[raw.toUpperCase().trim()] ?? null
 }
 
-/** TSE writes party acronyms with stray spaces ("PC do B"). */
+/**
+ * TSE writes acronyms fully uppercase. Where the database already holds a
+ * different canonical casing for the same party, map onto the existing
+ * spelling so the census does not create a duplicate parties row and orphan
+ * curated metadata. Verified 2026-08-20: PCdoB is the only collision.
+ */
+const CANONICAL_PARTY_SPELLING: Record<string, string> = { PCDOB: 'PCdoB' }
+
+/** TSE writes party acronyms with stray spaces ("PC do B") and full uppercase. */
 export function normalizeParty(sigla: string): string {
-  return sigla.replaceAll(' ', '').trim()
+  const stripped = sigla.replaceAll(' ', '').trim()
+  return CANONICAL_PARTY_SPELLING[stripped.toUpperCase()] ?? stripped
 }
 
 /**

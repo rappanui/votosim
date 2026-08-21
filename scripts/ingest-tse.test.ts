@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildPolitician, buildCandidacy, dedupeParties } from './ingest-tse.ts'
+import { buildPolitician, buildCandidacy, dedupeParties, dedupeCandidacies, type CandidacyRow } from './ingest-tse.ts'
 import type { CsvRow } from './lib/tse.ts'
 
 function makeRow(overrides: Partial<CsvRow> = {}): CsvRow {
@@ -73,6 +73,22 @@ test('buildCandidacy: empty coalition becomes null, not an empty string', () => 
   assert.equal(buildCandidacy(makeRow({ NM_COLIGACAO: '' }), 'presidente', 2026).coligacao, null)
 })
 
+test('buildCandidacy: federacao comes from SG_FEDERACAO and composicao_coligacao from DS_COMPOSICAO_COLIGACAO', () => {
+  const c = buildCandidacy(
+    makeRow({ SG_FEDERACAO: 'PT/PC do B/PV', NM_FEDERACAO: 'Federacao Brasil da Esperanca', DS_COMPOSICAO_COLIGACAO: 'PT/PC do B/PV' }),
+    'presidente',
+    2026,
+  )
+  // Swapping SG_FEDERACAO for NM_FEDERACAO must fail this: the columns hold different text.
+  assert.equal(c.federacao, 'PT/PC do B/PV')
+  assert.notEqual(c.federacao, 'Federacao Brasil da Esperanca')
+  assert.equal(c.composicao_coligacao, 'PT/PC do B/PV')
+})
+
+test('buildCandidacy: #NE (unresolved candidacy) maps to registrado, matching every real 2026 row', () => {
+  assert.equal(buildCandidacy(makeRow({ DS_SITUACAO_CANDIDATURA: '#NE' }), 'presidente', 2026).status, 'registrado')
+})
+
 test('dedupeParties: collapses repeated parties to one row each', () => {
   const rows = [makeRow(), makeRow(), makeRow({ SG_PARTIDO: 'PY', NM_PARTIDO: 'Partido Y', NR_PARTIDO: '88' })]
   const parties = dedupeParties(rows)
@@ -83,4 +99,61 @@ test('dedupeParties: collapses repeated parties to one row each', () => {
 
 test('dedupeParties: skips rows with no party acronym', () => {
   assert.equal(dedupeParties([makeRow({ SG_PARTIDO: '' })]).length, 0)
+})
+
+function makeCandidacyRow(overrides: Partial<CandidacyRow> = {}): CandidacyRow {
+  return {
+    politician_id: 'pol-1',
+    ...buildCandidacy(makeRow(), 'presidente', 2026),
+    ...overrides,
+  }
+}
+
+test('dedupeCandidacies: same politician/year/turno/cargo/estado collapses to one, keeping the higher tse_sequencial', () => {
+  const rows = [
+    makeCandidacyRow({ tse_sequencial: '110002553937' }),
+    makeCandidacyRow({ tse_sequencial: '110002554073' }),
+  ]
+  const { kept, dropped } = dedupeCandidacies(rows)
+  assert.equal(kept.length, 1)
+  assert.equal(kept[0].tse_sequencial, '110002554073')
+  assert.equal(dropped, 1)
+})
+
+test('dedupeCandidacies: same person, different offices, are both kept', () => {
+  const rows = [
+    makeCandidacyRow({ cargo: 'presidente' }),
+    makeCandidacyRow({ cargo: 'senador' }),
+  ]
+  const { kept, dropped } = dedupeCandidacies(rows)
+  assert.equal(kept.length, 2)
+  assert.equal(dropped, 0)
+})
+
+test('dedupeCandidacies: same person, same office, different estado, are both kept', () => {
+  const rows = [
+    makeCandidacyRow({ cargo: 'governador', estado: 'MT' }),
+    makeCandidacyRow({ cargo: 'governador', estado: 'AL' }),
+  ]
+  const { kept, dropped } = dedupeCandidacies(rows)
+  assert.equal(kept.length, 2)
+  assert.equal(dropped, 0)
+})
+
+test('dedupeCandidacies: dropped reports the number of rows collapsed, not just whether any were', () => {
+  const rows = [
+    makeCandidacyRow({ politician_id: 'a', tse_sequencial: '1' }),
+    makeCandidacyRow({ politician_id: 'a', tse_sequencial: '2' }),
+    makeCandidacyRow({ politician_id: 'a', tse_sequencial: '3' }),
+    makeCandidacyRow({ politician_id: 'b', tse_sequencial: '1' }),
+  ]
+  const { kept, dropped } = dedupeCandidacies(rows)
+  assert.equal(kept.length, 2)
+  assert.equal(dropped, 2)
+})
+
+test('dedupeCandidacies: empty input returns empty with dropped 0', () => {
+  const { kept, dropped } = dedupeCandidacies([])
+  assert.deepEqual(kept, [])
+  assert.equal(dropped, 0)
 })
