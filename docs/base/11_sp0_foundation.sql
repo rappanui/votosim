@@ -228,7 +228,8 @@ SELECT
   count(*) FILTER (WHERE l.status = 'pendente')     AS etapas_pendentes,
   count(*) FILTER (WHERE l.status = 'em_progresso') AS etapas_em_progresso,
   count(*) FILTER (WHERE l.status = 'falhou')       AS etapas_falhadas,
-  count(*) FILTER (WHERE l.status = 'concluido')    AS etapas_concluidas
+  count(*) FILTER (WHERE l.status = 'concluido')    AS etapas_concluidas,
+  count(l.id) = 0                                   AS sem_ledger
 FROM candidacies c
 JOIN politicians p ON p.id = c.politician_id
 LEFT JOIN enrichment_ledger l ON l.candidacy_id = c.id
@@ -251,7 +252,9 @@ ORDER BY
   p.nome_urna;
 
 COMMENT ON VIEW v_enrichment_queue IS
-  'Candidates with work outstanding: presidents first, then grouped by state, then by tier and viability. Includes candidacies never seeded into enrichment_ledger and ones stuck in em_progresso. Electorate-size ordering across states (spec D11) is an operator decision, not expressed by this view. Feeds parallel agent dispatch.';
+  'Candidates with work outstanding: presidents first, then grouped by state, then by tier and viability. Includes candidacies never seeded into enrichment_ledger (see sem_ledger) and ones stuck in em_progresso. Electorate-size ordering across states (spec D11) is an operator decision, not expressed by this view. Feeds parallel agent dispatch.';
+COMMENT ON COLUMN v_enrichment_queue.sem_ledger IS
+  'True when this candidacy has zero enrichment_ledger rows — never seeded by bootstrap-ledger, not a candidacy whose work is done. Its etapas_* counts are all zero for that reason, not because every stage is concluido or nao_aplicavel. Consumers must check sem_ledger before treating etapas_pendentes = 0 as "nothing left to do".';
 
 -- ─── RLS ──────────────────────────────────────────────────────────────────────
 
