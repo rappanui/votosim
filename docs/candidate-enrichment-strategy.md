@@ -1,5 +1,11 @@
 # Candidate Data Enrichment Strategy
 
+> **Superseded 2026-08-20** by `docs/superpowers/specs/2026-08-20-candidate-data-pipeline-design.md`.
+> Tier 2 (party programmes) is retired — an audit of the stored data failed every
+> party; see `docs/18_party_match.md`. Tier 3's per-candidate research became the
+> five-stage agent described in the new spec. Kept for the historical record of why
+> the TSE PDF pipeline failed, which the new design still builds on.
+
 **Context:** This document describes the tiered pipeline for collecting, interpreting, and storing reliable political positions for all 14 VotoSim themes. It supersedes the TSE PDF pipeline (`scripts/extract-positions.ts`), which produced biased and incomplete data (all "favoravel", covering only 5–8 of 14 themes per candidate). Read this before writing any data ingestion or AI interpretation code.
 
 ---

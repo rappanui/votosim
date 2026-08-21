@@ -1,5 +1,12 @@
 # VotoSim — Data Ingestion Pipeline
 
+> **Superseded for 2026 (2026-08-20).** The tiered pipeline below describes the
+> 2022 approach. The current design moves AI cost to ingestion and loads 2026 data
+> deliberately — see `docs/superpowers/specs/2026-08-20-candidate-data-pipeline-design.md`.
+> For TSE sources and their traps, read `docs/tse-2026-data-sources.md`, which
+> corrects several statements in this file. This document remains accurate as the
+> record of the 2022 seed.
+
 **Context:** Overview of how the Supabase database is populated with candidates, positions, and alerts. Read before running scripts or planning new data sources. For hands-on commands, see `docs/11_pipeline_scripts.md`. For AI extraction details, see `docs/12_ai_extraction.md`. For deputies/senators strategy, see `docs/13_legislative_votes.md`.
 
 ---
@@ -43,7 +50,7 @@ https://cdn.tse.jus.br/estatistica/sead/odsele/proposta_governo/proposta_governo
 
 One ZIP per state, containing PDF files. Filename pattern: `{year}{UF}{SQ_CANDIDATO}.pdf`. Only GOVERNADOR and PRESIDENTE candidates submit these. Extracted using `pdf2json` (not `pdf-parse` v2, which is ESM-incompatible).
 
-> DivulgaCandContas REST API (`divulgacandcontas.tse.jus.br`) was evaluated and abandoned: it returns 404 for 2022 data. The TSE CDN ZIPs approach is more reliable.
+> DivulgaCandContas REST API (`divulgacandcontas.tse.jus.br`) was evaluated and abandoned: it returns 404 for 2022 data. **Re-checked 2026-08-20: the API is dead outright, not just for closed elections** — every v1 endpoint 404s or 400s for 2026 as well. The canonical index is now the TSE CKAN portal (`dadosabertos.tse.jus.br`). See `docs/tse-2026-data-sources.md`.
 
 ### Criminal Records (TSE CSV)
 
@@ -53,7 +60,7 @@ https://cdn.tse.jus.br/estatistica/sead/odsele/motivo_cassacao/motivo_cassacao_{
 
 Contains candidates with electoral disqualifications. Has `SQ_CANDIDATO` but no CPF — the script builds a `SQ → cpf_hash` map from the candidates CSV at runtime.
 
-> Available only after TSE rulings (typically August–September of election year). Use 2022 file for development.
+> ~~Available only after TSE rulings (typically August–September of election year).~~ **Corrected 2026-08-20:** `motivo_cassacao_2026.zip` is already published and listed in the TSE CKAN package.
 
 ### Legislative Votes (planned for MVP)
 

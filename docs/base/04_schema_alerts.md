@@ -32,6 +32,13 @@ CREATE TYPE alert_type AS ENUM (
   'polemica'        -- posição ou declaração amplamente criticada, documentada em mídia
 );
 
+-- Adicionados em 2026-08-20 por base/11_sp0_foundation.sql:
+--   'incoerencia'          -- conduta contradisse a plataforma declarada num tema
+--   'divergencia_espectro' -- espectro declarado x inferido não batem
+-- A view v_candidate_alerts abaixo NÃO cobre esses dois tipos: o CASE de badge_cor
+-- não tem ELSE, então eles renderizariam badge_cor = NULL. O arquivo 11 substitui a
+-- view com as duas branches adicionais. Ver docs/sp0-schema-additions.md.
+
 CREATE TYPE alert_severity AS ENUM (
   'critica',    -- ficha_suja ou investigação por crime grave (corrupção, violência)
   'alta',       -- investigação por crime moderado ou condenação sem trânsito em julgado

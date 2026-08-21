@@ -1,5 +1,17 @@
 # VotoSim — Party Match (Voto de Legenda)
 
+> **RETIRED for 2026 (2026-08-20).** A quality audit of the stored `party_positions`
+> failed **every one of the 10 parties present** — nine held a single repeated stance
+> across all 14 themes, and PCdoB covered only 9 themes at 89% dominance. 135 rows,
+> zero information. The table was truncated with the rest of the 2022 data and no
+> 2026 party programmes are being fetched.
+>
+> **The code below is unchanged and stays in place.** With an empty `party_positions`
+> the fallback simply never fires — `posicaoViaPartido` is always false and no party
+> entry is injected. It reactivates on its own the day party data worth having exists.
+> Audit tooling: `npm run audit-party-positions`. Full result and reasoning: section 9
+> of `docs/superpowers/specs/2026-08-20-candidate-data-pipeline-design.md`.
+
 **Context:** Documents how parties appear in match results for legislative cargos. Relevant when modifying `party_positions` data, the ingest script, or the Edge Function's party scoring path. For the full scoring formula, see `docs/14_edge_function_ai.md`.
 
 ---
