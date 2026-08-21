@@ -149,3 +149,121 @@ test('validateResearch: rejects a non-object input', () => {
   assert.ok(validateResearch(null).length > 0)
   assert.ok(validateResearch('texto').length > 0)
 })
+
+// ─── D9 regression: distinct-source counting ─────────────────────────────────
+
+test('D9: a polemica citing the same layer-2 ref twice is rejected', () => {
+  const doc = valid()
+  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s2', 's2'] })
+  assert.match(validateResearch(doc).join(' '), /two independent/i)
+})
+
+test('D9: a polemica citing one layer-2 and one layer-3 source is rejected', () => {
+  const doc = valid()
+  doc.fontes.push({ ref: 's3', tipo: 'checagem', camada: 3, titulo: 'Checagem', veiculo: 'Aos Fatos', url: 'https://aosfatos.example/c', dataPublicacao: '2026-07-03', destinoExibicao: 'card_candidato' })
+  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s2', 's3'] })
+  assert.match(validateResearch(doc).join(' '), /two independent/i)
+})
+
+test('D9: a polemica citing two layer-3 sources is rejected', () => {
+  const doc = valid()
+  doc.fontes.push({ ref: 's3', tipo: 'checagem', camada: 3, titulo: 'Checagem A', veiculo: 'Aos Fatos', url: 'https://aosfatos.example/c', dataPublicacao: '2026-07-03', destinoExibicao: 'card_candidato' })
+  doc.fontes.push({ ref: 's4', tipo: 'checagem', camada: 3, titulo: 'Checagem B', veiculo: 'Lupa', url: 'https://lupa.example/d', dataPublicacao: '2026-07-04', destinoExibicao: 'card_candidato' })
+  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s3', 's4'] })
+  assert.match(validateResearch(doc).join(' '), /two independent/i)
+})
+
+// ─── D8: voter-visible source required ────────────────────────────────────────
+
+test('D8: a position citing only an interno source is rejected', () => {
+  const doc = valid()
+  doc.fontes.push({ ref: 's3', tipo: 'noticia', camada: 2, titulo: 'Nota interna', veiculo: 'Interno', url: 'https://internal.example/x', dataPublicacao: '2026-07-05', destinoExibicao: 'interno' })
+  doc.posicoes[0].fonteRefs = ['s3']
+  assert.match(validateResearch(doc).join(' '), /voter-visible source/i)
+})
+
+test('D8: a position citing both an interno and a card_candidato source is accepted', () => {
+  const doc = valid()
+  doc.fontes.push({ ref: 's3', tipo: 'noticia', camada: 2, titulo: 'Nota interna', veiculo: 'Interno', url: 'https://internal.example/x', dataPublicacao: '2026-07-05', destinoExibicao: 'interno' })
+  doc.posicoes[0].fonteRefs = ['s1', 's3']
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+// ─── Dates: ISO only, ambiguous formats rejected ─────────────────────────────
+
+test('validateResearch: rejects a non-ISO dataPublicacao', () => {
+  const doc = valid()
+  doc.fontes[0].dataPublicacao = '15/07/2026'
+  assert.match(validateResearch(doc).join(' '), /iso/i)
+})
+
+test('validateResearch: rejects a non-ISO dataOcorrencia', () => {
+  const doc = valid()
+  doc.alertas.push({ tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: '15/07/2026', fonteRefs: ['s1'] })
+  assert.match(validateResearch(doc).join(' '), /iso/i)
+})
+
+test('validateResearch: accepts a null dataPublicacao and dataOcorrencia', () => {
+  const doc = valid()
+  doc.fontes[0].dataPublicacao = null
+  doc.alertas.push({ tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s1'] })
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+// ─── Minor: numeric boundaries and NaN ────────────────────────────────────────
+
+test('validateResearch: accepts intensidade at the boundaries 1 and 5', () => {
+  const doc1 = valid()
+  doc1.posicoes[0].intensidade = 1
+  assert.deepEqual(validateResearch(doc1), [])
+  const doc5 = valid()
+  doc5.posicoes[0].intensidade = 5
+  assert.deepEqual(validateResearch(doc5), [])
+})
+
+test('validateResearch: accepts confiancaIa at the boundaries 0 and 1', () => {
+  const doc0 = valid()
+  doc0.posicoes[0].confiancaIa = 0
+  assert.deepEqual(validateResearch(doc0), [])
+  const doc1 = valid()
+  doc1.posicoes[0].confiancaIa = 1
+  assert.deepEqual(validateResearch(doc1), [])
+})
+
+test('validateResearch: accepts coerenciaIndice at the boundaries 0 and 100', () => {
+  const doc0 = valid()
+  doc0.dossie.coerenciaIndice = 0
+  assert.deepEqual(validateResearch(doc0), [])
+  const doc100 = valid()
+  doc100.dossie.coerenciaIndice = 100
+  assert.deepEqual(validateResearch(doc100), [])
+})
+
+test('validateResearch: accepts camada at the boundaries 1 and 3', () => {
+  const doc1 = valid()
+  doc1.fontes[0].camada = 1
+  assert.deepEqual(validateResearch(doc1), [])
+  const doc3 = valid()
+  doc3.fontes[1].camada = 3
+  assert.deepEqual(validateResearch(doc3), [])
+})
+
+test('validateResearch: rejects NaN for confiancaIa', () => {
+  const doc = valid()
+  doc.posicoes[0].confiancaIa = NaN
+  assert.match(validateResearch(doc).join(' '), /confiancaIa/i)
+})
+
+test('validateResearch: rejects NaN for coerenciaIndice', () => {
+  const doc = valid()
+  doc.dossie.coerenciaIndice = NaN
+  assert.match(validateResearch(doc).join(' '), /coerenciaIndice/i)
+})
+
+// ─── Minor: titulo/veiculo/coerenciaBase type-checked ────────────────────────
+
+test('validateResearch: rejects a non-string titulo on a source', () => {
+  const doc = valid()
+  ;(doc.fontes[0] as { titulo: unknown }).titulo = 42
+  assert.match(validateResearch(doc).join(' '), /titulo/i)
+})
