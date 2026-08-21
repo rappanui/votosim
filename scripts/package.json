@@ -15,6 +15,7 @@
     "enrich-positions": "tsx enrich-positions-groq.ts",
     "download-tse": "tsx download-tse.ts",
     "truncate-base": "tsx truncate-base.ts",
+    "bootstrap-ledger": "tsx bootstrap-ledger.ts",
     "test": "tsx --test *.test.ts"
   },
   "dependencies": {
