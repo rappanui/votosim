@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but example templates carry no secrets and must be versioned, so a new
+# developer can see which variables the pipeline needs.
+!.env.example
+!scripts/.env.example
 
 # vercel
 .vercel

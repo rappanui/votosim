@@ -38,9 +38,36 @@ The 2026 package carried 91 resources when checked. `package_list` also exposes 
 | Government plans (per UF) | `proposta_governo/proposta_governo_2026_{UF}.zip` |
 | Candidate photos (per UF) | `.../eleicoes/eleicoes2026/fotos/foto_cand2026_{UF}_div.zip` |
 
-`motivo_cassacao_2026.zip` **is already published**. Earlier docs claimed it appears only after TSE rulings in August–September; that is wrong for 2026.
+### `motivo_cassacao_2026` is published but **empty**
 
-Government plans are filed only by `presidente` and `governador`. The `BR` archive holds presidential plans. Filenames follow `{year}{UF}{SQ_CANDIDATO}.pdf`, and `SQ_CANDIDATO` is the join key to `candidacies.tse_sequencial`.
+All 29 files in the archive contain a header and **zero data rows**. The file exists — earlier docs were wrong to say it appears only after rulings — but it carries no disqualifications yet, which is consistent with `DS_SITUACAO_CANDIDATURA` being `#NE` everywhere: the TSE has judged nothing.
+
+**Consequence for the pipeline:** clean-record research cannot rely on this dataset today. The agent's `ficha_limpa` stage must reach primary judicial sources directly, and this archive must be re-downloaded as rulings land.
+
+### `rede_social_candidato_2026` is rich and immediately useful
+
+98,604 rows nationally, joined to candidates by `SQ_CANDIDATO`. `DS_URL` holds the officially declared account, uppercased and inconsistently formatted:
+
+```
+HTTPS://WWW.INSTAGRAM.COM/MARIAAIRESOFICIAL/
+HTTPS://INSTAGRAM.COM/FERNANDOPASQUALINO
+HTTPS://PT.WIKIPEDIA.ORG/WIKI/S%C3%B4NIA_GUAJAJARA
+```
+
+Scheme, `www.` prefix and trailing slash all vary, and values are percent-encoded, so any domain grouping must normalise first. Not every URL is a social network — Wikipedia pages appear too.
+
+These are **declared, official** accounts, which makes them a trustworthy way to narrow the agent's news search to verified handles rather than guessing which account belongs to a candidate.
+
+Government plans are filed only by `presidente` and `governador`. The `BR` archive holds presidential plans.
+
+Filenames follow **`{year}{UF}{SQ_CANDIDATO}_{NN}.pdf`** — note the two-digit part suffix, which every 2026 presidential plan carries as `_01`. Files sit inside a `{UF}/` folder within the archive, alongside a `leiame.pdf` that must be ignored. `SQ_CANDIDATO` is the join key to `candidacies.tse_sequencial`.
+
+```
+BR/2026BR280002542548_01.pdf   → SQ_CANDIDATO 280002542548 (Lula)
+BR/leiame.pdf                  → not a plan
+```
+
+**12 of the 13 presidential candidates filed a plan.** Pablo Marçal (`280002553884`) has none in the archive as of 2026-08-20. All twelve sequenciais match `SQ_CANDIDATO` values in the candidate CSV exactly.
 
 ## Download pitfalls
 
@@ -80,6 +107,30 @@ All 41,348 national rows carry `#NE` — the TSE has judged no candidacy yet. An
 ### Senate substitutes are separate rows
 
 `1º SUPLENTE` and `2º SUPLENTE` appear as their own candidacies (649 rows nationally). They are not voted on individually and are deliberately not ingested.
+
+## Government plan size — measured
+
+Every one of the 12 presidential plans extracts as real text with `pdf2json`. **None is a scanned image**, so no OCR step is needed.
+
+| Sequencial | Characters | ≈ tokens |
+|---|---|---|
+| 280002551932 | 308,925 | 77k |
+| 280002551547 | 296,357 | 74k |
+| 280002538811 | 230,640 | 58k |
+| 280002542548 | 166,345 | 42k |
+| 280002551544 | 165,792 | 41k |
+| 280002539826 | 142,064 | 36k |
+| 280002540694 | 137,424 | 34k |
+| 280002548139 | 111,378 | 28k |
+| 280002541457 | 90,117 | 23k |
+| 280002551975 | 44,278 | 11k |
+| 280002552487 | 15,921 | 4k |
+| 280002552484 | 15,044 | 4k |
+| **Total** | **1,724,285** | **≈431k** |
+
+Reading all twelve plans once costs roughly 431k input tokens before any research, reasoning or output. The largest single plan is 77k tokens — large but well within a single agent context. Plan length varies by a factor of 20 between the largest and smallest, so per-candidate cost is not uniform.
+
+Extraction emits `Unable to decode image` warnings on embedded JPEGs; these are harmless — text extraction is unaffected.
 
 ## 2026 census by office
 
