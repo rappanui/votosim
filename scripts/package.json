@@ -18,6 +18,7 @@
     "prune-stale-parties": "tsx prune-stale-parties.ts",
     "verify-sp0": "tsx verify-sp0.ts",
     "bootstrap-ledger": "tsx bootstrap-ledger.ts",
+    "build-brief": "tsx build-brief.ts",
     "test": "tsx --test *.test.ts"
   },
   "dependencies": {
