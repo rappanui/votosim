@@ -15,6 +15,8 @@
     "enrich-positions": "tsx enrich-positions-groq.ts",
     "download-tse": "tsx download-tse.ts",
     "truncate-base": "tsx truncate-base.ts",
+    "prune-stale-parties": "tsx prune-stale-parties.ts",
+    "verify-sp0": "tsx verify-sp0.ts",
     "bootstrap-ledger": "tsx bootstrap-ledger.ts",
     "test": "tsx --test *.test.ts"
   },
