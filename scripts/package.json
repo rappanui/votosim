@@ -17,7 +17,6 @@
     "truncate-base": "tsx truncate-base.ts",
     "prune-stale-parties": "tsx prune-stale-parties.ts",
     "verify-sp0": "tsx verify-sp0.ts",
-    "list-themes": "tsx list-themes.ts",
     "bootstrap-ledger": "tsx bootstrap-ledger.ts",
     "build-brief": "tsx build-brief.ts",
     "ingest-research": "tsx ingest-research.ts",
