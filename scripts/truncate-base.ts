@@ -3,12 +3,16 @@ import { supabase } from './lib/supabase.js'
 /**
  * Tables cleared by D7, in dependency order. politician_positions and
  * politician_alerts reference politicians; enrichment_ledger, candidate_sources
- * and candidate_dossiers reference candidacies.
+ * and candidate_dossiers reference candidacies. position_history is derived data
+ * (records politician position changes over time) and is cascaded when politicians
+ * are cleared, but listed explicitly here so the run prints a confirmation line
+ * rather than relying on an implicit cascade.
  */
 const TABLES_ALWAYS = [
   'enrichment_ledger',
   'candidate_sources',
   'candidate_dossiers',
+  'position_history',
   'politician_positions',
   'politician_alerts',
   'candidacies',
