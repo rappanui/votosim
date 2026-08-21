@@ -81,6 +81,26 @@ function checkSpectrum(value: unknown, field: string, errors: string[]): void {
   }
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+/** PostgreSQL's default DateStyle parses ambiguous DD/MM vs MM/DD formats
+ * silently and wrong. ISO YYYY-MM-DD is the only format with no reading. */
+function checkIsoDate(value: unknown, field: string, errors: string[]): void {
+  if (value === null || value === undefined) return
+  if (typeof value !== 'string' || !ISO_DATE.test(value)) {
+    errors.push(`${field}: must be an ISO date (YYYY-MM-DD)`)
+  }
+}
+
+function checkNullableString(value: unknown, field: string, errors: string[]): void {
+  if (value === null || value === undefined) return
+  if (typeof value !== 'string') {
+    errors.push(`${field}: must be a string or null`)
+  }
+}
+
+const VISIBLE_DESTINOS = new Set(['card_candidato', 'pagina_sobre'])
+
 /**
  * Validates an agent's research document. Returns every problem found, not just
  * the first — a partial report would send the agent back repeatedly.
@@ -106,6 +126,7 @@ export function validateResearch(input: unknown): string[] {
   const refs = new Set<string>()
   const urls = new Set<string>()
   const camadaByRef = new Map<string, number>()
+  const destinoByRef = new Map<string, string>()
 
   if (!Array.isArray(doc.fontes) || doc.fontes.length === 0) {
     errors.push('fontes: at least one source is required')
@@ -114,7 +135,11 @@ export function validateResearch(input: unknown): string[] {
       if (!isObject(f)) { errors.push(`fontes[${i}]: must be an object`); continue }
       if (typeof f.ref !== 'string' || !f.ref) errors.push(`fontes[${i}].ref: required`)
       else if (refs.has(f.ref)) errors.push(`fontes[${i}]: duplicate source ref ${f.ref}`)
-      else { refs.add(f.ref); camadaByRef.set(f.ref, f.camada as number) }
+      else {
+        refs.add(f.ref)
+        camadaByRef.set(f.ref, f.camada as number)
+        destinoByRef.set(f.ref, f.destinoExibicao as string)
+      }
 
       if (![1, 2, 3].includes(f.camada as number)) errors.push(`fontes[${i}].camada: must be 1, 2 or 3`)
       if (!SOURCE_TIPOS.includes(f.tipo as typeof SOURCE_TIPOS[number])) errors.push(`fontes[${i}].tipo: invalid ${JSON.stringify(f.tipo)}`)
@@ -129,18 +154,37 @@ export function validateResearch(input: unknown): string[] {
       } else {
         urls.add(f.url)
       }
+      checkNullableString(f.titulo, `fontes[${i}].titulo`, errors)
+      checkNullableString(f.veiculo, `fontes[${i}].veiculo`, errors)
+      checkIsoDate(f.dataPublicacao, `fontes[${i}].dataPublicacao`, errors)
     }
   }
 
+  // Dedupes by ref (declaration order) so a repeated ref cannot inflate a
+  // source count — D9's "two independent sources" must mean two distinct
+  // sources, not one source cited twice. Also stops duplicate source_ids
+  // from reaching the database downstream.
+  //
+  // Also enforces D8's voter-reachability half: a claim resolved entirely to
+  // `interno` sources is untraceable for a reader, so at least one resolved
+  // ref must be visible (card_candidato or pagina_sobre).
   const checkRefs = (list: unknown, label: string): string[] => {
     if (!Array.isArray(list) || list.length === 0) {
       errors.push(`${label}: at least one source reference is required`)
       return []
     }
     const resolved: string[] = []
+    const seen = new Set<string>()
     for (const r of list) {
-      if (typeof r !== 'string' || !refs.has(r)) errors.push(`${label}: undeclared source ref ${JSON.stringify(r)}`)
-      else resolved.push(r)
+      if (typeof r !== 'string' || !refs.has(r)) {
+        errors.push(`${label}: undeclared source ref ${JSON.stringify(r)}`)
+      } else if (!seen.has(r)) {
+        seen.add(r)
+        resolved.push(r)
+      }
+    }
+    if (resolved.length > 0 && !resolved.some(r => VISIBLE_DESTINOS.has(destinoByRef.get(r) ?? ''))) {
+      errors.push(`${label}: must cite at least one voter-visible source (card_candidato or pagina_sobre)`)
     }
     return resolved
   }
@@ -154,9 +198,11 @@ export function validateResearch(input: unknown): string[] {
     }
     checkSpectrum(doc.dossie.espectroDeclarado, 'dossie.espectroDeclarado', errors)
     checkSpectrum(doc.dossie.espectroInferido, 'dossie.espectroInferido', errors)
+    checkNullableString(doc.dossie.coerenciaBase, 'dossie.coerenciaBase', errors)
 
     const ci = doc.dossie.coerenciaIndice
-    if (ci !== null && ci !== undefined && (typeof ci !== 'number' || ci < 0 || ci > 100)) {
+    if (ci !== null && ci !== undefined
+        && (typeof ci !== 'number' || !Number.isFinite(ci) || ci < 0 || ci > 100)) {
       errors.push('dossie.coerenciaIndice: must be null or a number between 0 and 100')
     }
   }
@@ -179,10 +225,12 @@ export function validateResearch(input: unknown): string[] {
       }
 
       if (!STANCES.includes(p.posicao as typeof STANCES[number])) errors.push(`${label}.posicao: invalid`)
-      if (!Number.isInteger(p.intensidade) || (p.intensidade as number) < 1 || (p.intensidade as number) > 5) {
+      if (!Number.isInteger(p.intensidade) || !Number.isFinite(p.intensidade as number)
+          || (p.intensidade as number) < 1 || (p.intensidade as number) > 5) {
         errors.push(`${label}.intensidade: must be an integer 1-5`)
       }
-      if (typeof p.confiancaIa !== 'number' || p.confiancaIa < 0 || p.confiancaIa > 1) {
+      if (typeof p.confiancaIa !== 'number' || !Number.isFinite(p.confiancaIa)
+          || p.confiancaIa < 0 || p.confiancaIa > 1) {
         errors.push(`${label}.confiancaIa: must be a number between 0 and 1`)
       }
       if (typeof p.justificativa !== 'string' || !p.justificativa.trim()) {
@@ -208,6 +256,7 @@ export function validateResearch(input: unknown): string[] {
       if (!SEVERIDADES.includes(a.severidade as typeof SEVERIDADES[number])) errors.push(`${label}.severidade: invalid`)
       if (typeof a.titulo !== 'string' || !a.titulo.trim()) errors.push(`${label}.titulo: required`)
       if (typeof a.descricao !== 'string' || !a.descricao.trim()) errors.push(`${label}.descricao: required`)
+      checkIsoDate(a.dataOcorrencia, `${label}.dataOcorrencia`, errors)
 
       const resolved = checkRefs(a.fonteRefs, label)
 
