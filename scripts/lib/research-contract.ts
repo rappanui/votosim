@@ -12,6 +12,24 @@ export const SPECTRUM_VALUES = [
   'esquerda', 'centro_esquerda', 'centro', 'centro_direita', 'direita', 'sem_classificacao',
 ] as const
 
+/**
+ * Domains that qualify a source as camada 1 (primary/official). Without this
+ * check, camada is a bare integer the agent asserts about itself — a source
+ * self-declared as camada 1 on an arbitrary site would satisfy D9 with a
+ * single "official" reference and, per ingest-research.ts's auto-validation
+ * rule, publish a ficha_suja or investigacao badge to voters with no human
+ * review. Requiring an actual .jus.br/.gov.br/.leg.br/.mp.br domain is what
+ * makes camada 1 mean something.
+ */
+const OFFICIAL_DOMAIN_SUFFIXES = ['.jus.br', '.gov.br', '.leg.br', '.mp.br'] as const
+
+function isOfficialDomain(url: string): boolean {
+  const hostname = new URL(url).hostname.toLowerCase()
+  return OFFICIAL_DOMAIN_SUFFIXES.some(
+    suffix => hostname === suffix.slice(1) || hostname.endsWith(suffix),
+  )
+}
+
 const STANCES = ['favoravel', 'contrario', 'neutro'] as const
 const COHERENCE = ['coerente', 'incoerente', 'sem_historico'] as const
 const SOURCE_TIPOS = [
@@ -153,6 +171,11 @@ export function validateResearch(input: unknown): string[] {
         errors.push(`fontes[${i}]: duplicate source url ${f.url}`)
       } else {
         urls.add(f.url)
+        if (f.camada === 1 && !isOfficialDomain(f.url)) {
+          errors.push(
+            `fontes[${i}]: camada 1 requires an official domain (.jus.br, .gov.br, .leg.br, .mp.br) — got ${new URL(f.url).hostname}`,
+          )
+        }
       }
       checkNullableString(f.titulo, `fontes[${i}].titulo`, errors)
       checkNullableString(f.veiculo, `fontes[${i}].veiculo`, errors)

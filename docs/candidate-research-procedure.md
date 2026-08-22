@@ -175,12 +175,21 @@ without becoming unreadable — so this table is the authority, not the example.
 | Field | Allowed values |
 |---|---|
 | `fontes[].tipo` | `plano_governo`, `coligacao`, `bens_declarados`, `votacao`, `tse_oficial`, `noticia`, `checagem`, `judicial` |
-| `fontes[].camada` | `1` (primary/official), `2` (reference press), `3` (fact-checking) |
+| `fontes[].camada` | `1` (primary/official — see the domain requirement below), `2` (reference press), `3` (fact-checking) |
 | `fontes[].destinoExibicao` | `card_candidato`, `pagina_sobre`, `interno` |
 | `posicoes[].posicao` | `favoravel`, `contrario`, `neutro` |
 | `posicoes[].coerenciaTema` | `coerente`, `incoerente`, `sem_historico`, or `null` (no track record to compare — see section 5) |
 | `alertas[].tipo` | `ficha_suja`, `investigacao`, `polemica`, `incoerencia`, `divergencia_espectro` |
 | `alertas[].severidade` | `critica`, `alta`, `media`, `baixa` |
+
+**Camada 1 requires an official domain.** `camada` is not a self-assessment —
+the validator checks it. A source is only accepted as `camada: 1` when its
+url's hostname ends in `.jus.br`, `.gov.br`, `.leg.br` or `.mp.br` (e.g.
+`tse.jus.br`, `camara.leg.br`, `www.gov.br`, `mpf.mp.br`). A news article, a
+blog, or any other source that is not on one of these domains must be `camada
+2` or `3`, whatever its actual reliability — do not round up a good source to
+`camada: 1` to strengthen an alert or satisfy D9. The document is rejected
+outright if a `camada: 1` source fails this check.
 
 **Publication rule for alerts.** A `ficha_suja` or `investigacao` alert backed
 by a layer-1 (official) source is **published to voters immediately, with no

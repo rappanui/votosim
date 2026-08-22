@@ -26,7 +26,16 @@ export interface PositionWithSlug {
   themeSlug: string
   posicao: string
   intensidade: number
+  confiancaIa?: number  // 0.0–1.0; absent for pre-SP-1 rows that never wrote it
 }
+
+/**
+ * Below this, an AI-written position is flagged to the voter as unreviewed.
+ * Positions publish with no human curation (unlike alerts under Rule B of
+ * docs/base/04_schema_alerts.md), so this is the only signal a voter gets
+ * that a specific classification is weaker than the rest.
+ */
+export const LOW_CONFIDENCE_THRESHOLD = 0.75
 
 export interface TemaCandidatoDetalhe {
   temaSlug: string
@@ -39,6 +48,7 @@ export interface TemaCandidatoDetalhe {
   alignment: number | null             // 0.0–1.0; null when voter neutro or no real candidate data
   contouNoScore: boolean
   posicaoViaPartido: boolean           // true when candidatePosicao is sourced from the party program, not the candidate directly
+  baixaConfianca: boolean              // true when a real AI-written stance has confiancaIa < LOW_CONFIDENCE_THRESHOLD
 }
 
 export interface CandidatoResultado {
@@ -222,6 +232,11 @@ export function scoreCandidato(
       ? posicaoToScale(effectivePos!.posicao, effectivePos!.intensidade)
       : null
     const candidateImportancia = effectivePos ? effectivePos.intensidade : null
+    // Absence of confiancaIa is not itself a low-confidence claim — pre-SP-1
+    // rows (2022 seed, party-proxy fallback) never wrote this column.
+    const baixaConfianca = hasRealStance &&
+      effectivePos!.confiancaIa !== undefined &&
+      effectivePos!.confiancaIa < LOW_CONFIDENCE_THRESHOLD
 
     if (r.posicao === 'neutro') {
       detalhesTemas.push({
@@ -233,6 +248,7 @@ export function scoreCandidato(
         alignment: null,
         contouNoScore: false,
         posicaoViaPartido: posicaoViaPartido && hasRealStance,
+        baixaConfianca,
       })
       continue
     }
@@ -261,6 +277,7 @@ export function scoreCandidato(
       alignment,
       contouNoScore,
       posicaoViaPartido: posicaoViaPartido && hasRealStance,
+      baixaConfianca,
     })
   }
 

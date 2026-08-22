@@ -11,6 +11,7 @@ const makeDetalhe = (overrides: Partial<TemaCandidatoDetalhe> = {}): TemaCandida
   alignment: 1.0,
   contouNoScore: true,
   posicaoViaPartido: false,
+  baixaConfianca: false,
   ...overrides,
 })
 
@@ -133,5 +134,33 @@ describe('CandidatoCard', () => {
     render(<CandidatoCard candidato={candidato} />)
     fireEvent.click(screen.getByText(/Ver detalhes por tema/))
     expect(screen.queryByText('partido')).not.toBeInTheDocument()
+  })
+
+  it('shows a low-confidence badge when baixaConfianca is true', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [makeDetalhe({ baixaConfianca: true })],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    expect(screen.getByText('classificação não revisada')).toBeInTheDocument()
+  })
+
+  it('does not show the low-confidence badge when baixaConfianca is false', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [makeDetalhe({ baixaConfianca: false })],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    expect(screen.queryByText('classificação não revisada')).not.toBeInTheDocument()
+  })
+
+  it('shows both partido and low-confidence badges together when both apply', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [makeDetalhe({ posicaoViaPartido: true, baixaConfianca: true })],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    expect(screen.getByText('partido')).toBeInTheDocument()
+    expect(screen.getByText('classificação não revisada')).toBeInTheDocument()
   })
 })

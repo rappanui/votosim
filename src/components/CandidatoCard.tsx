@@ -99,6 +99,14 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
                     partido
                   </span>
                 )}
+                {d.baixaConfianca && (
+                  <span
+                    title="Esta classificação foi gerada por IA e ainda não passou por revisão humana."
+                    className="rounded bg-amber-50 px-1 py-0.5 text-xs font-medium text-amber-700"
+                  >
+                    classificação não revisada
+                  </span>
+                )}
               </span>
             </div>
           ))}

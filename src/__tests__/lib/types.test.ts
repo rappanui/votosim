@@ -44,6 +44,7 @@ describe('TemaCandidatoDetalhe shape', () => {
       alignment: 0.9,
       contouNoScore: true,
       posicaoViaPartido: false,
+      baixaConfianca: false,
     }
     expect(typeof d.candidatePosicao).toBe('number')
   })
@@ -58,6 +59,7 @@ describe('TemaCandidatoDetalhe shape', () => {
       alignment: null,
       contouNoScore: false,
       posicaoViaPartido: false,
+      baixaConfianca: false,
     }
     expect(d.candidatePosicao).toBeNull()
   })
