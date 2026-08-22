@@ -61,3 +61,34 @@ All 29 files carry a header and zero data rows, consistent with `DS_SITUACAO_CAN
 **Status:** Parked. Operational, not a defect.
 
 Every 2026 candidacy carries `DS_SITUACAO_CANDIDATURA = '#NE'`, so every row ingests as `registrado`. Deferral and disqualification rulings land over the coming weeks and require periodic re-ingestion of `consulta_cand_2026.zip` to refresh status. No scheduled job exists for this yet.
+
+---
+
+## F6 — `_BRASIL.csv` is a national consolidation in every TSE dataset
+
+**Found:** 2026-08-21, twice — first in the census, then in the social accounts.
+**Status:** Resolved in both places.
+
+Every TSE bulk dataset ships one CSV per election unit **plus** a `_BRASIL.csv` that is the exact union of the others. Verified by row count in two datasets independently:
+
+| Dataset | `_BRASIL.csv` | Sum of the rest |
+|---|---|---|
+| `consulta_cand_2026` | 20,674 | 20,674 |
+| `rede_social_candidato_2026` | 49,302 | 49,302 |
+
+Any code that iterates every `.csv` in one of these directories reads every record twice. In the census this was caught before it ran. In the brief builder it shipped, and generated briefs listed each declared social account twice.
+
+**The trap is that duplication looks like a data quality problem in the source.** Both times, the first diagnosis was "the TSE ships duplicates". It does not — we read the same rows from two files.
+
+**Rule going forward:** either read only `_BRASIL.csv`, or iterate the per-unit files and skip it. Never both. Where the record's election unit is known (a candidate's `estado`), reading the single matching file is strictly better — it is also ~29x less I/O.
+
+---
+
+## F7 — Multi-part government plans are unhandled
+
+**Found:** 2026-08-21, during the Task 3 review.
+**Status:** Parked. No occurrence in current data.
+
+TSE plan filenames carry a part suffix (`_01`, `_02`, …). `findPlanPath` returns the first match only, so a plan split across parts would be read partially, silently. All 12 presidential plans in the current archive use `_01` exclusively, so nothing is affected today.
+
+Check before scaling to the 197 governor plans: if any carry `_02` or higher, the parts must be concatenated in order rather than the first one taken.
