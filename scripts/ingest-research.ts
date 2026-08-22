@@ -86,7 +86,11 @@ function chooseAlertSource(fonteRefs: string[], byRef: Map<string, ResearchSourc
  * incoerencia / divergencia_espectro are AI inferences about a real person
  * that Rule B never covers, so both stay unvalidated regardless of source.
  */
-function isAutoValidated(tipo: string, source: ResearchSource | undefined): boolean {
+function isAutoValidated(tipo: string, source: ResearchSource | undefined, resolved: boolean): boolean {
+  // A resolved matter is never auto-published: Rule B's badge means the
+  // disqualification is CURRENT. Publishing a resolved one unreviewed would
+  // imply an active status that no longer exists.
+  if (resolved) return false
   if (tipo !== 'ficha_suja' && tipo !== 'investigacao') return false
   return source?.camada === 1
 }
@@ -101,6 +105,7 @@ export function buildAlertRows(
 
   return research.alertas.map(a => {
     const source = chooseAlertSource(a.fonteRefs, byRef)
+    const resolved = a.resolucao !== null
 
     return {
       politician_id: politicianId,
@@ -114,8 +119,12 @@ export function buildAlertRows(
       fonte_url: source?.url ?? '',
       fonte_nome: source?.veiculo ?? source?.titulo ?? 'fonte',
       gerado_por_ia: true,
-      validado: isAutoValidated(a.tipo, source),
-      ativo: true,
+      validado: isAutoValidated(a.tipo, source, resolved),
+      // Rule D of docs/base/04_schema_alerts.md: a resolved matter is never
+      // deleted, only marked inactive with the resolution on record.
+      ativo: !resolved,
+      resolucao: a.resolucao,
+      data_resolucao: a.dataResolucao,
     }
   })
 }

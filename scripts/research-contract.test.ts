@@ -194,33 +194,74 @@ test('validateResearch: a malformed camada-1 url reports only the url error, not
 
 test('D9: a polemica backed by one layer-2 source is rejected', () => {
   const doc = valid()
-  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s2'] })
+  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s2'] })
   assert.match(validateResearch(doc).join(' '), /two independent/i)
 })
 
 test('D9: a polemica backed by two layer-2 sources is accepted', () => {
   const doc = valid()
   doc.fontes.push({ ref: 's3', tipo: 'noticia', camada: 2, titulo: 'Outra', veiculo: 'G1', url: 'https://g1.example/b', dataPublicacao: '2026-07-02', destinoExibicao: 'card_candidato' })
-  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s2', 's3'] })
+  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s2', 's3'] })
   assert.deepEqual(validateResearch(doc), [])
 })
 
 test('D9: a polemica backed by a single layer-1 source is accepted', () => {
   const doc = valid()
-  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s1'] })
+  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s1'] })
   assert.deepEqual(validateResearch(doc), [])
 })
 
 test('D9: the rule applies only to polemica, not to ficha_suja', () => {
   const doc = valid()
-  doc.alertas.push({ tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s2'] })
+  doc.alertas.push({ tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s2'] })
   assert.deepEqual(validateResearch(doc), [])
 })
 
 test('validateResearch: rejects an alert with no sources', () => {
   const doc = valid()
-  doc.alertas.push({ tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: [] })
+  doc.alertas.push({ tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: [] })
   assert.match(validateResearch(doc).join(' '), /at least one source/i)
+})
+
+// ─── Resolved alerts — Rule D of docs/base/04_schema_alerts.md: a resolved ──
+// matter is never deleted, only marked inactive with a resolution on record.
+// A conviction later annulled must be representable as such, not omitted and
+// not published as if it were still active.
+
+test('validateResearch: accepts an alert with no resolution (still open)', () => {
+  const doc = valid()
+  doc.alertas.push({ tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: '2025-01-01', resolucao: null, dataResolucao: null, fonteRefs: ['s1'] })
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('validateResearch: accepts a resolved alert with a resolution date', () => {
+  const doc = valid()
+  doc.alertas.push({ tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D', dataOcorrencia: '2018-04-07', resolucao: 'Condenação anulada pelo STF por incompetência de foro em 2021.', dataResolucao: '2021-03-08', fonteRefs: ['s1'] })
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('validateResearch: accepts a resolved alert with an unknown resolution date', () => {
+  const doc = valid()
+  doc.alertas.push({ tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D', dataOcorrencia: '2018-04-07', resolucao: 'Condenação anulada.', dataResolucao: null, fonteRefs: ['s1'] })
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('validateResearch: rejects a resolution date without a resolution text', () => {
+  const doc = valid()
+  doc.alertas.push({ tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D', dataOcorrencia: '2018-04-07', resolucao: null, dataResolucao: '2021-03-08', fonteRefs: ['s1'] })
+  assert.match(validateResearch(doc).join(' '), /dataResolucao.*without.*resolucao|resolucao.*required/i)
+})
+
+test('validateResearch: rejects a non-string resolucao', () => {
+  const doc = valid()
+  ;(doc.alertas as unknown as Record<string, unknown>[]).push({ tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: 42, dataResolucao: null, fonteRefs: ['s1'] })
+  assert.match(validateResearch(doc).join(' '), /resolucao/i)
+})
+
+test('validateResearch: rejects a non-ISO dataResolucao', () => {
+  const doc = valid()
+  doc.alertas.push({ tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: 'Anulada.', dataResolucao: '08/03/2021', fonteRefs: ['s1'] })
+  assert.match(validateResearch(doc).join(' '), /dataResolucao.*ISO/i)
 })
 
 test('validateResearch: reports every problem, not just the first', () => {
@@ -239,14 +280,14 @@ test('validateResearch: rejects a non-object input', () => {
 
 test('D9: a polemica citing the same layer-2 ref twice is rejected', () => {
   const doc = valid()
-  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s2', 's2'] })
+  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s2', 's2'] })
   assert.match(validateResearch(doc).join(' '), /two independent/i)
 })
 
 test('D9: a polemica citing one layer-2 and one layer-3 source is rejected', () => {
   const doc = valid()
   doc.fontes.push({ ref: 's3', tipo: 'checagem', camada: 3, titulo: 'Checagem', veiculo: 'Aos Fatos', url: 'https://aosfatos.example/c', dataPublicacao: '2026-07-03', destinoExibicao: 'card_candidato' })
-  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s2', 's3'] })
+  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s2', 's3'] })
   assert.match(validateResearch(doc).join(' '), /two independent/i)
 })
 
@@ -254,7 +295,7 @@ test('D9: a polemica citing two layer-3 sources is rejected', () => {
   const doc = valid()
   doc.fontes.push({ ref: 's3', tipo: 'checagem', camada: 3, titulo: 'Checagem A', veiculo: 'Aos Fatos', url: 'https://aosfatos.example/c', dataPublicacao: '2026-07-03', destinoExibicao: 'card_candidato' })
   doc.fontes.push({ ref: 's4', tipo: 'checagem', camada: 3, titulo: 'Checagem B', veiculo: 'Lupa', url: 'https://lupa.example/d', dataPublicacao: '2026-07-04', destinoExibicao: 'card_candidato' })
-  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s3', 's4'] })
+  doc.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s3', 's4'] })
   assert.match(validateResearch(doc).join(' '), /two independent/i)
 })
 
@@ -284,14 +325,14 @@ test('validateResearch: rejects a non-ISO dataPublicacao', () => {
 
 test('validateResearch: rejects a non-ISO dataOcorrencia', () => {
   const doc = valid()
-  doc.alertas.push({ tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: '15/07/2026', fonteRefs: ['s1'] })
+  doc.alertas.push({ tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: '15/07/2026', resolucao: null, dataResolucao: null, fonteRefs: ['s1'] })
   assert.match(validateResearch(doc).join(' '), /iso/i)
 })
 
 test('validateResearch: accepts a null dataPublicacao and dataOcorrencia', () => {
   const doc = valid()
   doc.fontes[0].dataPublicacao = null
-  doc.alertas.push({ tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s1'] })
+  doc.alertas.push({ tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s1'] })
   assert.deepEqual(validateResearch(doc), [])
 })
 

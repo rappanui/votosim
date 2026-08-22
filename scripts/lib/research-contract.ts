@@ -70,6 +70,16 @@ export interface ResearchAlert {
   descricao: string
   dataOcorrencia: string | null
   fonteRefs: string[]
+  /**
+   * Rule D of docs/base/04_schema_alerts.md: a resolved matter (charges
+   * dropped, conviction overturned, absolved) is never deleted or omitted —
+   * only marked inactive with the resolution on record, for transparency.
+   * null means the matter is still open. Non-null maps to ativo=false and
+   * this text becomes politician_alerts.resolucao.
+   */
+  resolucao: string | null
+  /** ISO date the resolution became final, or null if unknown even though resolved. */
+  dataResolucao: string | null
 }
 
 export interface ResearchDossier {
@@ -290,6 +300,11 @@ export function validateResearch(input: unknown): string[] {
       if (typeof a.titulo !== 'string' || !a.titulo.trim()) errors.push(`${label}.titulo: required`)
       if (typeof a.descricao !== 'string' || !a.descricao.trim()) errors.push(`${label}.descricao: required`)
       checkIsoDate(a.dataOcorrencia, `${label}.dataOcorrencia`, errors)
+      checkNullableString(a.resolucao, `${label}.resolucao`, errors)
+      checkIsoDate(a.dataResolucao, `${label}.dataResolucao`, errors)
+      if ((a.dataResolucao !== null && a.dataResolucao !== undefined) && !a.resolucao) {
+        errors.push(`${label}: dataResolucao present without resolucao — resolucao is required to record a resolution`)
+      }
 
       const resolved = checkRefs(a.fonteRefs, label)
 

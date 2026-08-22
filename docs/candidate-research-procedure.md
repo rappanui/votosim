@@ -28,7 +28,11 @@ hold in context.
 
 **Produces:** Declared priorities, structured — the candidate's own stated
 platform, extracted from the government plan (when one was filed) and other
-official material in the brief.
+official material in the brief. `dossie.resumoPerfil` also states **prior
+elected offices and terms held**, not only the current platform — a former
+president running again is described as a former president. A biography that
+opens with "concorre à reeleição" and never says what came before is
+incomplete.
 
 **Must not:** score intensity, confidence, or coherence yet — those are E5 and E4
 work. Must not draw conclusions about coherence with conduct; E1 only records what
@@ -43,7 +47,34 @@ only (TSE, STF, STJ, TCU, MPF, and equivalent official bodies).
 **Must not:** draw on news coverage or fact-checking for these two alert types —
 they exist specifically because they carry the weight of an official record, and
 diluting that with secondary sourcing would misrepresent their certainty. Must not
-rely on rumor, social media, or unofficial aggregators.
+rely on rumor, social media, or unofficial aggregators. **Must not rely on
+background knowledge instead of a search.** Run a query naming the candidate
+specifically for judicial/criminal history — a general "ficha limpa 2026"
+search that returns results about *other* candidates is not evidence this
+candidate has none; it is evidence the query did not surface them. A fact
+recalled from training data with no citation does not belong in E2, resolved
+or not — this stage exists precisely so that claims about a real person's
+record are never asserted from memory.
+
+**A resolved matter is not an absent one.** A conviction later annulled, a
+case archived, an absolution — these are still real events, and Rule D of
+`docs/base/04_schema_alerts.md` requires them on record, not omitted: "o
+alerta não é deletado — apenas ativo = false e resolução preenchida." Search
+for them, cite them, and set `resolucao` (what happened) and `dataResolucao`
+(when, if known) on the alert. Do not represent a resolved matter as if it
+never occurred, and do not represent it as an active disqualification either
+— both are false. See section 6.1 for the field shape; a resolved alert is
+never auto-published regardless of source layer, since Rule B's "no review
+needed" badge means the disqualification is current.
+
+> **Recorded incident (2026-08-22):** a first pass over LULA (280002542548)
+> produced a dossier stating neither that he had served two prior presidential
+> terms, nor that his 2018 conviction — later annulled by the STF in 2021 —
+> ever happened. The prior-terms omission was a plain E1 gap. The conviction
+> omission was worse: E2 searched only "ficha limpa 2026" generically, which
+> surfaced other candidates' disputes, and the absence of a hit was read as
+> "nothing to report" rather than as a reason to search for this candidate's
+> own history by name. Both fixes above exist because of this incident.
 
 ### E3 — News research
 
@@ -181,6 +212,17 @@ without becoming unreadable — so this table is the authority, not the example.
 | `posicoes[].coerenciaTema` | `coerente`, `incoerente`, `sem_historico`, or `null` (no track record to compare — see section 5) |
 | `alertas[].tipo` | `ficha_suja`, `investigacao`, `polemica`, `incoerencia`, `divergencia_espectro` |
 | `alertas[].severidade` | `critica`, `alta`, `media`, `baixa` |
+| `alertas[].resolucao` | `null` (still open) or a string describing what happened and how it was resolved |
+| `alertas[].dataResolucao` | ISO date the resolution became final, or `null` if resolved but the date is unknown — never set without `resolucao` also set |
+
+**A resolved alert is still an alert, and it never auto-publishes.**
+`resolucao` maps to `politician_alerts.ativo = false` and the text itself; a
+`null` `resolucao` means the matter is still open (`ativo = true`). Per Rule B
+of `docs/base/04_schema_alerts.md`, a `ficha_suja` or `investigacao` on a
+layer-1 source normally publishes with no human review — but a resolved one
+never does, regardless of source layer, because the point of that badge is
+that the disqualification is *current*. Publishing a resolved matter
+unreviewed would tell a voter something is true that is not.
 
 **Camada 1 requires an official domain.** `camada` is not a self-assessment —
 the validator checks it. A source is only accepted as `camada: 1` when its
@@ -447,6 +489,18 @@ shape, not a real dossier.
       "titulo": "Condenação por improbidade administrativa em segunda instância",
       "descricao": "O TSE registra condenação por improbidade administrativa confirmada em segunda instância, o que sujeita a candidatura à Lei da Ficha Limpa. Fonte oficial primária (camada 1); publicado automaticamente, sem revisão humana, conforme a regra de publicação da seção 6.1.",
       "dataOcorrencia": "2024-11-10",
+      "resolucao": null,
+      "dataResolucao": null,
+      "fonteRefs": ["fonte-tse-decisao-improbidade"]
+    },
+    {
+      "tipo": "investigacao",
+      "severidade": "alta",
+      "titulo": "Inquérito por suspeita de irregularidade em contrato administrativo (arquivado)",
+      "descricao": "O MPF abriu inquérito em 2022 para apurar suspeita de irregularidade em contrato firmado durante gestão anterior do candidato. Fonte oficial primária (camada 1).",
+      "dataOcorrencia": "2022-09-14",
+      "resolucao": "O MPF arquivou o inquérito em 2023 por falta de elementos que indicassem irregularidade.",
+      "dataResolucao": "2023-04-02",
       "fonteRefs": ["fonte-tse-decisao-improbidade"]
     },
     {
@@ -455,6 +509,8 @@ shape, not a real dossier.
       "titulo": "Contrato de gestão anterior sob suspeita",
       "descricao": "Dois veículos independentes noticiaram que um contrato assinado durante a gestão anterior do candidato está sob suspeita de irregularidades no processo licitatório. Ainda não há decisão judicial; trata-se de uma controvérsia relatada, não de uma condenação.",
       "dataOcorrencia": "2026-05-20",
+      "resolucao": null,
+      "dataResolucao": null,
       "fonteRefs": ["fonte-folha-controversia", "fonte-estadao-controversia"]
     },
     {
@@ -463,11 +519,19 @@ shape, not a real dossier.
       "titulo": "Espectro declarado diverge da conduta observada",
       "descricao": "O candidato se autodeclara de centro, mas as posições sobre política previdenciária e o papel econômico do Estado aproximam a plataforma do centro_esquerda, pelos mesmos critérios usados para os demais candidatos.",
       "dataOcorrencia": null,
+      "resolucao": null,
+      "dataResolucao": null,
       "fonteRefs": ["fonte-g1-previdencia", "fonte-uol-externa"]
     }
   ]
 }
 ```
+
+The second entry demonstrates the resolved path added after the 2026-08-22 incident:
+the inquiry is on record — not omitted — but `resolucao` is set, so it maps to
+`ativo = false` and is **not** auto-published under Rule B, even though its
+source is layer 1 and the tipo qualifies. A voter reading it sees that it was
+investigated and cleared, not that it is a live disqualification.
 
 ---
 
