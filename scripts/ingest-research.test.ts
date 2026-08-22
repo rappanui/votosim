@@ -82,16 +82,50 @@ test('buildAlertRows: resolves the source reference and maps fields', () => {
 
 test('buildAlertRows: polemica requires curation before display, others do not', () => {
   const r = research()
+  // s1 is camada 1, so investigacao qualifies for Rule B auto-validation here.
+  r.alertas[0].fonteRefs = ['s1']
   r.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'P', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s2'] })
-  const rows = buildAlertRows(r, 'pol-1', new Map([['s2', 'src-2']]))
+  const rows = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1'], ['s2', 'src-2']]))
 
   // Rule B of docs/base/04_schema_alerts.md: polemica needs human curation.
-  assert.equal(rows[0].validado, true, 'investigacao is auto-validated')
+  assert.equal(rows[0].validado, true, 'investigacao backed by a layer-1 source is auto-validated')
   assert.equal(rows[1].validado, false, 'polemica awaits curation')
+})
+
+test('buildAlertRows: investigacao backed by a layer-1 source is auto-validated', () => {
+  const r = research()
+  r.alertas[0].fonteRefs = ['s1'] // s1 is camada 1
+  const [row] = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1'], ['s2', 'src-2']]))
+  assert.equal(row.validado, true)
+})
+
+test('buildAlertRows: investigacao backed by a layer-2 source is not auto-validated', () => {
+  // research()'s investigacao cites only s2, which is camada 2 (noticia) —
+  // Rule B requires a TSE/STF-grade (camada 1) source.
+  const [row] = buildAlertRows(research(), 'pol-1', new Map([['s1', 'src-1'], ['s2', 'src-2']]))
+  assert.equal(row.validado, false)
 })
 
 test('buildAlertRows: fills fonte_url and fonte_nome from the catalogue for the legacy NOT NULL columns', () => {
   const [row] = buildAlertRows(research(), 'pol-1', new Map([['s2', 'src-2']]), research().fontes)
   assert.equal(row.fonte_url, 'https://g1.example/x')
   assert.equal(row.fonte_nome, 'G1')
+})
+
+test('buildAlertRows: an alert citing an interno source first still writes the voter-visible source', () => {
+  const r = research()
+  r.fontes.push({
+    ref: 's3', tipo: 'noticia', camada: 2, titulo: 'Nota interna', veiculo: 'Memo',
+    url: 'https://interno.example/x', dataPublicacao: null, destinoExibicao: 'interno',
+  })
+  r.alertas.push({
+    tipo: 'investigacao', severidade: 'alta', titulo: 'T2', descricao: 'D2',
+    dataOcorrencia: null, fonteRefs: ['s3', 's1'],
+  })
+  const rows = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1'], ['s2', 'src-2'], ['s3', 'src-3']]))
+  const row = rows[1]
+
+  assert.equal(row.source_id, 'src-1')
+  assert.equal(row.fonte_url, 'https://a.gov.br/p')
+  assert.equal(row.fonte_nome, 'TSE')
 })
