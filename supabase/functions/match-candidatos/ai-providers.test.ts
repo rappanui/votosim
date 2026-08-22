@@ -147,6 +147,67 @@ Deno.test('scoreCandidato: variavel candidate posicao excluded from score', () =
   assertEquals(result.detalhesTemas[0].candidatePosicao, null)
 })
 
+// ─── baixaConfianca — flags an AI-written position for the voter, since ──────
+// positions publish with no human curation (unlike alerts under Rule B).
+
+Deno.test('scoreCandidato: confiancaIa below 0.75 sets baixaConfianca true', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5, confiancaIa: 0.6 },
+  ]
+  const result = scoreCandidato(respostas, positions)
+  assertEquals(result.detalhesTemas[0].baixaConfianca, true)
+})
+
+Deno.test('scoreCandidato: confiancaIa at or above 0.75 sets baixaConfianca false', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
+    { temaSlug: 'edu', posicao: 'favoravel', importancia: 3 },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5, confiancaIa: 0.75 },
+    { politician_id: 'p1', themeSlug: 'edu', posicao: 'favoravel', intensidade: 5, confiancaIa: 0.95 },
+  ]
+  const result = scoreCandidato(respostas, positions)
+  assertEquals(result.detalhesTemas[0].baixaConfianca, false)
+  assertEquals(result.detalhesTemas[1].baixaConfianca, false)
+})
+
+Deno.test('scoreCandidato: missing confiancaIa (legacy/proxy rows) sets baixaConfianca false, not true', () => {
+  // Absence of a score is not the same claim as "the AI was unsure" — the 2022
+  // pipeline and the party-proxy fallback never wrote this column at all.
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
+  ]
+  const result = scoreCandidato(respostas, positions)
+  assertEquals(result.detalhesTemas[0].baixaConfianca, false)
+})
+
+Deno.test('scoreCandidato: no candidate data at all sets baixaConfianca false, not a low-confidence claim', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
+  ]
+  const result = scoreCandidato(respostas, [])
+  assertEquals(result.detalhesTemas[0].baixaConfianca, false)
+})
+
+Deno.test('scoreCandidato: baixaConfianca follows the party-sourced position when the candidate has none', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
+  ]
+  const partyPositions: PositionWithSlug[] = [
+    { politician_id: 'party:PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 3, confiancaIa: 0.55 },
+  ]
+  const result = scoreCandidato(respostas, [], partyPositions)
+  assertEquals(result.detalhesTemas[0].posicaoViaPartido, true)
+  assertEquals(result.detalhesTemas[0].baixaConfianca, true)
+})
+
 // ─── scoreWithoutAI ───────────────────────────────────────────────────────────
 
 Deno.test('scoreWithoutAI: returns valid MatchResult structure with alinhamento and cobertura', () => {

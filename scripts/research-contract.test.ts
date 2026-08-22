@@ -147,6 +147,49 @@ test('validateResearch: rejects camada outside 1-3', () => {
   assert.match(validateResearch(doc).join(' '), /camada/i)
 })
 
+// ─── Camada 1 must be an official domain — a self-declared "primary" source ──
+// on an arbitrary site would let an agent auto-publish a red ficha_suja badge
+// on a real politician with no human review (see supabase/functions/
+// match-candidatos and the auto-validation rule in ingest-research.ts).
+
+test('validateResearch: camada 1 on a non-official domain is rejected', () => {
+  const doc = valid()
+  doc.fontes[0].camada = 1
+  doc.fontes[0].url = 'https://meublogpolitico.example.com/noticia'
+  assert.match(validateResearch(doc).join(' '), /camada 1 requires an official domain/i)
+})
+
+test('validateResearch: camada 1 accepts each official suffix', () => {
+  for (const url of [
+    'https://www.tse.jus.br/x',
+    'https://camara.leg.br/x',
+    'https://senado.leg.br/x',
+    'https://www.gov.br/x',
+    'https://mpf.mp.br/x',
+  ]) {
+    const doc = valid()
+    doc.fontes[0].camada = 1
+    doc.fontes[0].url = url
+    assert.deepEqual(validateResearch(doc), [], `expected ${url} to be accepted`)
+  }
+})
+
+test('validateResearch: camada 2 and 3 are not restricted to official domains', () => {
+  const doc = valid()
+  doc.fontes[1].camada = 2
+  doc.fontes[1].url = 'https://blog-independente.example/analise'
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('validateResearch: a malformed camada-1 url reports only the url error, not a duplicate domain error', () => {
+  const doc = valid()
+  doc.fontes[0].camada = 1
+  doc.fontes[0].url = 'not-a-url'
+  const errors = validateResearch(doc)
+  assert.equal(errors.filter(e => /camada 1 requires an official domain/i.test(e)).length, 0)
+  assert.match(errors.join(' '), /must be an http\(s\) url/i)
+})
+
 // ─── D9: the editorial admission rule ────────────────────────────────────────
 
 test('D9: a polemica backed by one layer-2 source is rejected', () => {

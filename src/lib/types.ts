@@ -43,6 +43,7 @@ export interface TemaCandidatoDetalhe {
   alignment: number | null             // 0.0–1.0; null when voter neutro or no real candidate data
   contouNoScore: boolean
   posicaoViaPartido: boolean           // true when candidatePosicao is sourced from the party program, not the candidate directly
+  baixaConfianca: boolean              // true when a real AI-written stance has confianca_ia below the review threshold
 }
 
 export interface CandidatoResultado {

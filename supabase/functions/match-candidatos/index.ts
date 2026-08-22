@@ -98,7 +98,7 @@ async function fetchPositions(
     const batch = await Promise.all(
       chunks.slice(i, i + CONCURRENCY).map(chunk =>
         supabase.from('politician_positions')
-          .select('politician_id, theme_id, posicao, intensidade')
+          .select('politician_id, theme_id, posicao, intensidade, confianca_ia')
           .in('politician_id', chunk)
       ),
     )
@@ -114,6 +114,9 @@ async function fetchPositions(
       themeSlug: themeMap.get(p.theme_id as string) ?? '',
       posicao: p.posicao as string,
       intensidade: p.intensidade as number,
+      confiancaIa: p.confianca_ia === null || p.confianca_ia === undefined
+        ? undefined
+        : p.confianca_ia as number,
     }))
     .filter(p => p.themeSlug !== '')
 }
@@ -139,7 +142,7 @@ async function fetchPartyPositions(
   if (partySiglas.length === 0) return new Map()
   const { data, error } = await supabase
     .from('party_positions')
-    .select('party_sigla, theme_id, posicao, intensidade')
+    .select('party_sigla, theme_id, posicao, intensidade, confianca_ia')
     .in('party_sigla', partySiglas)
   if (error) {
     // party_positions may not exist yet (migration pending) — degrade gracefully
@@ -147,11 +150,17 @@ async function fetchPartyPositions(
     return new Map()
   }
   const byParty = new Map<string, PositionWithSlug[]>()
-  for (const row of (data ?? []) as Array<{ party_sigla: string; theme_id: string; posicao: string; intensidade: number }>) {
+  for (const row of (data ?? []) as Array<{ party_sigla: string; theme_id: string; posicao: string; intensidade: number; confianca_ia: number | null }>) {
     const slug = themeMap.get(row.theme_id)
     if (!slug) continue
     const list = byParty.get(row.party_sigla) ?? []
-    list.push({ politician_id: row.party_sigla, themeSlug: slug, posicao: row.posicao, intensidade: row.intensidade })
+    list.push({
+      politician_id: row.party_sigla,
+      themeSlug: slug,
+      posicao: row.posicao,
+      intensidade: row.intensidade,
+      confiancaIa: row.confianca_ia === null ? undefined : row.confianca_ia,
+    })
     byParty.set(row.party_sigla, list)
   }
   return byParty
