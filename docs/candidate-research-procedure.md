@@ -10,6 +10,14 @@ changing the brief format, the contract, or the ingestion pipeline.
 
 ---
 
+**Language rule:** every voter-facing string in the output — `dossie.resumoPerfil`,
+every position's `justificativa`, and every alert's `titulo` and `descricao` — is
+written in **Brazilian Portuguese (pt-BR)**. Field names, enum values, theme slugs
+and URLs stay exactly as the contract defines them; only the human-readable prose
+changes. These strings are shown directly to Brazilian voters.
+
+---
+
 ## 1. The five stages
 
 The agent runs one pass, in this order, accumulating context as it goes. Nothing
@@ -123,6 +131,14 @@ Three worked examples, verbatim:
   favouring less is `contrario`.
 - `politica_externa` asks about prioritising *Western* alignment. A candidate
   favouring South-South multilateralism is `contrario`.
+- `autonomia_individual`'s affirmation is double-barrelled: *"O governo deve
+  ampliar o direito dos cidadãos de tomarem decisões sobre sua própria vida,
+  incluindo o acesso a armas de fogo para uso pessoal."* The slug name — a
+  holdover from when the theme was called `porte_armas` — hides a specific and
+  decisive second clause. A candidate's stance on personal autonomy **in
+  general** does not settle this affirmation; it is settled by their position
+  specifically on firearms access. A candidate who supports broad personal
+  autonomy but opposes civilian firearm access is `contrario`, not `favoravel`.
 
 Read the affirmation first, every time. Do not infer a position from the theme's
 name alone.
@@ -150,6 +166,34 @@ The coherence index compares the candidate's **2026 platform** against their
 
 ## 6. The output contract
 
+### 6.1 Enum reference
+
+Every allowed value for every enum field, matching `scripts/lib/research-contract.ts`
+exactly. The worked example below does not use every value — it cannot,
+without becoming unreadable — so this table is the authority, not the example.
+
+| Field | Allowed values |
+|---|---|
+| `fontes[].tipo` | `plano_governo`, `coligacao`, `bens_declarados`, `votacao`, `tse_oficial`, `noticia`, `checagem`, `judicial` |
+| `fontes[].camada` | `1` (primary/official), `2` (reference press), `3` (fact-checking) |
+| `fontes[].destinoExibicao` | `card_candidato`, `pagina_sobre`, `interno` |
+| `posicoes[].posicao` | `favoravel`, `contrario`, `neutro` |
+| `posicoes[].coerenciaTema` | `coerente`, `incoerente`, `sem_historico`, or `null` (no track record to compare — see section 5) |
+| `alertas[].tipo` | `ficha_suja`, `investigacao`, `polemica`, `incoerencia`, `divergencia_espectro` |
+| `alertas[].severidade` | `critica`, `alta`, `media`, `baixa` |
+
+**Publication rule for alerts.** A `ficha_suja` or `investigacao` alert backed
+by a layer-1 (official) source is **published to voters immediately, with no
+human review** — Rule B of `docs/base/04_schema_alerts.md`. Every other alert
+type, and a `ficha_suja` or `investigacao` backed by anything less than a
+layer-1 source, waits for curation before it is ever shown. Choosing `tipo`
+and deciding which sources to cite on E2's alerts **is** the publication
+decision — the agent making that call must know that it is not an incidental
+classification, it is a decision about whether a claim reaches a voter
+unreviewed.
+
+### 6.2 Worked example
+
 A complete, filled example, matching `scripts/lib/research-contract.ts` exactly.
 Every field below is populated with realistic values, and all 14 themes are
 covered — a real submission carries all 14, and copying a partial shape is a
@@ -157,8 +201,11 @@ common mistake. Justifications on the less illustrative themes are kept to one
 sentence; the point of those entries is to show the complete shape, not to be
 elaborate. The example also demonstrates the honesty rule in action
 (`corrupcao_transparencia` is `neutro` with low confidence, citing the source
-that was checked and found silent) and the D9 rule in action (the `polemica`
-alert cites two independent layer-2 sources).
+that was checked and found silent), the D9 rule in action (the `polemica`
+alert cites two independent layer-2 sources), a genuine `incoerente` reading
+(`bolsa_familia_transferencia`, where the 2026 platform diverges from
+documented past conduct), and E2's `ficha_suja` alert, auto-published on a
+layer-1 source per the rule above.
 
 **Note:** the `tseSequencial` below is a placeholder, not a real TSE identifier.
 The candidate name and party are placeholders too — this is an illustration of
@@ -168,11 +215,11 @@ shape, not a real dossier.
 {
   "tseSequencial": "000000000000",
   "dossie": {
-    "resumoPerfil": "Cândido Exemplo (PEX) is a first-time presidential candidate whose 2026 government plan centers on expanding the state's role in strategic industries and tightening pension eligibility rules. No prior elected office means no nominal roll-call record; the coherence assessment below relies on news coverage of public statements against the plan's own commitments.",
+    "resumoPerfil": "Cândido Exemplo (PEX) é candidato a presidente pela primeira vez, e seu plano de governo de 2026 tem como eixos centrais ampliar o papel do Estado em setores estratégicos e endurecer as regras de elegibilidade para aposentadoria. Por nunca ter ocupado cargo eletivo, não há registro de votações nominais; a avaliação de coerência abaixo se baseia na cobertura jornalística de declarações públicas comparada com os próprios compromissos do plano.",
     "espectroDeclarado": "centro",
     "espectroInferido": "centro_esquerda",
     "coerenciaIndice": 58,
-    "coerenciaBase": "2026 government plan pledges on pension policy and the state's economic role compared against public statements and news coverage from 2023-2026; no nominal roll-call votes exist because this is an executive candidacy with no prior elected office."
+    "coerenciaBase": "Promessas do plano de governo de 2026 sobre política previdenciária e o papel econômico do Estado comparadas com declarações públicas e cobertura jornalística de 2023 a 2026; não existem votações nominais porque esta é uma candidatura ao Executivo, sem cargo eletivo anterior."
   },
   "fontes": [
     {
@@ -234,6 +281,26 @@ shape, not a real dossier.
       "url": "https://estadao.com.br/exemplo/controversia-contrato-2",
       "dataPublicacao": "2026-05-22",
       "destinoExibicao": "card_candidato"
+    },
+    {
+      "ref": "fonte-tse-decisao-improbidade",
+      "tipo": "judicial",
+      "camada": 1,
+      "titulo": "Decisão judicial - improbidade administrativa (2ª instância)",
+      "veiculo": "TSE - Tribunal Superior Eleitoral",
+      "url": "https://divulgacandcontas.tse.jus.br/exemplo/decisao-improbidade",
+      "dataPublicacao": "2024-11-10",
+      "destinoExibicao": "card_candidato"
+    },
+    {
+      "ref": "fonte-folha-bolsa-familia",
+      "tipo": "noticia",
+      "camada": 2,
+      "titulo": "Candidato defendeu corte no valor do Bolsa Família durante mandato anterior",
+      "veiculo": "Folha de S.Paulo",
+      "url": "https://folha.uol.com.br/exemplo/bolsa-familia-corte",
+      "dataPublicacao": "2024-03-10",
+      "destinoExibicao": "card_candidato"
     }
   ],
   "posicoes": [
@@ -241,7 +308,7 @@ shape, not a real dossier.
       "temaSlug": "reforma_tributaria",
       "posicao": "favoravel",
       "intensidade": 3,
-      "justificativa": "The plan pledges to simplify the tax system and reduce cumulative taxation, matching the affirmation's call for tax reform.",
+      "justificativa": "O plano promete simplificar o sistema tributário e reduzir a cumulatividade de impostos, o que corresponde ao pedido de reforma tributária feito na afirmação.",
       "confiancaIa": 0.65,
       "coerenciaTema": "sem_historico",
       "fonteRefs": ["fonte-plano-2026"]
@@ -250,7 +317,7 @@ shape, not a real dossier.
       "temaSlug": "sus_saude_publica",
       "posicao": "favoravel",
       "intensidade": 2,
-      "justificativa": "The government plan lists expanding primary care coverage under SUS as a stated priority, but no independent conduct evidence corroborates it beyond the plan itself.",
+      "justificativa": "O plano de governo lista a ampliação da cobertura da atenção básica pelo SUS como prioridade declarada, mas não há evidência independente de conduta que corrobore isso além do próprio plano.",
       "confiancaIa": 0.55,
       "coerenciaTema": "sem_historico",
       "fonteRefs": ["fonte-plano-2026"]
@@ -259,7 +326,7 @@ shape, not a real dossier.
       "temaSlug": "privatizacao_estatais",
       "posicao": "contrario",
       "intensidade": 3,
-      "justificativa": "The plan explicitly rules out privatizing state-owned strategic companies, placing the candidate contrario to the affirmation.",
+      "justificativa": "O plano descarta explicitamente a privatização de estatais estratégicas, o que coloca o candidato como contrário à afirmação.",
       "confiancaIa": 0.6,
       "coerenciaTema": "sem_historico",
       "fonteRefs": ["fonte-plano-2026"]
@@ -268,7 +335,7 @@ shape, not a real dossier.
       "temaSlug": "seguranca_publica_estadual",
       "posicao": "favoravel",
       "intensidade": 2,
-      "justificativa": "The plan proposes federal funding to support state-level security forces, a mild but stated commitment.",
+      "justificativa": "O plano propõe repasse de recursos federais para apoiar as forças de segurança estaduais — um compromisso moderado, mas declarado.",
       "confiancaIa": 0.5,
       "coerenciaTema": "sem_historico",
       "fonteRefs": ["fonte-plano-2026"]
@@ -277,7 +344,7 @@ shape, not a real dossier.
       "temaSlug": "educacao_basica",
       "posicao": "favoravel",
       "intensidade": 3,
-      "justificativa": "The plan commits to increasing federal investment in basic education infrastructure.",
+      "justificativa": "O plano se compromete a aumentar o investimento federal em infraestrutura da educação básica.",
       "confiancaIa": 0.6,
       "coerenciaTema": "sem_historico",
       "fonteRefs": ["fonte-plano-2026"]
@@ -286,7 +353,7 @@ shape, not a real dossier.
       "temaSlug": "meio_ambiente_desmatamento",
       "posicao": "favoravel",
       "intensidade": 3,
-      "justificativa": "The plan proposes stricter enforcement against illegal deforestation in the Amazon.",
+      "justificativa": "O plano propõe fiscalização mais rigorosa contra o desmatamento ilegal na Amazônia.",
       "confiancaIa": 0.6,
       "coerenciaTema": "sem_historico",
       "fonteRefs": ["fonte-plano-2026"]
@@ -295,7 +362,7 @@ shape, not a real dossier.
       "temaSlug": "reforma_previdencia",
       "posicao": "contrario",
       "intensidade": 4,
-      "justificativa": "The government plan proposes raising the minimum contribution period rather than loosening it, and the candidate repeated this position in the G1 interview. Since the affirmation asks about loosening retirement rules, a candidate who tightens them is contrario, not favoravel.",
+      "justificativa": "O plano de governo propõe aumentar o tempo mínimo de contribuição em vez de flexibilizá-lo, e o candidato repetiu essa posição na entrevista ao G1. Como a afirmação pergunta sobre flexibilizar as regras de aposentadoria, um candidato que as endurece é contrário, não favorável.",
       "confiancaIa": 0.85,
       "coerenciaTema": "coerente",
       "fonteRefs": ["fonte-plano-2026", "fonte-g1-previdencia"]
@@ -304,7 +371,7 @@ shape, not a real dossier.
       "temaSlug": "protecao_minorias",
       "posicao": "favoravel",
       "intensidade": 3,
-      "justificativa": "The plan includes explicit anti-discrimination commitments for minority groups.",
+      "justificativa": "O plano inclui compromissos explícitos de combate à discriminação de grupos minoritários.",
       "confiancaIa": 0.55,
       "coerenciaTema": "sem_historico",
       "fonteRefs": ["fonte-plano-2026"]
@@ -313,7 +380,7 @@ shape, not a real dossier.
       "temaSlug": "autonomia_individual",
       "posicao": "neutro",
       "intensidade": 2,
-      "justificativa": "The plan takes no clear stance on individual autonomy versus state intervention in personal choices.",
+      "justificativa": "O plano não assume posição clara sobre autonomia individual diante da intervenção do Estado nas escolhas pessoais e, em particular, não menciona o acesso a armas de fogo para uso pessoal — a cláusula que decide esta afirmação, já que o tema foi renomeado de porte_armas justamente para não se resumir à autonomia em geral. Sem declaração nem conduta documentada especificamente sobre armas, a posição permanece neutra.",
       "confiancaIa": 0.4,
       "coerenciaTema": "sem_historico",
       "fonteRefs": ["fonte-plano-2026"]
@@ -322,16 +389,16 @@ shape, not a real dossier.
       "temaSlug": "bolsa_familia_transferencia",
       "posicao": "favoravel",
       "intensidade": 4,
-      "justificativa": "The plan pledges to expand direct cash-transfer coverage beyond current Bolsa Família levels.",
+      "justificativa": "O plano de 2026 promete ampliar a cobertura de transferência direta de renda além dos níveis atuais do Bolsa Família, mas a cobertura jornalística mostra o candidato defendendo publicamente a redução do valor do benefício durante seu mandato anterior — a plataforma diverge da conduta registrada.",
       "confiancaIa": 0.7,
-      "coerenciaTema": "sem_historico",
-      "fonteRefs": ["fonte-plano-2026"]
+      "coerenciaTema": "incoerente",
+      "fonteRefs": ["fonte-plano-2026", "fonte-folha-bolsa-familia"]
     },
     {
       "temaSlug": "corrupcao_transparencia",
       "posicao": "neutro",
       "intensidade": 1,
-      "justificativa": "No clear declaration or documented conduct on strengthening oversight bodies was found in the plan or in news coverage available at research time. Recorded as neutro pending further evidence, not inferred from ideological alignment.",
+      "justificativa": "Não foi encontrada declaração clara nem conduta documentada sobre o fortalecimento de órgãos de controle, nem no plano nem na cobertura jornalística disponível no momento da pesquisa. Registrado como neutro até que surjam mais evidências, sem inferência a partir de alinhamento ideológico.",
       "confiancaIa": 0.25,
       "coerenciaTema": null,
       "fonteRefs": ["fonte-plano-2026"]
@@ -340,7 +407,7 @@ shape, not a real dossier.
       "temaSlug": "politica_economica",
       "posicao": "favoravel",
       "intensidade": 4,
-      "justificativa": "The plan commits to expanding state participation in strategic sectors (energy, mining) even at higher public spending, matching the affirmation's stance on more state participation directly.",
+      "justificativa": "O plano se compromete a ampliar a participação do Estado em setores estratégicos (energia, mineração) mesmo com maior gasto público, o que corresponde diretamente à posição da afirmação sobre mais participação estatal.",
       "confiancaIa": 0.8,
       "coerenciaTema": "coerente",
       "fonteRefs": ["fonte-plano-2026"]
@@ -349,7 +416,7 @@ shape, not a real dossier.
       "temaSlug": "politica_externa",
       "posicao": "contrario",
       "intensidade": 3,
-      "justificativa": "The candidate explicitly advocated for South-South multilateralism and deeper BRICS cooperation over prioritising alignment with the US and EU, which is the opposite of what the affirmation asks about.",
+      "justificativa": "O candidato defendeu explicitamente o multilateralismo Sul-Sul e maior cooperação no BRICS em vez de priorizar o alinhamento com EUA e UE, o que é o oposto do que a afirmação pergunta.",
       "confiancaIa": 0.78,
       "coerenciaTema": "coerente",
       "fonteRefs": ["fonte-plano-2026", "fonte-uol-externa"]
@@ -358,7 +425,7 @@ shape, not a real dossier.
       "temaSlug": "laicidade_valores",
       "posicao": "favoravel",
       "intensidade": 2,
-      "justificativa": "The plan states public policy should be grounded in secular, evidence-based criteria.",
+      "justificativa": "O plano afirma que as políticas públicas devem se basear em critérios laicos e evidências.",
       "confiancaIa": 0.45,
       "coerenciaTema": "sem_historico",
       "fonteRefs": ["fonte-plano-2026"]
@@ -366,10 +433,18 @@ shape, not a real dossier.
   ],
   "alertas": [
     {
+      "tipo": "ficha_suja",
+      "severidade": "critica",
+      "titulo": "Condenação por improbidade administrativa em segunda instância",
+      "descricao": "O TSE registra condenação por improbidade administrativa confirmada em segunda instância, o que sujeita a candidatura à Lei da Ficha Limpa. Fonte oficial primária (camada 1); publicado automaticamente, sem revisão humana, conforme a regra de publicação da seção 6.1.",
+      "dataOcorrencia": "2024-11-10",
+      "fonteRefs": ["fonte-tse-decisao-improbidade"]
+    },
+    {
       "tipo": "polemica",
       "severidade": "media",
       "titulo": "Contrato de gestão anterior sob suspeita",
-      "descricao": "Two independent outlets reported that a contract signed during the candidate's prior administrative role is under scrutiny for irregular bidding practices. No judicial finding exists yet; this is reported as a controversy, not a conviction.",
+      "descricao": "Dois veículos independentes noticiaram que um contrato assinado durante a gestão anterior do candidato está sob suspeita de irregularidades no processo licitatório. Ainda não há decisão judicial; trata-se de uma controvérsia relatada, não de uma condenação.",
       "dataOcorrencia": "2026-05-20",
       "fonteRefs": ["fonte-folha-controversia", "fonte-estadao-controversia"]
     },
@@ -377,7 +452,7 @@ shape, not a real dossier.
       "tipo": "divergencia_espectro",
       "severidade": "baixa",
       "titulo": "Espectro declarado diverge da conduta observada",
-      "descricao": "The candidate declares a centrist self-identification, but positions on pension policy and the state's economic role place the platform closer to centro_esquerda by the same criteria used for other candidates.",
+      "descricao": "O candidato se autodeclara de centro, mas as posições sobre política previdenciária e o papel econômico do Estado aproximam a plataforma do centro_esquerda, pelos mesmos critérios usados para os demais candidatos.",
       "dataOcorrencia": null,
       "fonteRefs": ["fonte-g1-previdencia", "fonte-uol-externa"]
     }

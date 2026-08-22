@@ -1,6 +1,23 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { validateResearch, type CandidateResearch } from './lib/research-contract.ts'
+import { validateResearch, THEME_SLUGS, type CandidateResearch, type ResearchPosition } from './lib/research-contract.ts'
+
+/** C2: validateResearch requires every one of the 14 THEME_SLUGS to be
+ * present exactly once. The other 13 entries beyond educacao_basica exist
+ * only to satisfy that shape — kept minimal on purpose. */
+function fillerPositions(): ResearchPosition[] {
+  return THEME_SLUGS
+    .filter(slug => slug !== 'educacao_basica')
+    .map(temaSlug => ({
+      temaSlug,
+      posicao: 'neutro' as const,
+      intensidade: 1,
+      justificativa: 'Posição mínima para satisfazer a cobertura de 14 temas nos testes.',
+      confiancaIa: 0.3,
+      coerenciaTema: null,
+      fonteRefs: ['s1'],
+    }))
+}
 
 function valid(): CandidateResearch {
   return {
@@ -18,6 +35,7 @@ function valid(): CandidateResearch {
     ],
     posicoes: [
       { temaSlug: 'educacao_basica', posicao: 'favoravel', intensidade: 4, justificativa: 'Defende ampliação do investimento.', confiancaIa: 0.9, coerenciaTema: 'coerente', fonteRefs: ['s1'] },
+      ...fillerPositions(),
     ],
     alertas: [],
   }
@@ -51,6 +69,30 @@ test('validateResearch: rejects a duplicated theme', () => {
   const doc = valid()
   doc.posicoes.push({ ...doc.posicoes[0] })
   assert.match(validateResearch(doc).join(' '), /duplicate theme/i)
+})
+
+// ─── C2: full 14-theme coverage ──────────────────────────────────────────────
+
+test('C2: accepts a document covering all 14 themes', () => {
+  const doc = valid()
+  assert.equal(doc.posicoes.length, 14)
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('C2: rejects a document missing one theme and names it', () => {
+  const doc = valid()
+  doc.posicoes = doc.posicoes.filter(p => p.temaSlug !== 'laicidade_valores')
+  const errors = validateResearch(doc).join(' ')
+  assert.match(errors, /missing themes/i)
+  assert.match(errors, /laicidade_valores/)
+})
+
+test('C2: rejects a document with zero positions', () => {
+  const doc = valid()
+  doc.posicoes = []
+  const errors = validateResearch(doc).join(' ')
+  assert.match(errors, /missing themes/i)
+  for (const slug of THEME_SLUGS) assert.match(errors, new RegExp(slug))
 })
 
 test('validateResearch: rejects intensidade outside 1-5', () => {

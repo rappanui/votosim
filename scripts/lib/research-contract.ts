@@ -242,6 +242,16 @@ export function validateResearch(input: unknown): string[] {
       }
       checkRefs(p.fonteRefs, label)
     }
+
+    // C2: a document with zero positions — or a partial subset — validates
+    // and marks the candidate concluido with real coverage gaps. Every one
+    // of the 14 questionnaire themes must appear exactly once; name the
+    // missing slugs so an agent (typically one whose response got truncated)
+    // can fix its output directly instead of re-deriving what is missing.
+    const missingThemes = THEME_SLUGS.filter(slug => !seenThemes.has(slug))
+    if (missingThemes.length > 0) {
+      errors.push(`posicoes: missing themes ${missingThemes.join(', ')}`)
+    }
   }
 
   // ─── Alerts, including D9 ──────────────────────────────────────────────────
