@@ -9,8 +9,14 @@ import { supabase } from './lib/supabase.js'
  */
 async function main(): Promise<void> {
   const args = process.argv.slice(2)
-  const limit = Number(args.find(a => a.startsWith('--limit='))?.split('=')[1] ?? '10')
+  const limitArg = args.find(a => a.startsWith('--limit='))?.split('=')[1] ?? '10'
+  const limit = Number(limitArg)
   const cargo = args.find(a => a.startsWith('--cargo='))?.split('=')[1]
+
+  if (!Number.isInteger(limit) || limit <= 0) {
+    console.error(`Invalid --limit=${JSON.stringify(limitArg)} — expected a positive integer, e.g. --limit=10`)
+    process.exit(1)
+  }
 
   let query = supabase
     .from('v_enrichment_queue')
@@ -31,19 +37,33 @@ async function main(): Promise<void> {
   console.log('NOME'.padEnd(28) + 'CARGO'.padEnd(20) + 'UF'.padEnd(4) + 'PARTIDO'.padEnd(16) + 'PEND FAIL SEM_LEDGER')
   console.log('-'.repeat(92))
 
+  let anyNeverSeeded = false
+
   for (const r of rows) {
+    const semLedger = r.sem_ledger === true
+    if (semLedger) anyNeverSeeded = true
+
+    // A row with no ledger entries shows PEND=0 FAIL=0, which reads exactly
+    // like "everything done" at a glance. Replace those counts with an
+    // explicit marker instead of letting the zeros speak for themselves.
+    const pendFail = semLedger
+      ? 'NEVER SEEDED'.padEnd(10)
+      : String(r.etapas_pendentes).padEnd(5) + String(r.etapas_falhadas).padEnd(5)
+
     console.log(
       String(r.nome_urna).slice(0, 27).padEnd(28) +
       String(r.cargo).padEnd(20) +
       String(r.estado).padEnd(4) +
       String(r.partido_eleicao).padEnd(16) +
-      String(r.etapas_pendentes).padEnd(5) +
-      String(r.etapas_falhadas).padEnd(5) +
+      pendFail +
       String(r.sem_ledger),
     )
   }
 
   console.log(`\n${rows.length} shown.`)
+  if (anyNeverSeeded) {
+    console.log('NEVER SEEDED rows have no ledger rows at all — their zero counts do not mean the work is done.')
+  }
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

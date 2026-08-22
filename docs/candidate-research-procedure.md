@@ -83,6 +83,16 @@ declared in the same document.
 Excluded: partisan blogs, sites without an editorial masthead, aggregators, and
 social media as a primary source of fact.
 
+**Every position and every alert must cite at least one voter-visible source** —
+a source whose `destinoExibicao` is `card_candidato` or `pagina_sobre`. A source
+marked `interno` (institutional material nobody wants to click from a candidate
+card, like a raw TSE ficha) is real and stays in the catalogue, but it cannot be
+the *only* citation on a claim: a reader has no way to reach it, so a claim
+resting solely on an `interno` source ships untraceable, which is exactly what
+D8 forbids. `interno` sources may still be cited alongside a visible one — they
+just cannot carry a claim alone. The validator enforces this on every
+`fonteRefs` array, positions and alerts alike.
+
 ---
 
 ## 3. The D9 admission rule
@@ -141,10 +151,14 @@ The coherence index compares the candidate's **2026 platform** against their
 ## 6. The output contract
 
 A complete, filled example, matching `scripts/lib/research-contract.ts` exactly.
-Every field below is populated with realistic values — including the honesty
-rule in action (`corrupcao_transparencia` is `neutro` with low confidence because
-no evidence was found) and the D9 rule in action (the `polemica` alert cites two
-independent layer-2 sources).
+Every field below is populated with realistic values, and all 14 themes are
+covered — a real submission carries all 14, and copying a partial shape is a
+common mistake. Justifications on the less illustrative themes are kept to one
+sentence; the point of those entries is to show the complete shape, not to be
+elaborate. The example also demonstrates the honesty rule in action
+(`corrupcao_transparencia` is `neutro` with low confidence, citing the source
+that was checked and found silent) and the D9 rule in action (the `polemica`
+alert cites two independent layer-2 sources).
 
 **Note:** the `tseSequencial` below is a placeholder, not a real TSE identifier.
 The candidate name and party are placeholders too — this is an illustration of
@@ -224,6 +238,60 @@ shape, not a real dossier.
   ],
   "posicoes": [
     {
+      "temaSlug": "reforma_tributaria",
+      "posicao": "favoravel",
+      "intensidade": 3,
+      "justificativa": "The plan pledges to simplify the tax system and reduce cumulative taxation, matching the affirmation's call for tax reform.",
+      "confiancaIa": 0.65,
+      "coerenciaTema": "sem_historico",
+      "fonteRefs": ["fonte-plano-2026"]
+    },
+    {
+      "temaSlug": "sus_saude_publica",
+      "posicao": "favoravel",
+      "intensidade": 2,
+      "justificativa": "The government plan lists expanding primary care coverage under SUS as a stated priority, but no independent conduct evidence corroborates it beyond the plan itself.",
+      "confiancaIa": 0.55,
+      "coerenciaTema": "sem_historico",
+      "fonteRefs": ["fonte-plano-2026"]
+    },
+    {
+      "temaSlug": "privatizacao_estatais",
+      "posicao": "contrario",
+      "intensidade": 3,
+      "justificativa": "The plan explicitly rules out privatizing state-owned strategic companies, placing the candidate contrario to the affirmation.",
+      "confiancaIa": 0.6,
+      "coerenciaTema": "sem_historico",
+      "fonteRefs": ["fonte-plano-2026"]
+    },
+    {
+      "temaSlug": "seguranca_publica_estadual",
+      "posicao": "favoravel",
+      "intensidade": 2,
+      "justificativa": "The plan proposes federal funding to support state-level security forces, a mild but stated commitment.",
+      "confiancaIa": 0.5,
+      "coerenciaTema": "sem_historico",
+      "fonteRefs": ["fonte-plano-2026"]
+    },
+    {
+      "temaSlug": "educacao_basica",
+      "posicao": "favoravel",
+      "intensidade": 3,
+      "justificativa": "The plan commits to increasing federal investment in basic education infrastructure.",
+      "confiancaIa": 0.6,
+      "coerenciaTema": "sem_historico",
+      "fonteRefs": ["fonte-plano-2026"]
+    },
+    {
+      "temaSlug": "meio_ambiente_desmatamento",
+      "posicao": "favoravel",
+      "intensidade": 3,
+      "justificativa": "The plan proposes stricter enforcement against illegal deforestation in the Amazon.",
+      "confiancaIa": 0.6,
+      "coerenciaTema": "sem_historico",
+      "fonteRefs": ["fonte-plano-2026"]
+    },
+    {
       "temaSlug": "reforma_previdencia",
       "posicao": "contrario",
       "intensidade": 4,
@@ -231,6 +299,42 @@ shape, not a real dossier.
       "confiancaIa": 0.85,
       "coerenciaTema": "coerente",
       "fonteRefs": ["fonte-plano-2026", "fonte-g1-previdencia"]
+    },
+    {
+      "temaSlug": "protecao_minorias",
+      "posicao": "favoravel",
+      "intensidade": 3,
+      "justificativa": "The plan includes explicit anti-discrimination commitments for minority groups.",
+      "confiancaIa": 0.55,
+      "coerenciaTema": "sem_historico",
+      "fonteRefs": ["fonte-plano-2026"]
+    },
+    {
+      "temaSlug": "autonomia_individual",
+      "posicao": "neutro",
+      "intensidade": 2,
+      "justificativa": "The plan takes no clear stance on individual autonomy versus state intervention in personal choices.",
+      "confiancaIa": 0.4,
+      "coerenciaTema": "sem_historico",
+      "fonteRefs": ["fonte-plano-2026"]
+    },
+    {
+      "temaSlug": "bolsa_familia_transferencia",
+      "posicao": "favoravel",
+      "intensidade": 4,
+      "justificativa": "The plan pledges to expand direct cash-transfer coverage beyond current Bolsa Família levels.",
+      "confiancaIa": 0.7,
+      "coerenciaTema": "sem_historico",
+      "fonteRefs": ["fonte-plano-2026"]
+    },
+    {
+      "temaSlug": "corrupcao_transparencia",
+      "posicao": "neutro",
+      "intensidade": 1,
+      "justificativa": "No clear declaration or documented conduct on strengthening oversight bodies was found in the plan or in news coverage available at research time. Recorded as neutro pending further evidence, not inferred from ideological alignment.",
+      "confiancaIa": 0.25,
+      "coerenciaTema": null,
+      "fonteRefs": ["fonte-plano-2026"]
     },
     {
       "temaSlug": "politica_economica",
@@ -251,21 +355,12 @@ shape, not a real dossier.
       "fonteRefs": ["fonte-plano-2026", "fonte-uol-externa"]
     },
     {
-      "temaSlug": "sus_saude_publica",
+      "temaSlug": "laicidade_valores",
       "posicao": "favoravel",
       "intensidade": 2,
-      "justificativa": "The government plan lists expanding primary care coverage under SUS as a stated priority, but no independent conduct evidence corroborates it beyond the plan itself.",
-      "confiancaIa": 0.55,
+      "justificativa": "The plan states public policy should be grounded in secular, evidence-based criteria.",
+      "confiancaIa": 0.45,
       "coerenciaTema": "sem_historico",
-      "fonteRefs": ["fonte-plano-2026"]
-    },
-    {
-      "temaSlug": "corrupcao_transparencia",
-      "posicao": "neutro",
-      "intensidade": 1,
-      "justificativa": "No clear declaration or documented conduct on strengthening oversight bodies was found in the plan or in news coverage available at research time. Recorded as neutro pending further evidence, not inferred from ideological alignment.",
-      "confiancaIa": 0.25,
-      "coerenciaTema": null,
       "fonteRefs": ["fonte-plano-2026"]
     }
   ],
@@ -297,6 +392,17 @@ shape, not a real dossier.
 - A theme with no evidence gets `neutro` with a low `confiancaIa` and a
   justification that says evidence was not found. Never invent a position to
   fill a gap.
+- The validator requires `fonteRefs` to be non-empty on **every** position,
+  including a `neutro` one recording that no evidence was found — an empty
+  array is a rejection, not an honest silence. A `neutro` position with no
+  evidence still cites the sources that were **searched and found silent**:
+  the government plan, the news search, whatever was actually consulted. The
+  citation records where you looked, not what you found. This is not a
+  loophole around the honesty rule; it is how the rule is expressed inside a
+  contract that requires every claim to be traceable. Copy the
+  `corrupcao_transparencia` entry in section 6 as the pattern — it cites
+  `fonte-plano-2026` precisely because that is the document that was checked
+  and came up silent on the theme.
 - An absent government plan is stated as absent, plainly, in the dossier and in
   any position that would otherwise have relied on it. It is never worked
   around silently by treating other sources as if they were the plan.
