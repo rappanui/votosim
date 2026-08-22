@@ -21,7 +21,7 @@ function research(): CandidateResearch {
       { temaSlug: 'educacao_basica', posicao: 'favoravel', intensidade: 4, justificativa: 'Defende mais verba.', confiancaIa: 0.9, coerenciaTema: 'coerente', fonteRefs: ['s1', 's2'] },
     ],
     alertas: [
-      { tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: '2025-03-01', fonteRefs: ['s2'] },
+      { tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D', dataOcorrencia: '2025-03-01', resolucao: null, dataResolucao: null, fonteRefs: ['s2'] },
     ],
   }
 }
@@ -84,7 +84,7 @@ test('buildAlertRows: polemica requires curation before display, others do not',
   const r = research()
   // s1 is camada 1, so investigacao qualifies for Rule B auto-validation here.
   r.alertas[0].fonteRefs = ['s1']
-  r.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'P', descricao: 'D', dataOcorrencia: null, fonteRefs: ['s2'] })
+  r.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'P', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s2'] })
   const rows = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1'], ['s2', 'src-2']]))
 
   // Rule B of docs/base/04_schema_alerts.md: polemica needs human curation.
@@ -157,7 +157,7 @@ test('buildAlertRows: an alert citing an interno source first still writes the v
   })
   r.alertas.push({
     tipo: 'investigacao', severidade: 'alta', titulo: 'T2', descricao: 'D2',
-    dataOcorrencia: null, fonteRefs: ['s3', 's1'],
+    dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s3', 's1'],
   })
   const rows = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1'], ['s2', 'src-2'], ['s3', 'src-3']]))
   const row = rows[1]
@@ -165,4 +165,37 @@ test('buildAlertRows: an alert citing an interno source first still writes the v
   assert.equal(row.source_id, 'src-1')
   assert.equal(row.fonte_url, 'https://a.gov.br/p')
   assert.equal(row.fonte_nome, 'TSE')
+})
+
+// ─── Resolved alerts — Rule D of docs/base/04_schema_alerts.md ──────────────
+
+test('buildAlertRows: an unresolved alert maps to ativo=true with no resolucao', () => {
+  const rows = buildAlertRows(research(), 'pol-1', new Map([['s2', 'src-2']]))
+  assert.equal(rows[0].ativo, true)
+  assert.equal(rows[0].resolucao, null)
+  assert.equal(rows[0].data_resolucao, null)
+})
+
+test('buildAlertRows: a resolved alert maps to ativo=false and carries the resolution through', () => {
+  const r = research()
+  r.alertas[0].resolucao = 'Condenação anulada pelo STF por incompetência de foro em 2021.'
+  r.alertas[0].dataResolucao = '2021-03-08'
+  const rows = buildAlertRows(r, 'pol-1', new Map([['s2', 'src-2']]))
+  assert.equal(rows[0].ativo, false)
+  assert.equal(rows[0].resolucao, 'Condenação anulada pelo STF por incompetência de foro em 2021.')
+  assert.equal(rows[0].data_resolucao, '2021-03-08')
+})
+
+test('buildAlertRows: a resolved matter is never auto-validated, regardless of source layer', () => {
+  // A resolved ficha_suja is exactly the case Rule B does not cover — the
+  // point of the badge is that it is CURRENT. Publishing a resolved matter
+  // unreviewed would imply an active disqualification that no longer exists.
+  const r = research()
+  r.alertas[0].tipo = 'ficha_suja'
+  r.alertas[0].fonteRefs = ['s1'] // s1 is camada 1 — would auto-validate if unresolved
+  r.alertas[0].resolucao = 'Condenação anulada pelo STF em 2021.'
+  r.alertas[0].dataResolucao = '2021-03-08'
+  const rows = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1']]))
+  assert.equal(rows[0].validado, false, 'a resolved matter always waits for curation, even on a layer-1 source')
+  assert.equal(rows[0].ativo, false)
 })
