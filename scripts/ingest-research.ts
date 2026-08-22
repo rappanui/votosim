@@ -128,21 +128,57 @@ function parseNumericFlag(argv: string[], name: string): number | undefined {
   return Number.isFinite(value) ? value : undefined
 }
 
-/** Entry point. Usage: npm run ingest-research -- <path-to-research.json> [--tokens=N] [--duracao-ms=N] */
+/** I11: a bare flag, present or absent — no value to parse. */
+export function hasConfirmFlag(argv: string[]): boolean {
+  return argv.includes('--confirm')
+}
+
+/**
+ * MINOR: JSON.parse throws a raw, unhelpful stack on malformed input. A
+ * research document is hand-assembled by an agent and routinely truncated
+ * or malformed; name the offending file so the operator does not have to
+ * guess which of several pending runs broke.
+ */
+export function parseResearchJson(raw: string, path: string): CandidateResearch {
+  try {
+    return JSON.parse(raw) as CandidateResearch
+  } catch {
+    throw new Error(`${path} is not valid JSON`)
+  }
+}
+
+/**
+ * I3: candidate_dossiers is UNIQUE (candidacy_id, versao) specifically so a
+ * regeneration can be inserted as a new version instead of overwriting the
+ * previous take. `null` (no prior dossier) starts the sequence at 1.
+ */
+export function nextDossierVersion(maxVersao: number | null): number {
+  return maxVersao === null ? 1 : maxVersao + 1
+}
+
+/** Ledger statuses a re-run is allowed to move through. Excludes
+ * `nao_aplicavel` deliberately: a stage that never applied to this
+ * candidacy (e.g. a senate candidate's documentos_oficiais) must not be
+ * dragged into em_progresso/concluido by a research re-run. */
+const eligibleStatuses = ['pendente', 'em_progresso', 'falhou', 'concluido']
+
+/** Entry point. Usage: npm run ingest-research -- <path-to-research.json> --confirm [--tokens=N] [--duracao-ms=N] */
 async function main(): Promise<void> {
   const path = process.argv[2]
   if (!path) {
-    console.error('Usage: npm run ingest-research -- <path-to-research.json> [--tokens=N] [--duracao-ms=N]')
+    console.error('Usage: npm run ingest-research -- <path-to-research.json> --confirm [--tokens=N] [--duracao-ms=N]')
     process.exit(1)
   }
 
+  const flagArgv = process.argv.slice(3)
+  const confirm = hasConfirmFlag(flagArgv)
   // The agent does not know its own token usage or wall-clock duration —
   // the caller does. Both are optional and, when absent, omitted from
   // metricas entirely rather than written as null.
-  const tokens = parseNumericFlag(process.argv.slice(3), 'tokens')
-  const duracaoMs = parseNumericFlag(process.argv.slice(3), 'duracao-ms')
+  const tokens = parseNumericFlag(flagArgv, 'tokens')
+  const duracaoMs = parseNumericFlag(flagArgv, 'duracao-ms')
 
-  const research = JSON.parse(readFileSync(path, 'utf-8')) as CandidateResearch
+  const research = parseResearchJson(readFileSync(path, 'utf-8'), path)
 
   const errors = validateResearch(research)
   if (errors.length > 0) {
@@ -153,7 +189,7 @@ async function main(): Promise<void> {
 
   const { data: cand, error: cErr } = await supabase
     .from('candidacies')
-    .select('id, politician_id')
+    .select('id, politician_id, cargo, estado, politicians(nome_urna)')
     .eq('tse_sequencial', research.tseSequencial)
     .single()
 
@@ -161,10 +197,47 @@ async function main(): Promise<void> {
 
   const candidacyId = cand.id as string
   const politicianId = cand.politician_id as string
+  const politician = (cand as Record<string, unknown>).politicians as Record<string, string> | null
+  const nomeUrna = politician?.nome_urna ?? '(nome_urna indisponível)'
+
+  // I11: the agent hand-copies tseSequencial into the document. One
+  // transposed digit resolves to a different real politician, and without
+  // this check the run silently attributes one candidate's research —
+  // including ficha_suja / investigacao alerts — to someone else. Printing
+  // the resolved identity is the only check a human can actually perform;
+  // require it to be looked at before anything is written.
+  console.log('='.repeat(64))
+  console.log(`[ingest-research] RESOLVED CANDIDATE: ${nomeUrna}`)
+  console.log(`[ingest-research] CARGO: ${cand.cargo}   ESTADO: ${cand.estado}`)
+  console.log(`[ingest-research] tseSequencial ${research.tseSequencial} -> candidacy ${candidacyId}`)
+  console.log('='.repeat(64))
+
+  if (!confirm) {
+    console.log('[ingest-research] DRY RUN — no --confirm flag, nothing was written.')
+    console.log(`[ingest-research] would write: ${research.fontes.length} sources, ${research.posicoes.length} positions, ${research.alertas.length} alerts`)
+    console.log('[ingest-research] check the candidate above matches the dossier you produced, then re-run with --confirm.')
+    process.exit(0)
+    return
+  }
 
   const { data: themes, error: tErr } = await supabase.from('themes_catalog').select('id, slug')
   if (tErr) throw new Error(`Failed to read themes: ${tErr.message}`)
   const themeIdBySlug = new Map((themes ?? []).map(t => [t.slug as string, t.id as string]))
+
+  // C1: a crash between the deletes below and the final inserts must not
+  // leave this candidacy silently finished-looking. Moving its eligible
+  // ledger rows to em_progresso *before* anything is deleted means a crash
+  // anywhere in this run leaves status=em_progresso, and v_enrichment_queue
+  // treats em_progresso as outstanding by explicit design (see
+  // docs/sp0-schema-additions.md) — so the candidate stays visible and gets
+  // picked up again instead of vanishing with zero positions and a stale
+  // status=concluido from a prior successful run.
+  const { error: guardErr } = await supabase
+    .from('enrichment_ledger')
+    .update({ status: 'em_progresso', atualizado_em: new Date().toISOString() })
+    .eq('candidacy_id', candidacyId)
+    .in('status', eligibleStatuses)
+  if (guardErr) throw new Error(`Failed to mark ledger em_progresso before re-ingest: ${guardErr.message}`)
 
   // Replace this candidate's prior research so a re-run never duplicates.
   // Every delete's error must be checked: supabase-js returns errors rather
@@ -188,11 +261,40 @@ async function main(): Promise<void> {
     .eq('ativo', true)
   if (paErr) throw new Error(`Failed to delete politician_alerts: ${paErr.message}`)
 
-  const { error: csErr } = await supabase.from('candidate_sources').delete().eq('candidacy_id', candidacyId)
+  // I2: politician_alerts.source_id is ON DELETE SET NULL. The alert delete
+  // above already preserves curator-approved / resolved alerts, but an
+  // unfiltered source delete would still null out *their* source_id — the
+  // exact D8 breach the catalogue exists to prevent. Read what survived the
+  // alert delete first, and never delete a source one of those still cites.
+  const { data: survivingAlerts, error: survErr } = await supabase
+    .from('politician_alerts')
+    .select('source_id')
+    .eq('politician_id', politicianId)
+    .not('source_id', 'is', null)
+  if (survErr) throw new Error(`Failed to read surviving alerts before source cleanup: ${survErr.message}`)
+
+  const preservedSourceIds = [...new Set((survivingAlerts ?? []).map(a => a.source_id as string))]
+
+  let sourceDelete = supabase.from('candidate_sources').delete().eq('candidacy_id', candidacyId)
+  if (preservedSourceIds.length > 0) {
+    sourceDelete = sourceDelete.not('id', 'in', `(${preservedSourceIds.join(',')})`)
+  }
+  const { error: csErr } = await sourceDelete
   if (csErr) throw new Error(`Failed to delete candidate_sources: ${csErr.message}`)
 
-  const { error: cdErr } = await supabase.from('candidate_dossiers').delete().eq('candidacy_id', candidacyId)
-  if (cdErr) throw new Error(`Failed to delete candidate_dossiers: ${cdErr.message}`)
+  // I3: candidate_dossiers is versioned specifically so regeneration does
+  // not lose the previous take (UNIQUE (candidacy_id, versao)). Deleting
+  // and rewriting versao=1 every run destroyed that on purpose; read the
+  // current max instead and insert the next version below.
+  const { data: maxDossier, error: maxDossierErr } = await supabase
+    .from('candidate_dossiers')
+    .select('versao')
+    .eq('candidacy_id', candidacyId)
+    .order('versao', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (maxDossierErr) throw new Error(`Failed to read current dossier version: ${maxDossierErr.message}`)
+  const dossierVersao = nextDossierVersion((maxDossier?.versao as number | undefined) ?? null)
 
   const { data: insertedSources, error: sErr } = await supabase
     .from('candidate_sources')
@@ -233,7 +335,7 @@ async function main(): Promise<void> {
     espectro_inferido: research.dossie.espectroInferido,
     coerencia_indice: research.dossie.coerenciaIndice,
     coerencia_base: research.dossie.coerenciaBase,
-    versao: 1,
+    versao: dossierVersao,
   })
   if (dErr) throw new Error(`Failed to write dossier: ${dErr.message}`)
 
@@ -241,7 +343,6 @@ async function main(): Promise<void> {
   // still records fresh metrics) become concluido. nao_aplicavel stays
   // excluded — that is load-bearing: a senate candidate's government-plan
   // stage was never "pending" work and must not read as completed.
-  const eligibleStatuses = ['pendente', 'em_progresso', 'falhou', 'concluido']
   const nowIso = new Date().toISOString()
 
   // confianca_media is averaged over positionRows — the positions actually
@@ -263,21 +364,32 @@ async function main(): Promise<void> {
   // instrumented pilot measures, and writing the same blob to all five stage
   // rows would inflate any cross-stage aggregation (e.g. summing
   // fontes_encontradas) fivefold.
-  const { error: lErrPos } = await supabase
+  const { data: updatedPos, error: lErrPos } = await supabase
     .from('enrichment_ledger')
     .update({ status: 'concluido', concluido_em: nowIso, atualizado_em: nowIso, metricas })
     .eq('candidacy_id', candidacyId)
     .eq('etapa', 'posicoes')
     .in('status', eligibleStatuses)
+    .select('id')
   if (lErrPos) throw new Error(`Failed to update ledger (posicoes): ${lErrPos.message}`)
 
-  const { error: lErrOther } = await supabase
+  const { data: updatedOther, error: lErrOther } = await supabase
     .from('enrichment_ledger')
     .update({ status: 'concluido', concluido_em: nowIso, atualizado_em: nowIso })
     .eq('candidacy_id', candidacyId)
     .neq('etapa', 'posicoes')
     .in('status', eligibleStatuses)
+    .select('id')
   if (lErrOther) throw new Error(`Failed to update ledger (other stages): ${lErrOther.message}`)
+
+  // I1: PostgREST's .update() matches zero rows without erroring. A
+  // candidacy never seeded into enrichment_ledger would otherwise report
+  // success here despite the queue having nothing to mark done — and it
+  // would then read as permanently outstanding with no path to "finished".
+  const ledgerRowsAffected = (updatedPos?.length ?? 0) + (updatedOther?.length ?? 0)
+  if (ledgerRowsAffected === 0) {
+    throw new Error(`Candidacy ${candidacyId} has no ledger rows — run bootstrap-ledger before ingesting research`)
+  }
 
   console.log(`[ingest-research] ${research.tseSequencial}: ${research.fontes.length} sources, ${positionRows.length} positions, ${alertRows.length} alerts`)
 }

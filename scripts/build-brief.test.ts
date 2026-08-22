@@ -34,9 +34,9 @@ function briefInput(overrides: Partial<BriefInput> = {}): BriefInput {
       'HTTPS://WWW.YOUTUBE.COM/@LULAOFICIAL',
     ],
     temas: [
-      { slug: 'educacao_basica', afirmacao: 'O governo deve aumentar o investimento em escolas públicas.' },
-      { slug: 'sus_saude_publica', afirmacao: 'O governo deve aumentar o investimento público no SUS.' },
-      { slug: 'reforma_tributaria', afirmacao: 'O sistema tributário deve ser reformado para simplificar impostos.' },
+      { slug: 'educacao_basica', afirmacao: 'O governo deve aumentar o investimento em escolas públicas.', contexto: 'Refere-se a investimento federal direto, não a repasses estaduais.' },
+      { slug: 'sus_saude_publica', afirmacao: 'O governo deve aumentar o investimento público no SUS.', contexto: null },
+      { slug: 'reforma_tributaria', afirmacao: 'O sistema tributário deve ser reformado para simplificar impostos.', contexto: 'Trata da simplificação, não do volume total de arrecadação.' },
     ],
     ...overrides,
   }
@@ -73,6 +73,25 @@ test('renderBrief: lists every theme with its exact questionnaire wording, in or
   const susIdx = out.indexOf('sus_saude_publica')
   const reformaIdx = out.indexOf('reforma_tributaria')
   assert.ok(educacaoIdx < susIdx && susIdx < reformaIdx, 'themes must render in the order given')
+})
+
+// I8: contexto_questionario is the disambiguating paragraph against the
+// framing trap. It must render under its affirmation, labelled as context
+// rather than folded silently into the affirmation text.
+test('renderBrief: renders contexto_questionario labelled as context, under its affirmation', () => {
+  const out = renderBrief(briefInput())
+  assert.match(out, /Context for judging this affirmation:.*Refere-se a investimento federal direto/)
+  const afirmacaoIdx = out.indexOf('aumentar o investimento em escolas públicas')
+  const contextoIdx = out.indexOf('Refere-se a investimento federal direto')
+  assert.ok(afirmacaoIdx < contextoIdx, 'context must render after its affirmation')
+})
+
+test('renderBrief: omits the context line when a theme has none', () => {
+  const out = renderBrief(briefInput())
+  const susIdx = out.indexOf('sus_saude_publica')
+  const reformaIdx = out.indexOf('reforma_tributaria')
+  const susSection = out.slice(susIdx, reformaIdx)
+  assert.doesNotMatch(susSection, /Context for judging this affirmation/)
 })
 
 test('renderBrief: lists every declared social account', () => {

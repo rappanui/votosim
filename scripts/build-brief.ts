@@ -19,7 +19,7 @@ export interface BriefInput {
   tseSequencial: string
   planoTexto: string | null
   redesSociais: string[]
-  temas: { slug: string; afirmacao: string }[]
+  temas: { slug: string; afirmacao: string; contexto: string | null }[]
 }
 
 /**
@@ -67,6 +67,15 @@ export function renderBrief(input: BriefInput): string {
     lines.push(`### ${t.slug}`)
     lines.push(t.afirmacao)
     lines.push('')
+    // I8: contexto_questionario is the disambiguating paragraph — the direct
+    // antidote to the framing trap (see docs/candidate-research-procedure.md
+    // section 4). It is context for judging the affirmation above, not part
+    // of the affirmation itself, so it is labelled and kept visually
+    // separate rather than appended to it.
+    if (t.contexto) {
+      lines.push(`**Context for judging this affirmation:** ${t.contexto}`)
+      lines.push('')
+    }
   }
 
   lines.push('## Government plan')
@@ -150,7 +159,7 @@ async function main(): Promise<void> {
 
   const { data: temas, error: tErr } = await supabase
     .from('themes_catalog')
-    .select('slug, afirmacao_questionario')
+    .select('slug, afirmacao_questionario, contexto_questionario')
     .eq('exibir_no_quiz', true)
     .order('ordem_exibicao')
 
@@ -172,7 +181,11 @@ async function main(): Promise<void> {
     tseSequencial: sequencial,
     planoTexto,
     redesSociais: loadSocialAccounts(sequencial, cand.estado as string),
-    temas: (temas ?? []).map(t => ({ slug: t.slug as string, afirmacao: t.afirmacao_questionario as string })),
+    temas: (temas ?? []).map(t => ({
+      slug: t.slug as string,
+      afirmacao: t.afirmacao_questionario as string,
+      contexto: (t.contexto_questionario as string | null) ?? null,
+    })),
   })
 
   mkdirSync(OUT_DIR, { recursive: true })

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSourceRows, buildPositionRows, buildAlertRows } from './ingest-research.ts'
+import { buildSourceRows, buildPositionRows, buildAlertRows, hasConfirmFlag, parseResearchJson, nextDossierVersion } from './ingest-research.ts'
 import type { CandidateResearch } from './lib/research-contract.ts'
 
 function research(): CandidateResearch {
@@ -110,6 +110,43 @@ test('buildAlertRows: fills fonte_url and fonte_nome from the catalogue for the 
   const [row] = buildAlertRows(research(), 'pol-1', new Map([['s2', 'src-2']]), research().fontes)
   assert.equal(row.fonte_url, 'https://g1.example/x')
   assert.equal(row.fonte_nome, 'G1')
+})
+
+// ─── I11: the --confirm gate ─────────────────────────────────────────────────
+
+test('hasConfirmFlag: recognises the bare flag', () => {
+  assert.equal(hasConfirmFlag(['--confirm']), true)
+  assert.equal(hasConfirmFlag(['--tokens=100', '--confirm', '--duracao-ms=50']), true)
+})
+
+test('hasConfirmFlag: absent without it', () => {
+  assert.equal(hasConfirmFlag([]), false)
+  assert.equal(hasConfirmFlag(['--tokens=100']), false)
+})
+
+// ─── MINOR: guarded JSON parsing ─────────────────────────────────────────────
+
+test('parseResearchJson: parses well-formed JSON', () => {
+  const doc = parseResearchJson('{"tseSequencial": "1"}', 'data/research/1.json') as unknown as { tseSequencial: string }
+  assert.equal(doc.tseSequencial, '1')
+})
+
+test('parseResearchJson: names the file in the error on malformed JSON', () => {
+  assert.throws(
+    () => parseResearchJson('{not json', 'data/research/280002542548.json'),
+    /data\/research\/280002542548\.json.*not valid JSON/,
+  )
+})
+
+// ─── I3: dossier versioning ───────────────────────────────────────────────────
+
+test('nextDossierVersion: starts at 1 when no prior dossier exists', () => {
+  assert.equal(nextDossierVersion(null), 1)
+})
+
+test('nextDossierVersion: increments past the current max', () => {
+  assert.equal(nextDossierVersion(1), 2)
+  assert.equal(nextDossierVersion(4), 5)
 })
 
 test('buildAlertRows: an alert citing an interno source first still writes the voter-visible source', () => {
