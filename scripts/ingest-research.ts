@@ -90,6 +90,10 @@ function isAutoValidated(tipo: string, source: ResearchSource | undefined, resol
   // A resolved matter is never auto-published: Rule B's badge means the
   // disqualification is CURRENT. Publishing a resolved one unreviewed would
   // imply an active status that no longer exists.
+  // A factual note about the evidence base itself, never a disqualification
+  // claim — it does not need a TSE/STF-grade source to back it, and hiding it
+  // pending curation would defeat the point of warning the reader.
+  if (tipo === 'ressalva_evidencias') return true
   if (resolved) return false
   if (tipo !== 'ficha_suja' && tipo !== 'investigacao') return false
   return source?.camada === 1

@@ -199,3 +199,16 @@ test('buildAlertRows: a resolved matter is never auto-validated, regardless of s
   assert.equal(rows[0].validado, false, 'a resolved matter always waits for curation, even on a layer-1 source')
   assert.equal(rows[0].ativo, false)
 })
+
+// ─── ressalva_evidencias: pipeline-authored, never an accusation ─────────────
+// docs/base/04_schema_alerts.md Regra B: auto-validated regardless of source
+// layer, because it is a factual note about the evidence base itself, not a
+// disqualification claim that needs a TSE/STF-grade source to back it.
+
+test('buildAlertRows: ressalva_evidencias is auto-validated even on a layer-2 source', () => {
+  const r = research()
+  r.alertas[0].tipo = 'ressalva_evidencias'
+  r.alertas[0].fonteRefs = ['s2'] // s2 is camada 2 — would NOT auto-validate a ficha_suja/investigacao
+  const [row] = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1'], ['s2', 'src-2']]))
+  assert.equal(row.validado, true)
+})
