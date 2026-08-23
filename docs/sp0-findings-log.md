@@ -135,6 +135,24 @@ so the reader sees that positions were inferred from a party platform and/or a
 degraded extraction. It auto-publishes (Rule B is extended for it) and renders
 with the `amarelo` badge. See docs/sp0-schema-additions.md.
 
+**Update 2026-08-23:** `pdftotext -layout` (Poppler, already installed) reliably
+recovers this class of scrambling where `pdf2json` (what `extractPdfText` uses)
+does not. Confirmed directly on Douglas Ruas's plan (280002542887... governador
+RJ, sequencial 190002542887): `pdftotext -layout` on the same source PDF
+extracted cleanly, sentence order intact, while the brief built from
+`extractPdfText` was scrambled throughout. Five more RJ governor plans in the
+same batch (Cyro Garcia, Juliete, Luan Monteiro, Coronel Busnello, William Siri)
+showed the milder block-reordering variant of the same defect — vocabulary
+intact, paragraph/line order not — and were still readable by working around
+the reordering rather than needing the Poppler fallback. `extractPdfText`
+itself was not changed; each research agent read the affected plan by section
+headings or, in Douglas Ruas's case, by re-extracting with `pdftotext -layout`
+directly, and recorded a `ressalva_evidencias` alert only where the milder
+variant left real ambiguity. Swapping `extractPdfText` to try `pdftotext
+-layout` before `pdf2json`, or as a fallback when the emptiness/scramble guard
+trips, is worth doing before scaling past the RJ pilot — not done here because
+it touches the shared extraction path all in-flight candidates depend on.
+
 ---
 
 ## F9 — A plan filed close to the deadline can be absent from the local TSE export
@@ -269,3 +287,75 @@ in `build-brief.test.ts`; suite is 224/224.
 
 `FILES_GOVERNMENT_PLAN` moved to an export in `lib/ledger.ts` so the ledger's
 `nao_aplicavel` rule and the brief's `not_expected` rule cannot drift apart.
+
+---
+
+## F12 — TSE's web/CDN domains are Akamai-blocked from this environment, but the DivulgaCandContas REST API is not
+
+**Found:** 2026-08-23, during the RJ governor batch (all nine agents).
+**Status:** Not a defect in the pipeline. Environment constraint, worked around per-agent.
+
+`cdn.tse.jus.br` and `divulgacandcontas.tse.jus.br`'s SPA both return HTTP 403
+to every `curl` and `WebFetch` call from this environment (Akamai bot
+protection) — no research agent in the batch could open a government-plan URL
+directly, or browse a candidate's DivulgaCandContas page as a human would.
+Every agent instead cited the ZIP archive URL (`proposta_governo_2026_{UF}.zip`)
+as the `plano_governo` source, since that is the actual file `build-brief`
+read — this is now the convention across every research JSON produced so far,
+governor and presidential alike.
+
+**The REST API is a different story.** The Garotinho and Eduardo Paes agents
+both needed to establish, for real, whether an executive candidate had filed a
+plan at all (the F9 question) rather than relying on the local ZIP snapshot's
+possibly-stale absence. Both queried
+`divulgacandcontas.tse.jus.br/divulga/rest/...` directly and got a real JSON
+response — Garotinho's record listed three judicial-certificate files and no
+`codTipo 5` (proposta de governo), while a control check against other
+candidates in the same race confirmed the API does surface `codTipo 5` when a
+plan exists. So the API endpoint itself is reachable; only the browser-facing
+SPA and the CDN static-file host are blocked.
+
+**Consequence:** an agent that only tries the SPA or the CDN and gives up
+after a 403 will treat "I could not check" as equivalent to "no plan was
+filed" — the two are not the same, and F9 exists precisely because a real
+absence and a snapshot gap are easy to conflate. The REST API is the way to
+tell them apart when the local ZIP is inconclusive.
+
+**Not fixed:** nothing to fix in code — this is a network property of the
+environment, not a pipeline bug. Worth carrying forward as an instruction to
+future research agents: don't stop at a CDN/SPA 403 when the question is
+"did this candidate file a plan" — the REST API is the way to actually answer
+it.
+
+---
+
+## F13 — A UF's `proposta_governo` archive can hold plans for candidates other than the office being researched
+
+**Found:** 2026-08-23, verifying André Marinho's (governador, RJ) missing
+plan before treating "NONE FILED" as fact.
+
+**Status:** Not a defect. Confirms `build-brief`'s existing per-candidate
+`SQ_CANDIDATO` matching already handles this correctly; recorded because a
+human skimming the extracted folder would draw the wrong conclusion.
+
+`proposta_governo_2026_RJ.zip` extracts to nine PDF files, but RJ has nine
+*governor* candidates and, separately, a tenth file's worth of unrelated
+content: one of the nine files on disk (`2026RJ190002543534_01.pdf`) belongs
+to SILVIA QUEZADO, a **state-deputy** candidate, not to any of the nine
+governor candidates. `proposta_governo` is filed per-candidacy for whichever
+offices require it in that UF, not scoped to a single office — a state
+deputy plan and a governor plan land in the same archive if both were filed
+in the same state and election.
+
+**Consequence:** counting files in the extracted folder against a list of
+governor candidates will not reconcile 1:1, and picking "the leftover file"
+to fill a gap (e.g. assuming it belongs to whichever governor candidate has
+no match) would silently attribute one candidate's platform to a different
+person. This was specifically checked and ruled out before concluding that
+EDUARDO PAES and GAROTINHO had genuinely filed no plan — see F9 and F12.
+
+**Not fixed — nothing to fix:** `build-brief.ts` already matches by
+`SQ_CANDIDATO` embedded in the filename via `findPlanPaths`, not by counting
+or by folder position, so this never produced a wrong match in the pipeline
+itself. The risk is purely at the human/operator level when eyeballing
+`ls extracted/planos/{UF}/` and assuming file count == candidate count.
