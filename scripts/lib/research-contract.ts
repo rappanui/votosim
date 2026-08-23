@@ -35,10 +35,19 @@ const COHERENCE = ['coerente', 'incoerente', 'sem_historico'] as const
 const SOURCE_TIPOS = [
   'plano_governo', 'coligacao', 'bens_declarados', 'votacao',
   'tse_oficial', 'noticia', 'checagem', 'judicial',
+  // Added 2026-08-23 (docs/sp0-schema-additions.md): the E1 evidence base for
+  // legislative candidates, who file no plano_governo — party platform and
+  // biographical profile documents.
+  'plataforma_partidaria', 'biografia',
 ] as const
 const DESTINOS = ['card_candidato', 'pagina_sobre', 'interno'] as const
 const ALERT_TIPOS = [
   'ficha_suja', 'investigacao', 'polemica', 'incoerencia', 'divergencia_espectro',
+  // Added 2026-08-23: a methodological caveat about the evidence base itself
+  // (degraded extraction, party-inferred positions) — a transparency flag,
+  // never an accusation. Auto-validated on ingest (see ingest-research.ts's
+  // isAutoValidated).
+  'ressalva_evidencias',
 ] as const
 const SEVERIDADES = ['critica', 'alta', 'media', 'baixa'] as const
 

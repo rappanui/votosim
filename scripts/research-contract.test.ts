@@ -393,3 +393,35 @@ test('validateResearch: rejects a non-string titulo on a source', () => {
   ;(doc.fontes[0] as { titulo: unknown }).titulo = 42
   assert.match(validateResearch(doc).join(' '), /titulo/i)
 })
+
+// ─── 2026-08-23 schema additions: plataforma_partidaria, biografia, ressalva_evidencias ─
+// Added to source_tipo / alert_type on the live database (docs/sp0-schema-additions.md)
+// and to candidate-research-procedure.md's E1 section, but never to this validator —
+// any research JSON citing them was silently rejected until now.
+
+test('validateResearch: accepts plataforma_partidaria as a source tipo', () => {
+  const doc = valid()
+  doc.fontes[0].tipo = 'plataforma_partidaria'
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('validateResearch: accepts biografia as a source tipo', () => {
+  const doc = valid()
+  doc.fontes[0].tipo = 'biografia'
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('validateResearch: accepts ressalva_evidencias as an alert tipo', () => {
+  const doc = valid()
+  doc.alertas.push({
+    tipo: 'ressalva_evidencias',
+    severidade: 'baixa',
+    titulo: 'Extração de PDF degradada',
+    descricao: 'O texto do plano de governo extraiu embaralhado; posições basearam-se na plataforma do partido.',
+    dataOcorrencia: null,
+    fonteRefs: ['s1'],
+    resolucao: null,
+    dataResolucao: null,
+  })
+  assert.deepEqual(validateResearch(doc), [])
+})

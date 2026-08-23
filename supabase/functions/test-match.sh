@@ -12,20 +12,24 @@ URL="http://localhost:8000"
 echo "Testing match-candidatos for estado=${ESTADO}..."
 echo ""
 
+# Payload shape must match RespostaUsuario (src/lib/types.ts,
+# supabase/functions/match-candidatos/ai-providers.ts): posicao +
+# importancia. An earlier version of this script used resposta/concordancia/
+# intensidade, which silently matched nothing — every response fell through
+# to "contrario" inside scoreCandidato because r.posicao was always
+# undefined, and the function returned cargos: [] with no error at all.
 curl -s -X POST "$URL" \
   -H "Content-Type: application/json" \
   -d "{
     \"estado\": \"${ESTADO}\",
-    \"municipio\": \"São Paulo\",
-    \"faixaEtaria\": \"25 a 34 anos\",
     \"sessionToken\": \"test-local\",
     \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",
     \"respostas\": [
-      { \"temaSlug\": \"sus_saude_publica\",        \"resposta\": 5, \"concordancia\": \"concordo\", \"intensidade\": 5 },
-      { \"temaSlug\": \"privatizacao_estatais\",     \"resposta\": 1, \"concordancia\": \"discordo\", \"intensidade\": 5 },
-      { \"temaSlug\": \"educacao_basica\",           \"resposta\": 5, \"concordancia\": \"concordo\", \"intensidade\": 4 },
-      { \"temaSlug\": \"meio_ambiente_desmatamento\", \"resposta\": 5, \"concordancia\": \"concordo\", \"intensidade\": 4 },
-      { \"temaSlug\": \"seguranca_publica_estadual\", \"resposta\": 3, \"concordancia\": \"neutro\",   \"intensidade\": 3 },
-      { \"temaSlug\": \"corrupcao_transparencia\",   \"resposta\": 5, \"concordancia\": \"concordo\", \"intensidade\": 5 }
+      { \"temaSlug\": \"sus_saude_publica\",        \"posicao\": \"favoravel\", \"importancia\": 3 },
+      { \"temaSlug\": \"privatizacao_estatais\",     \"posicao\": \"contrario\", \"importancia\": 3 },
+      { \"temaSlug\": \"educacao_basica\",           \"posicao\": \"favoravel\", \"importancia\": 2 },
+      { \"temaSlug\": \"meio_ambiente_desmatamento\", \"posicao\": \"favoravel\", \"importancia\": 2 },
+      { \"temaSlug\": \"seguranca_publica_estadual\", \"posicao\": \"neutro\",    \"importancia\": 1 },
+      { \"temaSlug\": \"corrupcao_transparencia\",   \"posicao\": \"favoravel\", \"importancia\": 3 }
     ]
   }" | jq '.'
