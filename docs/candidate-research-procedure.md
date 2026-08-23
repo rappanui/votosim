@@ -103,9 +103,10 @@ yet a fact for D9 purposes — that judgment belongs to E5's alert construction.
 ### E4a — Roll-call record (legislative candidates only)
 
 **Applies to:** any candidate who currently holds or previously held a
-legislative seat — `senador`, `deputado_federal`, `deputado_estadual`, and
-executive candidates who served in the legislature before (a governor who was
-a federal deputy has a roll-call record too). Skip entirely for a candidate
+legislative seat — `senador`, `deputado_federal`, `deputado_estadual`,
+`vereador`, and executive candidates who served in the legislature before (a
+governor who was a federal deputy, or a sitting city councilor running for
+governor, both have a roll-call record too). Skip entirely for a candidate
 who has never held a legislative seat.
 
 **Produces:** Nominal roll-call votes on the questionnaire's 14 themes, each
@@ -117,9 +118,48 @@ on the record, not what they say they will do.
 
 | Office | Source | Camada |
 |---|---|---|
-| `deputado_federal` | `camara.leg.br` — the deputy's page, "Votações" / "Proposições" | 1 |
+| `deputado_federal` | `dadosabertos.camara.leg.br` — authored bills (see below) | 1 |
 | `senador` | `senado.leg.br` — the senator's page, "Votações" | 1 |
 | `deputado_estadual` | the state assembly's own portal (`al<UF>.<uf>.leg.br`, e.g. `al.sp.gov.br`) | 1 |
+| `vereador` | the municipal chamber's own portal (see below — not every one publishes nominal votes) | 1 |
+
+**For `vereador`, check whether the chamber publishes nominal votes at all
+before assuming it does.** Verified 2026-08-23 against Câmara Municipal do
+Rio de Janeiro (`aplicnt.camara.rj.gov.br`, camada 1, William Siri): plenary
+deliberations are recorded as **symbolic votes** only ("os senhores
+vereadores que aprovam permaneçam como estão") — there is no per-vereador
+yes/no record to cite, for any theme, ever. This is not a search failure; the
+record genuinely does not exist. When a nominal vote is unavailable, fall
+back to the same authored-legislation approach as the federal-deputy case
+below: query the chamber's own legislation system for bills the candidate
+authored or co-authored (`contlei.nsf`-style search on `aplicnt.camara.rj.gov.br`
+for the Rio chamber) and cite those, with `coerenciaBase` stating plainly that
+no nominal vote exists and coherence rests on authored legislation instead.
+Do not treat the absence of a votes endpoint as reason to skip E4a entirely —
+authored legislation is still first-person, on-the-record evidence, just not
+a vote.
+
+**For `deputado_federal`, query authored bills, not roll-call votes.** Verified
+2026-08-23: the Câmara's open-data API has **no per-deputy vote endpoint** —
+`/deputados/{id}/votacoes` returns HTTP 405, because votes are indexed by
+session (`/votacoes/{id}/votos`), not by parliamentarian. Reconstructing one
+deputy's record would mean enumerating every session. Use this instead:
+
+```
+GET https://dadosabertos.camara.leg.br/api/v2/proposicoes
+    ?idDeputadoAutor={id}&siglaTipo=PL&siglaTipo=PEC&siglaTipo=PLP
+    &ano=2023&ano=2024&ano=2025&ano=2026&itens=100
+```
+
+The `siglaTipo` filter matters: an unfiltered query returns ~90% `REQ`
+(procedural requests — near-zero policy signal). `PL`/`PEC`/`PLP` are the
+substantive output, and each `ementa` states the policy directly, which maps
+onto the 14 themes far more cleanly than a yes/no vote does. A bill the
+candidate *authored* is also stronger evidence of priority than a vote they
+cast with their bench.
+
+Get `{id}` from `GET /deputados?siglaUf={UF}` (one call returns the whole
+state delegation).
 
 `.leg.br` and `.gov.br` are already on the camada-1 allowlist the validator
 enforces, so a roll-call citation qualifies as `camada: 1` — cite it with
