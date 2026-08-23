@@ -1,15 +1,23 @@
 import { fileURLToPath } from 'url'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import 'dotenv/config'
 import { supabase } from './lib/supabase.js'
 import { sleep } from './lib/sleep.js'
 
 const execAsync = promisify(exec)
 
-const ELECTION_YEAR = 2022
+/** Driven by scripts/.env, not hardcoded: a literal year here silently rots
+ * every cycle and, worse, mislabels which term a vote belongs to. */
+const ELECTION_YEAR = Number(process.env.ELECTION_YEAR)
+if (!ELECTION_YEAR) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+
 const RATE_LIMIT_DELAY_MS = 1_000
 const VOTE_CONFIDENCE = 0.75
-// Senators elected in 2022 started voting in Feb 2023 (57th legislature)
+// The 57th legislature (senators elected in 2022) began voting in Feb 2023.
+// This window is the *term being judged*, not the election year — for the 2026
+// race it is the 2023-2026 record, which is what a coherence index compares
+// a 2026 platform against.
 const VOTE_DATE_START = '2023-02-01'
 const VOTE_DATE_END   = '2026-06-29'
 

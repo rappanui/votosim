@@ -1,9 +1,15 @@
 import { parse } from 'csv-parse/sync'
 import { readFileSync } from 'fs'
 import { createHash } from 'crypto'
+import 'dotenv/config'
 import { supabase } from './lib/supabase.js'
 
-// motivo_cassacao_{ano}.csv columns (TSE 2022 format)
+/** Driven by scripts/.env — the alert's cited source URL must name the cycle
+ * the data actually came from, not a hardcoded past one. */
+const ELECTION_YEAR = Number(process.env.ELECTION_YEAR)
+if (!ELECTION_YEAR) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+
+// motivo_cassacao_{ano}.csv columns (TSE layout, stable since 2022)
 // Note: this file does NOT contain NR_CPF_CANDIDATO — only SQ_CANDIDATO.
 // We resolve CPF by joining with the consulta_cand file passed as second argument.
 const COL_SQ         = 'SQ_CANDIDATO'
@@ -16,7 +22,7 @@ const CAND_COL_SQ    = 'SQ_CANDIDATO'
 const CAND_COL_CPF   = 'NR_CPF_CANDIDATO'
 const CAND_COL_CARGO = 'DS_CARGO'
 
-const TSE_SOURCE_URL  = 'https://dadosabertos.tse.jus.br/dataset/candidatos-2022'
+const TSE_SOURCE_URL  = `https://dadosabertos.tse.jus.br/dataset/candidatos-${ELECTION_YEAR}`
 const TSE_SOURCE_NOME = 'TSE — Motivo de Cassação / Ficha Limpa / LC 135/2010'
 
 type CsvRow = Record<string, string>

@@ -92,3 +92,180 @@ Any code that iterates every `.csv` in one of these directories reads every reco
 TSE plan filenames carry a part suffix (`_01`, `_02`, …). `findPlanPath` returns the first match only, so a plan split across parts would be read partially, silently. All 12 presidential plans in the current archive use `_01` exclusively, so nothing is affected today.
 
 Check before scaling to the 197 governor plans: if any carry `_02` or higher, the parts must be concatenated in order rather than the first one taken.
+
+---
+
+## F8 — Some government plans extract with character-level word scrambling, not emptiness
+
+**Found:** 2026-08-22, researching Edmilson Costa (PCB, 280002551975).
+**Status:** Parked. Worked around per-candidate via external search; not fixed in code.
+
+`extractPdfText`'s emptiness guard (added after the SP-1 review found it silently
+resolved `""` for image-only PDFs) catches a blank result, but not a **non-empty,
+wrong-order** one. Edmilson Costa's plan extracts as continuous garbled text —
+word and even character order scrambled throughout the entire document, e.g.
+`"posooscdpieerrodbapldoeepmuablasurdrgeausdemesmaa"` — sampled at five points
+across the file, uniformly corrupted, not a partial defect. Lula's and Clariana
+Barão's plans extracted cleanly from the same pipeline, so this is specific to
+how this PDF encodes its text stream (likely a different generator/layout),
+not a systemic pdf2json failure — but nothing currently detects it.
+
+**Consequence:** a naive agent reading this brief would either fabricate
+positions from misread fragments, or silently skip real content. Neither is
+acceptable per the honesty rules.
+
+**Workaround used:** treated as equivalent to an absent plan for E1 purposes —
+stated explicitly in the dossier that the filed plan could not be read, and
+used external reporting on the party's platform instead, same posture as
+`docs/candidate-research-procedure.md`'s rule for a missing plan.
+
+**Not fixed:** detecting scrambled-but-non-empty extraction (e.g. a dictionary-
+word-ratio heuristic on the cleaned text) is a real gap worth closing before
+scaling to the 197 governor plans, but is out of scope for the pilot itself.
+
+**Update 2026-08-23:** the same F8-class scrambling appeared in the Podemos
+cartilha *Podemos Pensar Diferente* (Fundação Podemos, 2021), read for GERALDO
+RUFINO (250002544673). The pilot-level answer was not auto-detection but
+**honesty**: the position data was read from preserved vocabulary with moderate
+confidence, and that caveat is now a first-class citizen of the schema. `source_tipo`
+gained `plataforma_partidaria` and `biografia` (a party platform is not a
+`plano_governo`, and neither is a news item), and `alert_type` gained
+`ressalva_evidencias` — a transparency flag the agent attaches to the candidate
+so the reader sees that positions were inferred from a party platform and/or a
+degraded extraction. It auto-publishes (Rule B is extended for it) and renders
+with the `amarelo` badge. See docs/sp0-schema-additions.md.
+
+---
+
+## F9 — A plan filed close to the deadline can be absent from the local TSE export
+
+**Found:** 2026-08-22, researching Pablo Marçal (PRTB, 280002553884).
+**Status:** Parked. Worked around via press coverage of the filed plan; not fixed in code.
+
+`build-brief.ts` reported `plan: NONE FILED` for this candidate, sourced from
+the locally cached `proposta_governo_2026_BR.zip` snapshot. Press coverage
+(SBT News, dated 2026-08-18, independently fetched and read in full) reports
+Marçal protocolled a 28-page, seven-"missões" government plan with the TSE on
+2026-08-18 — after whatever date the local zip snapshot was pulled. So "NONE
+FILED" in the brief means "none in this snapshot," not "candidate genuinely
+filed nothing," and the two are not distinguishable from the brief alone.
+
+**Consequence:** for a candidate who filed late, an agent trusting the brief's
+"NONE FILED" at face value understates the evidence available and may skip a
+real, citable plano_governo source in favor of weaker general press coverage.
+
+**Workaround used:** treated the plan as absent for this candidate's E1, per
+the standing rule for missing plans, and built positions from separately
+verified press coverage of the actual 2026 filing instead (with source
+office/date checked candidate-by-candidate, since this same search surfaced
+proposals from Marçal's 2018, 2022, and 2024 campaigns mislabeled as 2026 by
+at least one AI-summarized search result — caught only by fetching the
+underlying article directly).
+
+**Not fixed:** re-pulling `proposta_governo_2026_BR.zip` on a cadence that
+tracks the TSE's own filing deadline (or re-checking per-candidate before
+concluding "no plan") is worth doing before scaling past the presidential
+pilot, but is out of scope here.
+
+---
+
+## F10 — `findPlanPath` only read the first file of a multi-part plan
+
+**Found:** 2026-08-22, researching Vivian Mendes (UP, governador/SP, 250002544912).
+**Status:** Fixed — `findPlanPath` (build-brief.ts) now reads every part.
+
+The TSE splits a government plan across multiple files when it's large enough
+(`{year}{UF}{SQ_CANDIDATO}_{NN}.pdf`, `_01`, `_02`, `_03`...). `findPlanPath`
+used `Array.find()` against a pattern that matched any part number, so it
+always returned the first regex match in directory order — for this
+candidate, `_01.pdf` (2.0 MB) while silently ignoring `_02.pdf` (305 KB) and
+`_03.pdf` (2.0 MB), i.e. roughly two-thirds of the actual filed document.
+
+**Consequence:** every candidate whose plan was split across multiple parts
+(not just this one — any large plan the TSE splits) had a brief built from a
+fraction of what they actually filed, with no signal that anything was
+missing — the brief looked complete because a plan was found.
+
+**Fixed:** added `findPlanPaths` (plural), which matches and returns every
+part sorted by part number; `findPlanPath` is now a thin wrapper returning
+the first for callers that only need one. `build-brief.ts`'s `main()` now
+extracts text from every part and joins them, and the console log prints
+every matched path instead of one. Covered by the existing
+`build-brief.test.ts` suite (all 12 tests still pass) — no new test was
+added for the multi-part join specifically, since the fix is a small,
+directly-inspectable change and the existing single-part tests already
+pin `findPlanPath`'s backward-compatible behavior.
+
+**Scope note:** candidates already ingested earlier in this pilot were
+single-part plans (verified: none of their `findPlanPath` resolutions hit a
+`_02` or higher) — this bug did not silently corrupt already-published
+research. Re-verify this assumption before trusting it for the governor
+pilot at large, rather than re-deriving it from memory later.
+
+---
+
+## F11 — The documented `unzip` command puts TSE data where nothing reads it
+
+**Found:** 2026-08-22, preparing the collaboration package for legislative offices.
+**Status:** Fixed — `download-tse.ts` now prints the correct commands; README corrected.
+
+Both `download-tse.ts`'s closing hint and the handoff README instructed:
+
+```
+unzip -o 'data/tse-2026/*.zip' -d data/tse-2026/extracted
+```
+
+That is wrong for **both** archive shapes the TSE publishes:
+
+| Archive | Contains | Lands at | `build-brief.ts` reads |
+|---|---|---|---|
+| `proposta_governo_2026_{UF}.zip` | `{UF}/*.pdf` | `extracted/{UF}/` | `extracted/planos/{UF}/` |
+| `rede_social_candidato_2026.zip` | flat `*.csv` | `extracted/*.csv` | `extracted/rede_social_candidato_2026/` |
+
+**Consequence — and this is the dangerous part — both failures are silent.**
+With plans in the wrong folder, `build-brief` reports `NONE FILED` for every
+single candidate and renders the "this candidate filed no government plan"
+paragraph, which reads as a fact about the candidate rather than a
+misconfiguration. An agent following the honesty rules correctly would then
+write "não protocolou plano de governo" into a real voter-facing dossier for
+someone who did file one. With the social CSVs in the wrong folder,
+`loadSocialAccounts` returns `[]` and the brief says "none declared to the
+TSE" — same class of false statement.
+
+I hit this myself extracting the SP archive and fixed it by hand at the time
+without realising the documented command was the source, which is exactly how
+a silent-failure bug survives: the person who trips over it patches the
+symptom locally and the instruction stays broken for everyone else.
+
+**Fixed:** `download-tse.ts` now prints two distinct commands (plans into
+`extracted/planos`, each national dataset into its own named folder) plus an
+explicit line naming the two directories `build-brief.ts` actually reads, so
+the operator can verify rather than assume. The handoff README carries the
+same corrected commands and a verification step.
+
+**Also fixed (same session):** `build-brief.ts` now distinguishes the four
+causes of "no plan found" instead of collapsing them into `NONE FILED`, via a
+pure `diagnosePlanAvailability()`:
+
+| Diagnosis | When | Behaviour |
+|---|---|---|
+| `found` | a plan (or every part) located | proceeds |
+| `not_expected` | office is senador/deputado_* | proceeds — the TSE requires no plan |
+| `genuinely_absent` | executive, this UF's plans on disk, none for this candidate | proceeds (the F9 case) |
+| `uf_not_downloaded` | executive, plans exist but none for this UF | **aborts, exit 1** |
+| `misconfigured` | executive, `PLANS_DIR` empty or missing | **aborts, exit 1** |
+
+The two abort paths print the exact command to fix it, and the misconfigured
+path probes for the F11 signature specifically — if plans are sitting at
+`extracted/{UF}/`, it says so and prints the `mv`. Aborting rather than warning
+is deliberate: a warning scrolls past, and the cost of missing it is a false
+statement about a real candidate in a voter-facing dossier.
+
+`not_expected` is evaluated *before* the misconfiguration branches, so a senate
+or deputy brief never aborts merely because no executive plans were downloaded —
+verified against a real senator (ANDRÉ DO PRADO, exit 0) and by simulating F11
+against a real governor (exit 1, correct `mv` emitted). Covered by 7 new tests
+in `build-brief.test.ts`; suite is 224/224.
+
+`FILES_GOVERNMENT_PLAN` moved to an export in `lib/ledger.ts` so the ledger's
+`nao_aplicavel` rule and the brief's `not_expected` rule cannot drift apart.

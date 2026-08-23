@@ -4,11 +4,15 @@ const require = createRequire(import.meta.url)
 const PDFParser = require('pdf2json') as new () => import('events').EventEmitter & { loadPDF: (p: string) => void }
 import { readdirSync } from 'fs'
 import { join, basename } from 'path'
+import 'dotenv/config'
 import { supabase } from './lib/supabase.js'
 import { enrichPositions, type EnrichmentEntry } from './lib/groq.js'
 import { sleep } from './lib/sleep.js'
 
-const ELECTION_YEAR = 2022
+/** Driven by scripts/.env, not hardcoded — see ingest-camara-votes.ts. */
+const ELECTION_YEAR = Number(process.env.ELECTION_YEAR)
+if (!ELECTION_YEAR) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+
 const RATE_LIMIT_DELAY_MS = 1_000
 const PROXY_CONFIDENCE = 0.55
 

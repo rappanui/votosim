@@ -2,10 +2,15 @@ import { fileURLToPath } from 'url'
 import { parse } from 'csv-parse/sync'
 import { readFileSync } from 'fs'
 import { createHash } from 'crypto'
+import 'dotenv/config'
 import { supabase } from './lib/supabase.js'
 import { sleep } from './lib/sleep.js'
 
-const ELECTION_YEAR = 2022
+/** Driven by scripts/.env, not hardcoded: a literal year here silently rots
+ * every cycle and, worse, mislabels which term a vote belongs to. */
+const ELECTION_YEAR = Number(process.env.ELECTION_YEAR)
+if (!ELECTION_YEAR) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+
 const RATE_LIMIT_DELAY_MS = 500
 const VOTE_CONFIDENCE = 0.80
 

@@ -1,6 +1,80 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { findPlanPath, renderBrief, loadSocialAccounts, type BriefInput } from './build-brief.ts'
+import { findPlanPath, findPlanPaths, diagnosePlanAvailability, renderBrief, loadSocialAccounts, type BriefInput } from './build-brief.ts'
+
+// ─── diagnosePlanAvailability ────────────────────────────────────────────────
+// F11: "no plan found" has four very different causes, and reporting them all
+// as NONE FILED wrote false statements into voter-facing dossiers.
+
+test('diagnosePlanAvailability: a found plan is just found', () => {
+  const d = diagnosePlanAvailability({
+    cargo: 'presidente', estado: 'BR',
+    planPathsForCandidate: ['planos/BR/2026BR280002542548_01.pdf'],
+    allPlanFiles: ['planos/BR/2026BR280002542548_01.pdf'],
+  })
+  assert.equal(d.kind, 'found')
+})
+
+test('diagnosePlanAvailability: legislative offices are not expected to file a plan', () => {
+  for (const cargo of ['senador', 'deputado_federal', 'deputado_estadual']) {
+    const d = diagnosePlanAvailability({
+      cargo, estado: 'SP',
+      planPathsForCandidate: [],
+      allPlanFiles: [], // empty dir must NOT read as misconfigured for these
+    })
+    assert.equal(d.kind, 'not_expected', `${cargo} should not expect a plan`)
+  }
+})
+
+test('diagnosePlanAvailability: an executive with an empty plans dir is a misconfiguration, not an absent plan', () => {
+  const d = diagnosePlanAvailability({
+    cargo: 'governador', estado: 'SP',
+    planPathsForCandidate: [],
+    allPlanFiles: [],
+  })
+  assert.equal(d.kind, 'misconfigured')
+})
+
+test('diagnosePlanAvailability: an executive whose UF was never downloaded is flagged separately', () => {
+  const d = diagnosePlanAvailability({
+    cargo: 'governador', estado: 'MG',
+    planPathsForCandidate: [],
+    allPlanFiles: ['planos/BR/2026BR280002542548_01.pdf', 'planos/SP/2026SP250002541303_01.pdf'],
+  })
+  assert.equal(d.kind, 'uf_not_downloaded')
+})
+
+test('diagnosePlanAvailability: an executive whose UF is present but has no file genuinely filed nothing', () => {
+  const d = diagnosePlanAvailability({
+    cargo: 'presidente', estado: 'BR',
+    planPathsForCandidate: [],
+    allPlanFiles: ['planos/BR/2026BR280002542548_01.pdf'], // other candidates filed; this one did not
+  })
+  assert.equal(d.kind, 'genuinely_absent')
+})
+
+test('diagnosePlanAvailability: a legislative candidate who did file one is still reported as found', () => {
+  const d = diagnosePlanAvailability({
+    cargo: 'senador', estado: 'SP',
+    planPathsForCandidate: ['planos/SP/2026SP250009999999_01.pdf'],
+    allPlanFiles: ['planos/SP/2026SP250009999999_01.pdf'],
+  })
+  assert.equal(d.kind, 'found')
+})
+
+test('findPlanPaths: returns every part of a split plan, in order', () => {
+  const files = [
+    'SP/2026SP250002544912_03.pdf',
+    'SP/2026SP250002544912_01.pdf',
+    'SP/2026SP250002544912_02.pdf',
+    'SP/2026SP250002541303_01.pdf',
+  ]
+  assert.deepEqual(findPlanPaths('250002544912', files), [
+    'SP/2026SP250002544912_01.pdf',
+    'SP/2026SP250002544912_02.pdf',
+    'SP/2026SP250002544912_03.pdf',
+  ])
+})
 
 test('findPlanPath: matches a plan by sequencial regardless of part suffix', () => {
   const files = ['BR/2026BR280002542548_01.pdf', 'BR/2026BR280002538811_01.pdf', 'BR/leiame.pdf']

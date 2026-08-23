@@ -1,7 +1,14 @@
 import { createRequire } from 'module'
 import { readFileSync } from 'fs'
+import 'dotenv/config'
 import { supabase } from './lib/supabase.js'
 import { enrichPositions, type EnrichmentEntry } from './lib/groq.js'
+
+/** The candidate view is named per cycle (v_candidates_2022, v_candidates_2026).
+ * Driven by scripts/.env so this enriches the cycle being worked. */
+const ELECTION_YEAR = Number(process.env.ELECTION_YEAR)
+if (!ELECTION_YEAR) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+const CANDIDATES_VIEW = `v_candidates_${ELECTION_YEAR}`
 
 const require = createRequire(import.meta.url)
 const PDFParser = require('pdf2json') as new () => import('events').EventEmitter & { loadPDF: (p: string) => void }
@@ -58,7 +65,7 @@ interface Politician { id: string; nome_urna: string }
 
 async function fetchPolitician(id: string): Promise<Politician | null> {
   const { data, error } = await supabase
-    .from('v_candidates_2022')
+    .from(CANDIDATES_VIEW)
     .select('politician_id, nome_urna')
     .eq('politician_id', id)
     .limit(1)
@@ -112,7 +119,7 @@ async function upsertEnrichmentRows(
 async function main(): Promise<void> {
   const politician = await fetchPolitician(politicianId!)
   if (!politician) {
-    console.error(`Politician not found in v_candidates_2022: ${politicianId}`)
+    console.error(`Politician not found in ${CANDIDATES_VIEW}: ${politicianId}`)
     process.exit(1)
   }
   console.info(`[enrich] Candidate: ${politician.nome_urna} (${politician.id})`)

@@ -11,15 +11,18 @@
 
 Alertas são informações negativas ou sensíveis sobre um candidato, exibidas no card de resultado com fonte primária obrigatória. Nunca são usados para excluir candidatos da lista — apenas para informar o usuário, que decide o peso que quer dar.
 
-Três tipos de alerta, com tratamentos distintos:
+Seis tipos de alerta, com tratamentos distintos:
 
 | Tipo | Fonte principal | Exibição |
 |---|---|---|
 | `ficha_suja` | TSE (condenação transitada em julgado) | Badge vermelho "Ficha suja" |
 | `investigacao` | STF, PGR, TCU, CPIs | Badge laranja "Em investigação" |
 | `polemica` | Mídia, votações polêmicas documentadas | Badge cinza "Atenção" |
+| `incoerencia` | Plataforma/posição + conduta contraditória | Badge roxo |
+| `divergencia_espectro` | Plataforma/posição + base de inferência | Badge azul |
+| `ressalva_evidencias` | A fonte da evidência à qual a ressalva se refere | Badge amarelo |
 
-**Princípio editorial:** alertas de `polemica` são os mais subjetivos e os mais propensos a viés. A curadoria humana é obrigatória para esse tipo antes de publicar.
+**Princípio editorial:** alertas de `polemica` são os mais subjetivos e os mais propensos a viés. A curadoria humana é obrigatória para esse tipo antes de publicar. `incoerencia` e `divergencia_espectro` são inferências de IA sobre a pessoa e também exigem curadoria. `ressalva_evidencias` é uma nota metodológica sobre a base de evidências (extração degradada, posições inferidas de plataforma partidária) — fato, não acusação — e é auto-validada na ingestão para o leitor ver a ressalva.
 
 ---
 
@@ -35,9 +38,12 @@ CREATE TYPE alert_type AS ENUM (
 -- Adicionados em 2026-08-20 por base/11_sp0_foundation.sql:
 --   'incoerencia'          -- conduta contradisse a plataforma declarada num tema
 --   'divergencia_espectro' -- espectro declarado x inferido não batem
--- A view v_candidate_alerts abaixo NÃO cobre esses dois tipos: o CASE de badge_cor
+-- Adicionado em 2026-08-23 (ALTER TYPE ... ADD VALUE, ver docs/sp0-schema-additions.md):
+--   'ressalva_evidencias'  -- nota metodológica sobre a base de evidências
+-- A view v_candidate_alerts abaixo NÃO cobre esses três tipos: o CASE de badge_cor
 -- não tem ELSE, então eles renderizariam badge_cor = NULL. O arquivo 11 substitui a
--- view com as duas branches adicionais. Ver docs/sp0-schema-additions.md.
+-- view com as branches adicionais (incoerencia=roxo, divergencia_espectro=azul,
+-- ressalva_evidencias=amarelo). Ver docs/sp0-schema-additions.md.
 
 CREATE TYPE alert_severity AS ENUM (
   'critica',    -- ficha_suja ou investigação por crime grave (corrupção, violência)
@@ -127,6 +133,9 @@ REGRA B — Curadoria obrigatória para polêmicas
   Alertas do tipo 'polemica' só aparecem na interface após validado = true.
   Alertas 'ficha_suja' e 'investigacao' com fonte do TSE/STF podem ser publicados
   automaticamente (gerado_por_ia = true, validado = true definido pelo pipeline).
+  Alertas 'ressalva_evidencias' são notas metodológicas factuais (extração
+  degradada, posições inferidas de plataforma partidária) e também são
+  auto-validados na ingestão — escondê-los derrotaria o propósito de avisar o leitor.
 
 REGRA C — Neutralidade de linguagem
   O campo descricao deve passar no teste: "isso é um fato ou uma opinião?"

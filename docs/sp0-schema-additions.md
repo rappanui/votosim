@@ -53,7 +53,25 @@ Generated candidate profile, versioned so it can be regenerated without losing t
 | `politician_positions` | `source_ids` | `UUID[]` into the catalogue; supersedes `fontes` for new writes |
 | `politician_alerts` | `source_id` | Alerts trace to the catalogue like positions do |
 
-`alert_type` gains `incoerencia` and `divergencia_espectro`.
+`alert_type` gains `incoerencia` and `divergencia_espectro` (base/11_sp0_foundation.sql).
+
+### Enum additions on 2026-08-23 (applied to the live database via ALTER, now also in base/11_sp0_foundation.sql)
+
+`source_tipo` gains `plataforma_partidaria` and `biografia` — party platform and
+biography documents, the common evidence base for legislative candidates who file
+no `plano_governo`. `alert_type` gains `ressalva_evidencias` — a methodological
+caveat about the evidence base itself (degraded extraction, positions inferred
+from a party platform rather than the candidate's own statements); a transparency
+flag, never an accusation.
+
+```sql
+ALTER TYPE source_tipo ADD VALUE IF NOT EXISTS 'plataforma_partidaria';
+ALTER TYPE source_tipo ADD VALUE IF NOT EXISTS 'biografia';
+ALTER TYPE alert_type ADD VALUE IF NOT EXISTS 'ressalva_evidencias';
+```
+
+A `ressalva_evidencias` alert is auto-validated on ingest (see `isAutoValidated()`
+in export/scripts/ingest-research.ts) and renders `badge_cor = 'amarelo'`.
 
 ## Why `candidate_sources` carries two keys
 
@@ -83,6 +101,6 @@ The file is idempotent: every `CREATE` is `IF NOT EXISTS`, `OR REPLACE`, or wrap
 It can be pasted into the Supabase SQL Editor **as a single batch**. Two notes on why:
 
 - `ALTER TYPE … ADD VALUE` has been transaction-safe since PostgreSQL 12, provided the new value is not *used* in the same transaction. Older comments in this repo claiming otherwise were wrong.
-- This file *does* use both new `alert_type` values, in the `v_candidate_alerts` badge `CASE`. That `CASE` therefore switches on `pa.tipo::text`, which never touches the pending enum values. Without the cast the file fails with `unsafe use of new value "incoerencia" of enum type alert_type`.
+- This file *does* use the new `alert_type` values, in the `v_candidate_alerts` badge `CASE`. That `CASE` therefore switches on `pa.tipo::text`, which never touches the pending enum values. Without the cast the file fails with `unsafe use of new value "incoerencia" of enum type alert_type`.
 
-`v_candidate_alerts` is replaced here rather than in `04_schema_alerts.md` because the original `CASE` has no `ELSE`, so the two new alert types would have rendered `badge_cor = NULL`.
+`v_candidate_alerts` is replaced here rather than in `04_schema_alerts.md` because the original `CASE` has no `ELSE`, so the new alert types would have rendered `badge_cor = NULL`. The badge CASE now covers `incoerencia` (roxo), `divergencia_espectro` (azul) and `ressalva_evidencias` (amarelo).

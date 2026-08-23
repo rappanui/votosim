@@ -4,12 +4,14 @@ import { join, basename } from 'path'
 import { createRequire } from 'module'
 const require = createRequire(import.meta.url)
 const PDFParser = require('pdf2json') as new () => import('events').EventEmitter & { loadPDF: (p: string) => void }
+import 'dotenv/config'
 import { supabase } from './lib/supabase.js'
 import { extractPositions } from './lib/groq.js'
 import { sleep } from './lib/sleep.js'
 
-// Change to 2026 when running Plan 5 (production ingestion)
-const ELECTION_YEAR = 2022
+/** Driven by scripts/.env, not hardcoded — see ingest-camara-votes.ts. */
+const ELECTION_YEAR = Number(process.env.ELECTION_YEAR)
+if (!ELECTION_YEAR) throw new Error('Missing ELECTION_YEAR in scripts/.env')
 
 const RATE_LIMIT_DELAY_MS = 1_000
 
