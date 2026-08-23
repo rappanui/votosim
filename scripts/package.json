@@ -21,6 +21,7 @@
     "bootstrap-ledger": "tsx bootstrap-ledger.ts",
     "build-brief": "tsx build-brief.ts",
     "ingest-research": "tsx ingest-research.ts",
+    "claim-candidate": "tsx claim-candidate.ts",
     "next-candidates": "tsx next-candidates.ts",
     "test": "tsx --test *.test.ts"
   },

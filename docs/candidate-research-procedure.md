@@ -39,6 +39,20 @@ work. Must not draw conclusions about coherence with conduct; E1 only records wh
 the candidate says about themselves. Must not fabricate content for a missing
 government plan — an absent plan is stated as absent, not worked around.
 
+**Only `presidente` and `governador` file a government plan with the TSE.**
+For `senador`, `deputado_federal` and `deputado_estadual` the brief will always
+say no plan was filed, and the ledger already marks their `documentos_oficiais`
+stage `nao_aplicavel`. That is the expected case, **not** an anomaly — do not
+log it as a finding, and do not treat it as evidence of anything about the
+candidate. For these offices, E1's official material is instead: the
+candidate's declared campaign accounts (in the brief), their party's published
+platform, and — for an incumbent or former legislator — their own bills and
+roll-call record (see E4a below), which is far stronger evidence of declared
+priorities than any plan document would be. In the output contract, a party
+platform document is typed `fontes[].tipo = "plataforma_partidaria"` and a
+biographical profile `"biografia"` — not `"noticia"`, and not
+`"plano_governo"`, which is reserved for an actual TSE government plan.
+
 ### E2 — Clean record / judicial
 
 **Produces:** `ficha_suja` and `investigacao` alerts, primary-sourced from layer 1
@@ -86,10 +100,48 @@ sources (partisan blogs, sites without an editorial masthead, aggregators, socia
 media as a primary source of fact). A single non-primary source on its own is not
 yet a fact for D9 purposes — that judgment belongs to E5's alert construction.
 
+### E4a — Roll-call record (legislative candidates only)
+
+**Applies to:** any candidate who currently holds or previously held a
+legislative seat — `senador`, `deputado_federal`, `deputado_estadual`, and
+executive candidates who served in the legislature before (a governor who was
+a federal deputy has a roll-call record too). Skip entirely for a candidate
+who has never held a legislative seat.
+
+**Produces:** Nominal roll-call votes on the questionnaire's 14 themes, each
+one a citable source. This is the single strongest form of evidence this
+procedure can gather: it is what the candidate *did* under their own name and
+on the record, not what they say they will do.
+
+**Where to look, in this order:**
+
+| Office | Source | Camada |
+|---|---|---|
+| `deputado_federal` | `camara.leg.br` — the deputy's page, "Votações" / "Proposições" | 1 |
+| `senador` | `senado.leg.br` — the senator's page, "Votações" | 1 |
+| `deputado_estadual` | the state assembly's own portal (`al<UF>.<uf>.leg.br`, e.g. `al.sp.gov.br`) | 1 |
+
+`.leg.br` and `.gov.br` are already on the camada-1 allowlist the validator
+enforces, so a roll-call citation qualifies as `camada: 1` — cite it with
+`fontes[].tipo: "votacao"`.
+
+**The term to judge is 2023–2026**, not the candidate's whole career. A vote
+from a previous term is context for `resumoPerfil`, not evidence of coherence
+with a 2026 platform.
+
+**Must not:** assert how a candidate voted from background knowledge. If the
+vote was not looked up in this session and cannot be cited with a URL, it does
+not exist for this procedure — the theme falls back to whatever E1/E3 support
+it, exactly as it would for a first-time candidate. Must not infer a vote from
+the party's position: a legislator who voted against their own bench is
+precisely the case this stage exists to catch. Must not extrapolate one vote
+to a neighbouring theme — the framing trap (section 4) applies to votes just
+as it applies to platform text.
+
 ### E4 — Coherence and spectrum
 
-**Produces:** Cross-references E1 (promises) with votes and E3 (conduct) to
-produce a coherence index, an inferred political spectrum, and a
+**Produces:** Cross-references E1 (promises) with E4a (votes) and E3 (conduct)
+to produce a coherence index, an inferred political spectrum, and a
 `divergencia_espectro` alert when the declared and inferred spectra disagree.
 
 **Must not:** score a coherence index of zero for a candidate with no track
@@ -108,6 +160,23 @@ each with justification, intensity, sources, and confidence.
 found (see section 8). Must not write any claim that does not trace back to the
 source catalogue — every position and every alert is checked against the sources
 declared in the same document.
+
+**`ressalva_evidencias` — when the evidence base itself needs a caveat.** Emit
+this alert type when the positions rest on evidence weaker than the candidate's
+own verified statements, so the reader is never left believing a party-platform
+or degraded-extraction position is a personal declaration. Concretely:
+- Positions inferred from a **party platform** rather than the candidate's own
+  words (e.g. a legislative candidate with no `plano_governo`): the caveat makes
+  explicit that the positions are the party's, not the candidate's.
+- A source whose **text extraction was degraded** (e.g. a PDF whose words came
+  out scrambled, read from preserved vocabulary with moderate confidence).
+- Any other material gap between the evidence actually read and what the card
+  implies.
+
+Set `severidade` to `baixa`, cite the evidence source the caveat refers to, and
+leave `resolucao`/`dataResolucao` `null` — this is a standing transparency flag,
+not a resolved matter. It is auto-published on ingest (section 6.1) and renders
+with the `amarelo` badge.
 
 ---
 
@@ -186,12 +255,39 @@ The coherence index compares the candidate's **2026 platform** against their
   comparison could not be made at all. Conflating the two would misrepresent a
   first-time candidate as someone who broke their own promises.
 - It is strong for **legislative** candidates, who have nominal roll-call votes
-  to compare against their platform.
+  to compare against their platform. Gather them in E4a — that stage exists to
+  make this rule actionable rather than aspirational.
 - It is weak for **executive** candidates, whose conduct surfaces only through
   news coverage rather than a votable record.
 - `coerencia_base` must state, in plain language, what was compared against
   what — e.g. "2026 government plan pledges compared against nominal roll-call
   votes 2023–2026," not a bare number with no explanation of its basis.
+
+**Per-theme coherence for a sitting or former legislator.** `coerenciaTema` is
+decided theme by theme, from what E4a actually found — it describes the record
+*on that theme*, not the candidate's career as a whole:
+
+| What E4a found for this theme | `coerenciaTema` |
+|---|---|
+| A cited vote that matches the candidate's stated position | `coerente` |
+| A cited vote that contradicts their stated position | `incoerente` |
+| No vote found on this theme | `sem_historico` |
+
+**The career-level statement belongs in `coerenciaBase`, not in the per-theme
+enum.** A four-term senator whose roll-call record happens to be silent on
+most themes still gets `sem_historico` on those themes — that is accurate,
+because there is no vote on *that* theme to compare. What must not happen is
+`coerenciaBase` saying "não há base de comparação: nunca ocupou cargo eletivo"
+about someone who has held a seat for sixteen years. For a legislator,
+`coerenciaBase` states which mandate was examined, where the votes were looked
+up, and how many themes had a vote to compare — e.g. "Plataforma de 2026
+confrontada com o histórico de votações nominais do mandato 2023-2026 na
+Câmara; 6 dos 14 temas tiveram votação nominal identificada."
+
+A theme marked `incoerente` is a candidate for an `incoerencia` alert — but
+only where the contradiction is direct and both sides are cited (the platform
+text and the vote). A shift in emphasis is not a contradiction, and a vote on
+a bill whose subject merely overlaps the theme is not a contradiction either.
 
 ---
 
@@ -205,12 +301,12 @@ without becoming unreadable — so this table is the authority, not the example.
 
 | Field | Allowed values |
 |---|---|
-| `fontes[].tipo` | `plano_governo`, `coligacao`, `bens_declarados`, `votacao`, `tse_oficial`, `noticia`, `checagem`, `judicial` |
+| `fontes[].tipo` | `plano_governo`, `coligacao`, `bens_declarados`, `votacao`, `tse_oficial`, `noticia`, `checagem`, `judicial`, `plataforma_partidaria`, `biografia` |
 | `fontes[].camada` | `1` (primary/official — see the domain requirement below), `2` (reference press), `3` (fact-checking) |
 | `fontes[].destinoExibicao` | `card_candidato`, `pagina_sobre`, `interno` |
 | `posicoes[].posicao` | `favoravel`, `contrario`, `neutro` |
 | `posicoes[].coerenciaTema` | `coerente`, `incoerente`, `sem_historico`, or `null` (no track record to compare — see section 5) |
-| `alertas[].tipo` | `ficha_suja`, `investigacao`, `polemica`, `incoerencia`, `divergencia_espectro` |
+| `alertas[].tipo` | `ficha_suja`, `investigacao`, `polemica`, `incoerencia`, `divergencia_espectro`, `ressalva_evidencias` |
 | `alertas[].severidade` | `critica`, `alta`, `media`, `baixa` |
 | `alertas[].resolucao` | `null` (still open) or a string describing what happened and how it was resolved |
 | `alertas[].dataResolucao` | ISO date the resolution became final, or `null` if resolved but the date is unknown — never set without `resolucao` also set |
@@ -235,13 +331,17 @@ outright if a `camada: 1` source fails this check.
 
 **Publication rule for alerts.** A `ficha_suja` or `investigacao` alert backed
 by a layer-1 (official) source is **published to voters immediately, with no
-human review** — Rule B of `docs/base/04_schema_alerts.md`. Every other alert
-type, and a `ficha_suja` or `investigacao` backed by anything less than a
-layer-1 source, waits for curation before it is ever shown. Choosing `tipo`
-and deciding which sources to cite on E2's alerts **is** the publication
-decision — the agent making that call must know that it is not an incidental
-classification, it is a decision about whether a claim reaches a voter
-unreviewed.
+human review** — Rule B of `docs/base/04_schema_alerts.md`. A
+`ressalva_evidencias` alert — a methodological caveat about the evidence base
+(e.g. a degraded PDF extraction, or positions inferred from a party platform
+rather than the candidate's own statements) — is also auto-published, because
+it is a factual transparency flag, never an accusation, and hiding it would
+defeat its purpose. Every other alert type, and a `ficha_suja` or
+`investigacao` backed by anything less than a layer-1 source, waits for
+curation before it is ever shown. Choosing `tipo` and deciding which sources
+to cite on E2's alerts **is** the publication decision — the agent making that
+call must know that it is not an incidental classification, it is a decision
+about whether a claim reaches a voter unreviewed.
 
 ### 6.2 Worked example
 

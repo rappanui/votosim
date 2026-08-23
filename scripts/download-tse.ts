@@ -1,5 +1,6 @@
 import { mkdirSync, writeFileSync, existsSync } from 'fs'
 import { basename } from 'path'
+import 'dotenv/config'
 import { planArchiveUrl, bulkArchiveUrl, type BulkDataset } from './lib/gov-plans.js'
 
 const OUT_DIR = 'data/tse-2026'
@@ -55,7 +56,19 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log(`\nUnzip with: unzip -o '${OUT_DIR}/*.zip' -d ${OUT_DIR}/extracted`)
+  // The two archive shapes need two different destinations, and getting this
+  // wrong fails silently: build-brief reports "NONE FILED" for every candidate
+  // and loads zero social accounts, with nothing indicating the data is simply
+  // in the wrong folder. See docs/sp0-findings-log.md F11.
+  console.log('\nUnzip with:')
+  console.log(`  # plans — the archive already contains a {UF}/ folder, so extract INTO planos/`)
+  console.log(`  unzip -o '${OUT_DIR}/proposta_governo_*.zip' -d ${OUT_DIR}/extracted/planos`)
+  console.log(`  # national datasets — each into its own folder named after the archive`)
+  console.log(`  for z in ${OUT_DIR}/rede_social_candidato_*.zip ${OUT_DIR}/consulta_coligacao_*.zip ${OUT_DIR}/motivo_cassacao_*.zip; do`)
+  console.log(`    [ -e "$z" ] && unzip -o "$z" -d "${OUT_DIR}/extracted/$(basename "$z" .zip)"`)
+  console.log('  done')
+  console.log(`\nbuild-brief.ts reads ${OUT_DIR}/extracted/planos/{UF}/ and`)
+  console.log(`${OUT_DIR}/extracted/rede_social_candidato_${electionYear}/ — verify those exist before researching.`)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

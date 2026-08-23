@@ -7,9 +7,15 @@
 ## Enums
 
 ```sql
-alert_type:     'ficha_suja' | 'investigacao' | 'polemica'
+alert_type:     'ficha_suja' | 'investigacao' | 'polemica' | 'incoerencia'
+                | 'divergencia_espectro' | 'ressalva_evidencias'
 alert_severity: 'critica' | 'alta' | 'media' | 'baixa'
 ```
+
+`incoerencia` and `divergencia_espectro` were added by SP-0 (docs/base/11_sp0_foundation.sql).
+`ressalva_evidencias` was added 2026-08-23: a caveat about the evidence base itself
+(degraded extraction, positions inferred from a party platform rather than the
+candidate's own statements). It is a transparency flag, never an accusation.
 
 ---
 
@@ -41,7 +47,7 @@ Filters to `ativo = true AND validado = true`. Returns everything `politician_al
 
 | Column | Values |
 |---|---|
-| `badge_cor` | `'vermelho'` (ficha_suja) · `'laranja'` (investigacao) · `'cinza'` (polemica) |
+| `badge_cor` | `'vermelho'` (ficha_suja) · `'laranja'` (investigacao) · `'cinza'` (polemica) · `'roxo'` (incoerencia) · `'azul'` (divergencia_espectro) · `'amarelo'` (ressalva_evidencias) |
 | `ordem_exibicao` | 1 (critica) · 2 (alta) · 3 (media) · 4 (baixa) |
 
 Ordered by `(politician_id, ordem_exibicao)` — most severe first.
@@ -57,6 +63,7 @@ Ordered by `(politician_id, ordem_exibicao)` — most severe first.
 | **Source required** | `fonte_url` must be filled. No reliable primary source → no alert. |
 | **Auto-validate `ficha_suja` + `investigacao`** | Pipeline can set `validado = true` when source is TSE or STF. |
 | **Human curation for `polemica`** | `validado` must be set by a human before appearing in UI. |
+| **Auto-validate `ressalva_evidencias`** | Pipeline-authored methodological caveat — factual, non-accusatory. Auto-validated on ingest so the reader sees the evidence caveat. |
 | **Neutral language** | `descricao` must state facts only. Test: "Is this a fact or an opinion?" |
 | **Keep resolved alerts** | When a case is closed, set `ativo = false` + fill `resolucao`. Never delete rows. |
 | **Votes ≠ alert** | A vote against a policy is a position (→ `politician_positions`). An alert = documented misconduct, discriminatory statement, or proven conflict of interest. |
@@ -70,6 +77,9 @@ Ordered by `(politician_id, ordem_exibicao)` — most severe first.
 | `ficha_suja` | TSE CSV certidões criminais, Lei Ficha Limpa (LC 135/2010) |
 | `investigacao` | STF, PGR, TCU, congressional CPIs, Federal Police press releases |
 | `polemica` | Agência Brasil, G1, Folha de S.Paulo — human curation required before publishing |
+| `incoerencia` | Platform/position source (the theme it contradicted) + the conduct source |
+| `divergencia_espectro` | Platform/position source (declared spectrum) + inference basis |
+| `ressalva_evidencias` | The evidence source the caveat refers to (e.g. a party platform PDF) |
 
 ---
 

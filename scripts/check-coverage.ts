@@ -1,4 +1,12 @@
+import 'dotenv/config'
 import { supabase } from './lib/supabase.js'
+
+/** The candidate view is named per cycle (v_candidates_2022, v_candidates_2026).
+ * Driven by scripts/.env so this reports on the cycle being worked, not a
+ * hardcoded past one. */
+const ELECTION_YEAR = Number(process.env.ELECTION_YEAR)
+if (!ELECTION_YEAR) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+const CANDIDATES_VIEW = `v_candidates_${ELECTION_YEAR}`
 
 const args = process.argv.slice(2)
 const estado   = args.find(a => a.startsWith('--estado='))?.split('=')[1]
@@ -16,7 +24,7 @@ async function main(): Promise<void> {
 
   // Include 'BR' so national offices (presidente, senador) appear in state reports
   let query = supabase
-    .from('v_candidates_2022')
+    .from(CANDIDATES_VIEW)
     .select('politician_id, nome_urna, partido_eleicao, cargo, estado')
     .limit(10000)
 

@@ -22,10 +22,16 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- plataforma_partidaria / biografia were added later (ALTER TYPE ... ADD VALUE,
+-- 2026-08-23) to cover party platform and biography documents — the common
+-- evidence base for legislative candidates without a plano_governo. Fresh
+-- databases get them here; existing ones must run the ALTERs in
+-- docs/sp0-schema-additions.md.
 DO $$ BEGIN
   CREATE TYPE source_tipo AS ENUM (
     'plano_governo', 'coligacao', 'bens_declarados', 'votacao',
-    'tse_oficial', 'noticia', 'checagem', 'judicial'
+    'tse_oficial', 'noticia', 'checagem', 'judicial',
+    'plataforma_partidaria', 'biografia'
   );
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
@@ -59,6 +65,10 @@ END $$;
 -- IF NOT EXISTS keeps the statement idempotent.
 ALTER TYPE alert_type ADD VALUE IF NOT EXISTS 'incoerencia';
 ALTER TYPE alert_type ADD VALUE IF NOT EXISTS 'divergencia_espectro';
+-- ressalva_evidencias added 2026-08-23: caveat about the evidence base
+-- (degraded extraction, party-inferred positions), a transparency flag rather
+-- than an accusation. Referenced by the same v_candidate_alerts badge CASE.
+ALTER TYPE alert_type ADD VALUE IF NOT EXISTS 'ressalva_evidencias';
 
 -- ─── brazilian_state: 'BR' for national offices ───────────────────────────────
 
@@ -277,9 +287,9 @@ CREATE POLICY "leitura_publica_candidate_dossiers"
 -- ─── v_candidate_alerts: badges for the two new alert types ───────────────────
 
 -- Reproduces docs/base/04_schema_alerts.md's v_candidate_alerts, unchanged
--- except for two added branches in the badge_cor CASE. Without them, an
--- alert of type incoerencia or divergencia_espectro renders badge_cor = NULL,
--- because the original CASE has no ELSE.
+-- except for added branches in the badge_cor CASE. Without them, an alert of
+-- type incoerencia, divergencia_espectro or ressalva_evidencias renders
+-- badge_cor = NULL, because the original CASE has no ELSE.
 CREATE OR REPLACE VIEW v_candidate_alerts AS
 SELECT
   pa.politician_id,
@@ -307,6 +317,10 @@ SELECT
     -- disagree. Informational, not a conduct or legal flag, so it takes the
     -- calmest colour in the set rather than a warning colour.
     WHEN 'divergencia_espectro' THEN 'azul'
+    -- ressalva_evidencias: caveat about the evidence base (degraded
+    -- extraction, party-inferred positions). Informational, not a conduct or
+    -- legal flag, so it takes a neutral note colour rather than a warning one.
+    WHEN 'ressalva_evidencias'  THEN 'amarelo'
   END AS badge_cor,
   CASE pa.severidade
     WHEN 'critica' THEN 1
@@ -321,4 +335,4 @@ WHERE pa.ativo = true
 ORDER BY pa.politician_id, ordem_exibicao;
 
 COMMENT ON VIEW v_candidate_alerts IS
-  'Alertas ativos e validados prontos para exibição na UI. Ordenados por severidade. Extended by base/11_sp0_foundation.sql with badge_cor branches for incoerencia (roxo) and divergencia_espectro (azul).';
+  'Alertas ativos e validados prontos para exibição na UI. Ordenados por severidade. Extended by base/11_sp0_foundation.sql with badge_cor branches for incoerencia (roxo), divergencia_espectro (azul) and ressalva_evidencias (amarelo).';

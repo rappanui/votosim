@@ -28,8 +28,11 @@ export interface LedgerRow {
   status: LedgerStatus
 }
 
-/** Only presidente and governador file a government plan with the TSE. */
-const FILES_GOVERNMENT_PLAN = new Set(['presidente', 'governador'])
+/** Only presidente and governador file a government plan with the TSE.
+ * Exported because build-brief.ts must apply the same rule when deciding
+ * whether a missing plan is expected or a sign of misconfiguration — two
+ * copies of this set would drift. */
+export const FILES_GOVERNMENT_PLAN = new Set(['presidente', 'governador'])
 
 /**
  * Builds the initial ledger for one candidacy, marking stages that genuinely
