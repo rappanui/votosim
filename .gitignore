@@ -49,6 +49,8 @@ CLAUDE.md
 docs/superpowers/
 
 # export package for external collaborators — contains a live SERVICE_ROLE_KEY,
-# must never enter git history
+# must never enter git history. Globbed, not a literal name: this file gets
+# renamed by hand when reshared (e.g. -v2, -v3), and an exact-name pattern
+# stops matching the moment that happens.
 /export/
-/votosim-pesquisa-candidatos.zip
+/votosim-pesquisa-candidatos*.zip
