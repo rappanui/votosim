@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# VotoSim
 
-## Getting Started
+App que compara as respostas do eleitor a um questionário com as posições reais
+de cada candidato em 14 temas, e mostra o percentual de afinidade. Next.js 16
+(App Router) + Supabase. A interpretação por IA acontece na ingestão de dados
+(ver `scripts/`), não em tempo de execução — o app em si só faz comparação
+determinística, sem chamar IA.
 
-First, run the development server:
+## Como subir a aplicação do zero
+
+**Pré-requisitos:** Node.js instalado (qualquer versão recente — não há pin de
+versão no projeto), acesso ao projeto Supabase (URL + chaves).
 
 ```bash
+# 1. Instale as dependências
+npm install
+
+# 2. Crie o .env.local a partir do template e preencha com as credenciais
+#    reais do projeto Supabase (Project Settings → API no painel do Supabase)
+cp .env.example .env.local
+# edite .env.local: as duas variáveis NEXT_PUBLIC_ já bastam para `npm run
+# dev` — sem elas o app não conecta ao banco. As outras três (comentadas no
+# template) são só para quem também for mexer na Edge Function.
+
+# 3. Suba o servidor de desenvolvimento
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra **http://localhost:3000** — a home redireciona automaticamente para
+`/quiz`. Um `curl -sL -o /dev/null -w "%{http_code}\n" http://localhost:3000/`
+retornando `200` confirma que subiu certo.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`npm run dev` sobe direto contra o Supabase remoto configurado no
+`.env.local` — não precisa (nem depende de) Supabase local ou CLI para isto
+funcionar. O diretório `supabase/` existe só para a Edge Function de
+matching (`supabase/functions/`), não para rodar o app.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Se `/quiz` carregar mas não mostrar candidatos:** a base pode estar vazia
+ou sem candidatos ingeridos para o cargo/estado testado. Ver `scripts/` para
+o pipeline de pesquisa e ingestão de candidatos (`export/README.md` tem o
+passo-a-passo completo, ou `docs/candidate-research-procedure.md`).
 
-## Learn More
+## Este NÃO é o Next.js que você conhece
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Ver `AGENTS.md` — a versão do Next.js usada aqui tem breaking changes em
+relação ao que consta em dados de treinamento. Leia a documentação em
+`node_modules/next/dist/docs/` antes de escrever qualquer código.
