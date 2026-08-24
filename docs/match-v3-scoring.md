@@ -36,6 +36,11 @@ Each theme the voter took a side on gets one level and a credibility factor:
 
 `partido` is implemented and unit-tested but **inert**: no party has positions yet.
 
+> **Before populating `party_positions`, fix this:** `buildPartyResults` in
+> `index.ts` calls `scoreCandidato` without the `temaNomes` map, so legenda entries
+> would render raw theme slugs instead of human names. Harmless while the table is
+> empty; a visible defect the moment it is not.
+
 ## The arithmetic
 
 With `w = importancia / 3` over the voter's non-neutral answers:
