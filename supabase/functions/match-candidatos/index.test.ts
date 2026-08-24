@@ -604,6 +604,23 @@ Deno.test('deriveObservacoes: contradictions are ordered before ressalvas', () =
   assertEquals(out.map(o => o.categoria), ['contradicao', 'ressalva'])
 })
 
+Deno.test('deriveObservacoes: an incoerencia alert and an incoerente theme about the same theme collapse to one', () => {
+  const alerta = makeAlertRow('incoerencia', 'roxo')
+  alerta.titulo = 'Saúde pública'
+  const coerencia = new Map<string, CoerenciaTema>([['saude_sus', 'incoerente']])
+  const out = deriveObservacoes([alerta], [makeDetalhe({ justificativa: 'Votou contra em 2023.' })], null, coerencia)
+  assertEquals(out.length, 1)
+  assertEquals(out[0].categoria, 'contradicao')
+})
+
+Deno.test('deriveObservacoes: contradictions about different themes both survive', () => {
+  const alerta = makeAlertRow('incoerencia', 'roxo')
+  alerta.titulo = 'Meio ambiente'
+  const coerencia = new Map<string, CoerenciaTema>([['saude_sus', 'incoerente']])
+  const out = deriveObservacoes([alerta], [makeDetalhe({ justificativa: 'j' })], null, coerencia)
+  assertEquals(out.length, 2)
+})
+
 // ─── attachAlerts splits accusatory from observational ───────────────────────
 
 Deno.test('attachAlerts: keeps only accusatory types in alertas', () => {
