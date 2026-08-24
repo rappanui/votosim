@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuiz } from '@/context/QuizContext'
 import { CandidatoCard } from '@/components/CandidatoCard'
+import { LegendaIcones } from '@/components/LegendaIcones'
 import type { MatchResult, CargoResultado, PerfilUsuario } from '@/lib/types'
 
 const EDGE_FUNCTION_PATH = '/functions/v1/match-candidatos'
@@ -84,6 +85,8 @@ export default function ResultadosPage() {
         {resultado.totalCandidatosAnalisados !== 1 ? 's' : ''} em {resultado.estado}.
         Alinhamento e cobertura temática — não é uma recomendação de voto.
       </p>
+
+      <LegendaIcones />
 
       <div className="flex flex-col gap-10">
         {resultado.cargos.map((grupo: CargoResultado) => (
