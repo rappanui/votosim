@@ -4,12 +4,16 @@ import type { CandidatoResultado, TemaCandidatoDetalhe } from '@/lib/types'
 
 const makeDetalhe = (overrides: Partial<TemaCandidatoDetalhe> = {}): TemaCandidatoDetalhe => ({
   temaSlug: 'sus_saude_publica',
+  temaNome: 'SUS e saúde pública',
   voterPosicao: 'favoravel',
   voterImportancia: 3,
   candidatePosicao: 5,
   candidateImportancia: 5,
   alignment: 1.0,
   contouNoScore: true,
+  evidencia: 'direta',
+  neutroMotivo: null,
+  justificativa: null,
   posicaoViaPartido: false,
   baixaConfianca: false,
   ...overrides,
@@ -20,7 +24,9 @@ const makeCandidate = (overrides: Partial<CandidatoResultado> = {}): CandidatoRe
   nomeUrna: 'Candidato Teste',
   partido: 'PT',
   alinhamento: 80,
+  alinhamentoApurado: 90,
   cobertura: 75,
+  confiancaResultado: 75,
   detalhesTemas: [makeDetalhe()],
   temAlertas: false,
   alertas: [],
@@ -40,13 +46,13 @@ describe('CandidatoCard', () => {
     expect(screen.getByText(/cobertura 75%/)).toBeInTheDocument()
   })
 
-  it('applies green bar for alinhamento >= 75', () => {
+  it('applies green bar for alinhamento >= 55', () => {
     const { container } = render(<CandidatoCard candidato={makeCandidate({ alinhamento: 80 })} />)
     expect(container.querySelector('[data-testid="alinhamento-bar"]')?.className).toContain('bg-success')
   })
 
-  it('applies amber bar for alinhamento 50-74', () => {
-    const { container } = render(<CandidatoCard candidato={makeCandidate({ alinhamento: 60 })} />)
+  it('applies amber bar for alinhamento 35-54', () => {
+    const { container } = render(<CandidatoCard candidato={makeCandidate({ alinhamento: 40 })} />)
     expect(container.querySelector('[data-testid="alinhamento-bar"]')?.className).toContain('bg-amber-500')
   })
 
@@ -70,7 +76,7 @@ describe('CandidatoCard', () => {
   it('shows transparency panel on click', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
     fireEvent.click(screen.getByText(/Ver detalhes por tema/))
-    expect(screen.getByText('sus saude publica')).toBeInTheDocument()
+    expect(screen.getByText('SUS e saúde pública')).toBeInTheDocument()
   })
 
   it('shows ✓ icon for aligned theme (alignment >= 0.75)', () => {
@@ -162,5 +168,67 @@ describe('CandidatoCard', () => {
     fireEvent.click(screen.getByText(/Ver detalhes por tema/))
     expect(screen.getByText('partido')).toBeInTheDocument()
     expect(screen.getByText('classificação não revisada')).toBeInTheDocument()
+  })
+
+  it('shows both coverage metrics in the header', () => {
+    render(<CandidatoCard candidato={makeCandidate({ cobertura: 36, confiancaResultado: 36 })} />)
+    expect(screen.getByText(/cobertura 36%/)).toBeInTheDocument()
+    expect(screen.getByText(/confiança 36%/)).toBeInTheDocument()
+  })
+
+  it('shows the audit line when expanded', () => {
+    render(<CandidatoCard candidato={makeCandidate({
+      alinhamento: 39, alinhamentoApurado: 90, cobertura: 36, confiancaResultado: 36,
+    })} />)
+    fireEvent.click(screen.getByText(/Ver detalhes/))
+    expect(screen.getByTestId('audit-line')).toHaveTextContent(
+      '39% = 36% do que importa pra você × 90% de alinhamento nesses temas + 64% não apurado, contado como 10%',
+    )
+  })
+
+  it('distinguishes an unaudited theme from an audited neutral', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [
+        makeDetalhe({
+          temaSlug: 'protecao_minorias', temaNome: 'Proteção de minorias',
+          evidencia: 'ausente', neutroMotivo: 'nao_encontrado',
+          candidatePosicao: null, alignment: null, contouNoScore: false,
+        }),
+        makeDetalhe({
+          temaSlug: 'bolsa_familia_transferencia', temaNome: 'Bolsa Família',
+          evidencia: 'direta', neutroMotivo: 'nao_responde',
+          candidatePosicao: 3, alignment: 0.5, contouNoScore: true,
+        }),
+      ],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes/))
+    expect(screen.getByText('não encontrado')).toBeInTheDocument()
+    expect(screen.getByText('não responde à afirmação')).toBeInTheDocument()
+  })
+
+  it('renders the theme name, not the raw slug', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [makeDetalhe({
+        temaSlug: 'meio_ambiente_desmatamento', temaNome: 'Meio ambiente e desmatamento',
+      })],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes/))
+    expect(screen.getByText('Meio ambiente e desmatamento')).toBeInTheDocument()
+    expect(screen.queryByText('meio ambiente desmatamento')).not.toBeInTheDocument()
+  })
+
+  it('exposes the justification for a theme', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [makeDetalhe({
+        evidencia: 'ausente', neutroMotivo: 'nao_encontrado',
+        candidatePosicao: null, alignment: null, contouNoScore: false,
+        justificativa: 'Buscas no plano de governo não retornaram nenhuma ocorrência.',
+      })],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes/))
+    expect(screen.getByText(/não retornaram nenhuma ocorrência/)).toBeInTheDocument()
   })
 })
