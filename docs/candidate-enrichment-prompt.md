@@ -351,6 +351,7 @@ These are validated outputs produced for the 2022 Brazilian presidential electio
   {
     "temaSlug": "bolsa_familia_transferencia",
     "posicao": "neutro",
+    "neutro_motivo": "nao_responde",
     "intensidade": 2,
     "justificativa": "Renomeou Bolsa Família para Auxílio Brasil e manteve R$600, mas sempre criticou o programa original e condicionou benefício à inserção no mercado de trabalho.",
     "confianca_ia": 0.72,
