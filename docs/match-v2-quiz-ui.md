@@ -137,10 +137,10 @@ otherwise unused — this block is where it reaches the voter.
 ### TemasPanel (`src/components/TemasPanel.tsx`)
 
 Holds the six theme states the shipped icons distinguish — one more than
-the v3 spec's §7 table, which omits `●` (curious-neutral). Themes the voter
-took a side on list before neutral ones; the first four show and the rest
-sit behind a "Ver os N temas" toggle. Each row carries the icon, `temaNome`,
-the voter and candidate labels, the `partido` and `classificação não
-revisada` tags, and the position's `justificativa` below.
+the v3 spec's §7 table, which omits `●` (curious-neutral). Every visible
+theme renders, ordered with the ones the voter took a side on first. Each
+row carries the icon, `temaNome`, the voter and candidate labels, the
+`partido` and `classificação não revisada` tags, and the position's
+`justificativa` below.
 
 Icons and labels are v3's — see `docs/superpowers/specs/2026-08-23-match-v3-scoring-design.md` §7.
