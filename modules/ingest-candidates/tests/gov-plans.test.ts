@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { planArchiveUrl, bulkArchiveUrl, parsePlanFilename } from './lib/gov-plans.ts'
+import { planArchiveUrl, bulkArchiveUrl, parsePlanFilename } from '../src/lib/gov-plans.ts'
 
 test('planArchiveUrl: builds the TSE CDN url for a state', () => {
   assert.equal(
