@@ -47,6 +47,7 @@ next-env.d.ts
 # project-local claude config
 CLAUDE.md
 docs/superpowers/
+.superpowers/
 
 # export package for external collaborators — contains a live SERVICE_ROLE_KEY,
 # must never enter git history. Globbed, not a literal name: this file gets
