@@ -2,10 +2,15 @@ import { fileURLToPath } from 'url'
 import { parse } from 'csv-parse/sync'
 import { readFileSync } from 'fs'
 import { createHash } from 'crypto'
+import 'dotenv/config'
 import { supabase } from './lib/supabase.js'
 import { sleep } from './lib/sleep.js'
 
-const ELECTION_YEAR = 2022
+/** Driven by scripts/.env, not hardcoded: a literal year here silently rots
+ * every cycle and, worse, mislabels which term a vote belongs to. */
+const ELECTION_YEAR = Number(process.env.ELECTION_YEAR)
+if (!ELECTION_YEAR) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+
 const RATE_LIMIT_DELAY_MS = 500
 const VOTE_CONFIDENCE = 0.80
 
@@ -18,8 +23,9 @@ export const CAMARA_THEME_MAP: Array<{ keywords: string[]; slugs: string[] }> = 
   { keywords: ['segurança pública', 'seguranca publica', 'penitenciária', 'penitenciaria'], slugs: ['seguranca_publica_estadual'] },
   { keywords: ['educação', 'educacao'], slugs: ['educacao_basica'] },
   { keywords: ['meio ambiente', 'desenvolvimento sustentável', 'desenvolvimento sustentavel'], slugs: ['meio_ambiente_desmatamento'] },
-  { keywords: ['direitos humanos', 'minorias'], slugs: ['direitos_lgbtqia', 'pauta_moral_costumes'] },
-  { keywords: ['defesa', 'armas', 'segurança nacional', 'seguranca nacional'], slugs: ['porte_armas'] },
+  { keywords: ['direitos humanos', 'minorias', 'lgbtq', 'igualdade racial'], slugs: ['protecao_minorias'] },
+  { keywords: ['defesa', 'armas', 'armamento', 'desarmamento', 'segurança nacional', 'seguranca nacional'], slugs: ['autonomia_individual'] },
+  { keywords: ['religião', 'religiao', 'laicidade', 'valores morais', 'costumes'], slugs: ['laicidade_valores'] },
   { keywords: ['ética', 'etica', 'anticorrupção', 'anticorrupcao', 'transparência', 'transparencia'], slugs: ['corrupcao_transparencia'] },
   { keywords: ['relações exteriores', 'relacoes exteriores', 'comércio internacional', 'comercio internacional'], slugs: ['politica_externa'] },
   { keywords: ['privatização', 'privatizacao', 'concessões', 'concessoes', 'estatais'], slugs: ['privatizacao_estatais'] },

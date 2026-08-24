@@ -3,3 +3,8 @@ node_modules/
 dist/
 *.csv
 data/
+data/tse-2026/
+data/consulta_cand_2026/
+consulta_cand_2026.zip
+data/briefs/
+data/research/

@@ -1,15 +1,23 @@
 import { fileURLToPath } from 'url'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import 'dotenv/config'
 import { supabase } from './lib/supabase.js'
 import { sleep } from './lib/sleep.js'
 
 const execAsync = promisify(exec)
 
-const ELECTION_YEAR = 2022
+/** Driven by scripts/.env, not hardcoded: a literal year here silently rots
+ * every cycle and, worse, mislabels which term a vote belongs to. */
+const ELECTION_YEAR = Number(process.env.ELECTION_YEAR)
+if (!ELECTION_YEAR) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+
 const RATE_LIMIT_DELAY_MS = 1_000
 const VOTE_CONFIDENCE = 0.75
-// Senators elected in 2022 started voting in Feb 2023 (57th legislature)
+// The 57th legislature (senators elected in 2022) began voting in Feb 2023.
+// This window is the *term being judged*, not the election year — for the 2026
+// race it is the 2023-2026 record, which is what a coherence index compares
+// a 2026 platform against.
 const VOTE_DATE_START = '2023-02-01'
 const VOTE_DATE_END   = '2026-06-29'
 
@@ -24,12 +32,12 @@ const THEME_KEYWORDS: Array<{ slugs: string[]; keywords: string[] }> = [
   { slugs: ['meio_ambiente_desmatamento'],  keywords: ['meio ambiente', 'desmatamento', 'floresta', 'amazônia', 'amazonia', 'clima', 'emissão', 'emissao', 'carbono'] },
   { slugs: ['reforma_previdencia'],         keywords: ['previdência', 'previdencia', 'aposentadoria', 'inss', 'pensão', 'pensao'] },
   { slugs: ['bolsa_familia_transferencia'], keywords: ['bolsa família', 'bolsa familia', 'auxílio brasil', 'auxilio brasil', 'transferência de renda', 'transferencia de renda', 'benefício social', 'beneficio social'] },
-  { slugs: ['direitos_lgbtqia'],            keywords: ['lgbtqia', 'lgbtq', 'homofobia', 'transfobia', 'diversidade sexual', 'identidade de gênero', 'identidade de genero'] },
-  { slugs: ['porte_armas'],                 keywords: ['arma de fogo', 'armamento', 'porte de arma', 'desarmamento', 'clube de tiro', 'caçador', 'cacador'] },
+  { slugs: ['protecao_minorias'],           keywords: ['lgbtqia', 'lgbtq', 'homofobia', 'transfobia', 'diversidade sexual', 'identidade de gênero', 'identidade de genero', 'direitos humanos', 'igualdade racial', 'cotas raciais'] },
+  { slugs: ['autonomia_individual'],        keywords: ['arma de fogo', 'armamento', 'porte de arma', 'desarmamento', 'clube de tiro', 'caçador', 'cacador'] },
   { slugs: ['corrupcao_transparencia'],     keywords: ['corrupção', 'corrupcao', 'transparência', 'transparencia', 'lavagem de dinheiro', 'ficha limpa', 'improbidade'] },
   { slugs: ['politica_economica'],          keywords: ['juros', 'banco central', 'inflação', 'inflacao', 'orçamento', 'orcamento', 'pib', 'crescimento econômico', 'crescimento economico'] },
   { slugs: ['politica_externa'],            keywords: ['política externa', 'politica externa', 'relações exteriores', 'relacoes exteriores', 'mercosul', 'acordo internacional', 'diplomacia'] },
-  { slugs: ['pauta_moral_costumes'],        keywords: ['aborto', 'eutanásia', 'eutanasia', 'drogas', 'família tradicional', 'familia tradicional', 'valores cristãos', 'valores cristaos'] },
+  { slugs: ['laicidade_valores'],           keywords: ['aborto', 'eutanásia', 'eutanasia', 'drogas', 'família tradicional', 'familia tradicional', 'valores cristãos', 'valores cristaos', 'religião', 'religiao', 'laicidade'] },
 ]
 
 function normalize(s: string): string {

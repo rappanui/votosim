@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but example templates carry no secrets and must be versioned, so a new
+# developer can see which variables the pipeline needs.
+!.env.example
+!scripts/.env.example
 
 # vercel
 .vercel
@@ -43,3 +47,11 @@ next-env.d.ts
 # project-local claude config
 CLAUDE.md
 docs/superpowers/
+.superpowers/
+
+# export package for external collaborators — contains a live SERVICE_ROLE_KEY,
+# must never enter git history. Globbed, not a literal name: this file gets
+# renamed by hand when reshared (e.g. -v2, -v3), and an exact-name pattern
+# stops matching the moment that happens.
+/export/
+/votosim-pesquisa-candidatos*.zip
