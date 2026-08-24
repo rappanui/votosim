@@ -345,15 +345,24 @@ export function scoreCandidato(
   // which keeps this branch consistent with the "zero coverage" case.
   const confianca = massaTotal === 0 ? 0 : massaApurada / massaTotal
   const apuradoScore = massaApurada === 0 ? 0 : somaPonderada / massaApurada
-  // The identity the results card shows as its audit line. Keep them in sync;
-  // a property test in ai-providers.test.ts enforces it.
-  const alinhamento = confianca * apuradoScore + (1 - confianca) * P_NAO_INFORMADO
+
+  const coberturaPct = totalTemas === 0 ? 0 : Math.round((credTemas / totalTemas) * 100)
+  const confiancaPct = Math.round(confianca * 100)
+  const apuradoPct = Math.round(apuradoScore * 100)
+  // Derived from the ROUNDED components on purpose: the results card shows this
+  // same arithmetic to the voter as an audit line, and a headline that does not
+  // reproduce from the numbers beside it is worse than one that is a fraction
+  // of a point less precise. A property test in ai-providers.test.ts enforces
+  // this identity holds exactly against the returned rounded values.
+  const alinhamentoPct = Math.round(
+    (confiancaPct / 100) * (apuradoPct / 100) * 100 + (1 - confiancaPct / 100) * P_NAO_INFORMADO * 100,
+  )
 
   return {
-    alinhamento: Math.round(alinhamento * 100),
-    alinhamentoApurado: Math.round(apuradoScore * 100),
-    cobertura: totalTemas === 0 ? 0 : Math.round((credTemas / totalTemas) * 100),
-    confiancaResultado: Math.round(confianca * 100),
+    alinhamento: alinhamentoPct,
+    alinhamentoApurado: apuradoPct,
+    cobertura: coberturaPct,
+    confiancaResultado: confiancaPct,
     detalhesTemas,
   }
 }
