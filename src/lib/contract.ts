@@ -2,7 +2,7 @@ import type { MatchResult, CandidatoResultado } from './types'
 
 /**
  * The app and the Edge Function are two runtimes with no shared module, and
- * src/lib/types.ts mirrors ai-providers.ts by hand. Nothing couples them at
+ * src/lib/types.ts mirrors scoring.ts by hand. Nothing couples them at
  * build time, and they deploy separately to a remote Supabase project.
  *
  * On 2026-08-24 the app ran against an Edge Function that predated match v3

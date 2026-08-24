@@ -17,7 +17,7 @@ import {
   scoreCandidato,
   scoreWithoutAI,
   type TemaCandidatoDetalhe,
-} from './ai-providers.ts'
+} from './scoring.ts'
 
 // ─── Local types ──────────────────────────────────────────────────────────────
 
