@@ -21,7 +21,6 @@
 | `schema-adicoes-sp0.md` | As tabelas e colunas que a migração SP-0 (`docs/migracoes/11_sp0_foundation.sql`) adicionou. |
 | `fontes-de-dados-tse.md` | Onde obter dados oficiais do TSE 2026 e as armadilhas de fontes mortas/incompletas. |
 
-Os três últimos (`achados-sp0`, `schema-adicoes-sp0`, `fontes-de-dados-tse`)
-foram movidos como estavam — ainda em inglês, sem o bloco `**Status:**` no
-formato padrão desta pasta. Ver concerns do relatório de fechamento da Fase
-B4/B5 antes de tratá-los como modelo para um documento novo.
+`achados-sp0.md` é exceção conhecida ao teto de 200 linhas desta pasta: é um
+log de achados append-only, e dividi-lo por tamanho destruiria a cronologia
+dos achados registrados. Fica onde está, sem divisão.
