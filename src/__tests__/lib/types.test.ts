@@ -21,7 +21,9 @@ describe('CandidatoResultado shape', () => {
       nomeUrna: 'Test',
       partido: 'PT',
       alinhamento: 80,
+      alinhamentoApurado: 90,
       cobertura: 75,
+      confiancaResultado: 75,
       detalhesTemas: [],
       temAlertas: false,
       alertas: [],
@@ -37,12 +39,16 @@ describe('TemaCandidatoDetalhe shape', () => {
   it('has candidatePosicao typed as number or null', () => {
     const d: TemaCandidatoDetalhe = {
       temaSlug: 'sus_saude_publica',
+      temaNome: 'SUS e saúde pública',
       voterPosicao: 'favoravel',
       voterImportancia: 3,
       candidatePosicao: 4.6,
       candidateImportancia: 5,
       alignment: 0.9,
       contouNoScore: true,
+      evidencia: 'direta',
+      neutroMotivo: null,
+      justificativa: null,
       posicaoViaPartido: false,
       baixaConfianca: false,
     }
@@ -52,12 +58,16 @@ describe('TemaCandidatoDetalhe shape', () => {
   it('accepts null candidatePosicao when no data', () => {
     const d: TemaCandidatoDetalhe = {
       temaSlug: 'sus_saude_publica',
+      temaNome: 'SUS e saúde pública',
       voterPosicao: 'favoravel',
       voterImportancia: 2,
       candidatePosicao: null,
       candidateImportancia: null,
       alignment: null,
       contouNoScore: false,
+      evidencia: 'ausente',
+      neutroMotivo: null,
+      justificativa: null,
       posicaoViaPartido: false,
       baixaConfianca: false,
     }
