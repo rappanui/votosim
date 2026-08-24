@@ -3,7 +3,7 @@
 **Context:** Describes the dual-metric scoring algorithm introduced in Match v2 (`feature/match-v2`), the voter and candidate data types it operates on, and the theme slug renames. Read this before touching `supabase/functions/match-candidatos/ai-providers.ts` or any code that constructs `RespostaUsuario` payloads.
 
 > **Superseded (2026-08-23):** the scoring algorithm described below was replaced
-> by Match v3. See `docs/superpowers/specs/2026-08-23-match-v3-scoring-design.md`.
+> by Match v3. See `docs/match-v3-scoring.md`.
 > The voter data model and the theme slug renames in this document are still current.
 
 ---
