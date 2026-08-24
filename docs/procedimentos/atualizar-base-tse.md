@@ -1,42 +1,47 @@
-# VotoSim — 2026 Candidate Data Update Process
+# VotoSim — Processo de atualização de dados de candidatos 2026
 
-**Context:** Step-by-step guide to refresh VotoSim's database for the 2026 general elections. Read before ingesting new candidate data. For pipeline script details, see `docs/legado/11_pipeline_scripts.md`. For the full pipeline architecture, see `docs/legado/06_data_pipeline.md`.
+> **Status:** válido · **Atualizado em:** 2026-08-24
+> **Contexto:** guia passo a passo para atualizar a base de dados do VotoSim
+> para as eleições gerais de 2026. Leitor: uma pessoa (o operador que roda a
+> ingestão). Leia antes de ingerir novos dados de candidatos. Para detalhes
+> dos scripts do pipeline, ver `docs/legado/11_pipeline_scripts.md`. Para a
+> arquitetura completa do pipeline, ver `docs/legado/06_data_pipeline.md`.
 
 ---
 
-## When TSE Releases 2026 Data
+## Quando o TSE liberar os dados de 2026
 
-| Dataset | Expected release | URL pattern |
+| Dataset | Liberação esperada | Padrão de URL |
 |---------|-----------------|-------------|
-| Candidate CSV (`consulta_cand`) | August 2026 (after registration deadline) | `cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2026.zip` |
-| Government plan PDFs (`proposta_governo`) | August 2026 (with candidacy) | `cdn.tse.jus.br/estatistica/sead/odsele/proposta_governo/proposta_governo_2026_{UF}.zip` |
-| Criminal records (`motivo_cassacao`) | September 2026 (after TSE rulings) | `cdn.tse.jus.br/estatistica/sead/odsele/motivo_cassacao/motivo_cassacao_2026.zip` |
+| CSV de candidatos (`consulta_cand`) | Agosto de 2026 (após o prazo de registro) | `cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2026.zip` |
+| PDFs de plano de governo (`proposta_governo`) | Agosto de 2026 (junto com a candidatura) | `cdn.tse.jus.br/estatistica/sead/odsele/proposta_governo/proposta_governo_2026_{UF}.zip` |
+| Registros criminais (`motivo_cassacao`) | Setembro de 2026 (após decisões do TSE) | `cdn.tse.jus.br/estatistica/sead/odsele/motivo_cassacao/motivo_cassacao_2026.zip` |
 
 ---
 
-## Step 1: Download TSE Files
+## Passo 1: Baixar os arquivos do TSE
 
-### Candidates CSV
+### CSV de candidatos
 
 ```bash
 curl -L "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2026.zip" \
   -o scripts/data/consulta_cand_2026.zip
 unzip scripts/data/consulta_cand_2026.zip -d scripts/data/
-# Produces: consulta_cand_2026_BR.csv (national) + one CSV per state UF
+# Produz: consulta_cand_2026_BR.csv (nacional) + um CSV por UF
 ```
 
-### Government plan PDFs (per state + BR)
+### PDFs de plano de governo (por estado + BR)
 
 ```bash
-# Presidential candidates (estado='BR' in DB)
+# Candidatos a presidente (estado='BR' no banco)
 curl -L "https://cdn.tse.jus.br/estatistica/sead/odsele/proposta_governo/proposta_governo_2026_BR.zip" \
   -o scripts/data/proposta_governo_2026_BR.zip
 mkdir -p scripts/data/propostas_2026/BR
 unzip scripts/data/proposta_governo_2026_BR.zip -d scripts/data/propostas_2026/BR/
-# Move any nested subdirectory up if zip extracts to BR/BR/:
+# Mova qualquer subdiretório aninhado para fora, se o zip extrair para BR/BR/:
 # mv scripts/data/propostas_2026/BR/BR/*.pdf scripts/data/propostas_2026/BR/
 
-# Per-state (governors) — repeat for each UF
+# Por estado (governadores) — repita para cada UF
 for UF in SP RJ MG RS BA PR SC GO PE CE; do
   curl -L "https://cdn.tse.jus.br/estatistica/sead/odsele/proposta_governo/proposta_governo_2026_${UF}.zip" \
     -o scripts/data/proposta_governo_2026_${UF}.zip
@@ -45,7 +50,7 @@ for UF in SP RJ MG RS BA PR SC GO PE CE; do
 done
 ```
 
-### Criminal records
+### Registros criminais
 
 ```bash
 curl -L "https://cdn.tse.jus.br/estatistica/sead/odsele/motivo_cassacao/motivo_cassacao_2026.zip" \
@@ -55,42 +60,45 @@ unzip scripts/data/motivo_cassacao_2026.zip -d scripts/data/
 
 ---
 
-## Step 2: Run `ingest-tse` for 2026
+## Passo 2: Rodar `ingest-tse` para 2026
 
-The script constant `ELECTION_YEAR` in `scripts/ingest-tse.ts` must be updated to `2026` before running.
+A constante `ELECTION_YEAR` do script em `scripts/ingest-tse.ts` precisa ser
+atualizada para `2026` antes de rodar.
 
 ```bash
-# Edit scripts/ingest-tse.ts: change ELECTION_YEAR = 2022 → 2026
-# Then run (starts with national file, then per-state for priority states):
+# Edite scripts/ingest-tse.ts: mude ELECTION_YEAR = 2022 → 2026
+# Depois rode (começa pelo arquivo nacional, depois por estado para os estados prioritários):
 cd scripts
 npm run ingest-tse -- data/consulta_cand_2026_BR.csv
 npm run ingest-tse -- data/consulta_cand_2026_SP.csv --estado=SP
-# ... repeat for other states
+# ... repita para os outros estados
 ```
 
-`ingest-tse` upserts into `politicians` + `candidacies` with `ano_eleicao = 2026`. The 2022 rows stay untouched.
+`ingest-tse` faz upsert em `politicians` + `candidacies` com
+`ano_eleicao = 2026`. As linhas de 2022 permanecem intocadas.
 
 ---
 
-## Step 3: Run `extract-positions` for 2026
+## Passo 3: Rodar `extract-positions` para 2026
 
-The script constant `ELECTION_YEAR` in `scripts/extract-positions.ts` must be updated to `2026`.
+A constante `ELECTION_YEAR` do script em `scripts/extract-positions.ts`
+precisa ser atualizada para `2026`.
 
 ```bash
-# Edit scripts/extract-positions.ts: change ELECTION_YEAR = 2022 → 2026
+# Edite scripts/extract-positions.ts: mude ELECTION_YEAR = 2022 → 2026
 
-# Presidential candidates (required — no other source for their positions)
+# Candidatos a presidente (obrigatório — não há outra fonte para as posições deles)
 cd scripts
 npm run extract-positions -- data/propostas_2026 data/consulta_cand_2026_BR.csv --estado=BR
 
-# Governors per state
+# Governadores por estado
 npm run extract-positions -- data/propostas_2026 data/consulta_cand_2026_SP.csv --estado=SP
-# ... repeat for other states
+# ... repita para os outros estados
 ```
 
 ---
 
-## Step 4: Run `ingest-alerts` for 2026
+## Passo 4: Rodar `ingest-alerts` para 2026
 
 ```bash
 cd scripts
@@ -99,57 +107,67 @@ npm run ingest-alerts -- data/motivo_cassacao_2026_BRASIL.csv
 
 ---
 
-## Step 5: Switch Edge Function to 2026
+## Passo 5: Trocar a Edge Function para 2026
 
-In Supabase Dashboard → Edge Functions → Secrets:
+No Supabase Dashboard → Edge Functions → Secrets:
 
 ```
 ELECTION_YEAR = 2026
 ```
 
-The Edge Function reads this value at request time to select the view (`v_candidates_2026` vs `v_candidates_2022`). No redeploy needed — changing the secret takes effect immediately.
+A Edge Function lê esse valor no momento da requisição para escolher a view
+(`v_candidates_2026` vs `v_candidates_2022`). Não é preciso reimplantar —
+mudar o secret tem efeito imediato.
 
 ---
 
-## What Changes vs 2022
+## O que muda em relação a 2022
 
-| Aspect | 2022 (seed) | 2026 (production) |
+| Aspecto | 2022 (seed) | 2026 (produção) |
 |--------|-------------|-------------------|
-| `ELECTION_YEAR` constant in scripts | `2022` | `2026` |
-| Candidate view used by Edge Function | `v_candidates_2022` | `v_candidates_2026` |
-| PDF folder | `data/propostas_2022/` | `data/propostas_2026/` |
-| CSV files | `consulta_cand_2022_*.csv` | `consulta_cand_2026_*.csv` |
-| Deputies/senators data | Via `ingest-camara-votes` / `ingest-senado-votes` (planned) | Same |
+| Constante `ELECTION_YEAR` nos scripts | `2022` | `2026` |
+| View de candidatos usada pela Edge Function | `v_candidates_2022` | `v_candidates_2026` |
+| Pasta de PDFs | `data/propostas_2022/` | `data/propostas_2026/` |
+| Arquivos CSV | `consulta_cand_2022_*.csv` | `consulta_cand_2026_*.csv` |
+| Dados de deputados/senadores | Via `ingest-camara-votes` / `ingest-senado-votes` (planejado) | O mesmo |
 
-2022 data is not deleted — historical rows coexist in the same tables. The `ano_eleicao` column on `candidacies` is the discriminator.
-
----
-
-## Deputies and Senators (2026)
-
-Position data for senators and federal deputies does not come from government plan PDFs — those are only submitted by governors and presidents. For 2026:
-
-- **Senators:** Use `ingest-senado-votes.ts` (planned) — Senado Open Data API
-- **Federal deputies:** Use `ingest-camara-votes.ts` (planned) — Câmara Open Data API
-- **Fallback (proxy):** `ingest-party-programs.ts` (planned) — party program PDFs from TSE, same URL pattern as `proposta_governo` but for party-level documents
-
-See `docs/legado/13_legislative_votes.md` for the implementation strategy.
+Os dados de 2022 não são deletados — as linhas históricas coexistem nas
+mesmas tabelas. A coluna `ano_eleicao` em `candidacies` é o discriminador.
 
 ---
 
-## Checking Coverage Before Going Live
+## Deputados e senadores (2026)
 
-After ingesting all 2026 data, verify coverage in Supabase SQL Editor:
+Dados de posição para senadores e deputados federais não vêm de PDFs de
+plano de governo — esses só são submetidos por governadores e presidentes.
+Para 2026:
+
+- **Senadores:** use `ingest-senado-votes.ts` (planejado) — API de Dados
+  Abertos do Senado
+- **Deputados federais:** use `ingest-camara-votes.ts` (planejado) — API de
+  Dados Abertos da Câmara
+- **Fallback (proxy):** `ingest-party-programs.ts` (planejado) — PDFs de
+  programa partidário do TSE, mesmo padrão de URL do `proposta_governo`, mas
+  para documentos em nível de partido
+
+Ver `docs/legado/13_legislative_votes.md` para a estratégia de implementação.
+
+---
+
+## Conferindo a cobertura antes de ir ao ar
+
+Depois de ingerir todos os dados de 2026, verifique a cobertura no SQL
+Editor do Supabase:
 
 ```sql
--- Candidates with at least one position
+-- Candidatos com pelo menos uma posição
 SELECT c.cargo, COUNT(DISTINCT p.politician_id) AS with_positions
 FROM v_candidates_2026 c
 LEFT JOIN politician_positions pp ON pp.politician_id = c.politician_id
 LEFT JOIN politicians p ON p.id = c.politician_id
 GROUP BY c.cargo;
 
--- Coverage percentage per cargo
+-- Percentual de cobertura por cargo
 SELECT cargo,
   COUNT(*) AS total,
   COUNT(pp.politician_id) AS with_data,
@@ -161,4 +179,7 @@ LEFT JOIN (
 GROUP BY cargo;
 ```
 
-The product requires at least 35% alignment score to show a candidate — candidates without position data will score 0% and be filtered out. Verify coverage is acceptable before setting `ELECTION_YEAR=2026`.
+O produto exige pelo menos 35% de score de alinhamento para mostrar um
+candidato — candidatos sem dados de posição terão score 0% e serão
+filtrados. Verifique se a cobertura está aceitável antes de definir
+`ELECTION_YEAR=2026`.
