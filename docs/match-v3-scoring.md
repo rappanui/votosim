@@ -19,6 +19,12 @@ runtime — read this before deploying any of the three pieces:
 2. **Edge Function** — `supabase/functions/match-candidatos/`.
 3. **Next.js app.**
 
+After step 2 and before step 3, run `cd scripts && npm run verify-contract`.
+It fires a real quiz at the deployed function and fails if the response is
+missing a field this build needs, if the audit-line identity does not hold, or
+if an under-covered candidate's `alinhamento` still equals its
+`alinhamentoApurado` — the signature of the pre-v3 scorer.
+
 `index.ts:108` selects `neutro_motivo` unconditionally, with no fallback: on
 an environment where the migration has not run yet, every quiz submission
 returns a 500. And if the app ships ahead of the function, the card's audit
