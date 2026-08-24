@@ -71,6 +71,37 @@ test('buildPositionRows: skips a theme with no id rather than writing a null FK'
   assert.equal(rows.length, 0)
 })
 
+// ─── neutro_motivo: only meaningful on posicao='neutro' ──────────────────────
+
+test('buildPositionRows: a neutro position with neutroMotivo carries it into neutro_motivo', () => {
+  const r = research()
+  r.posicoes[0].posicao = 'neutro'
+  r.posicoes[0].neutroMotivo = 'nao_responde'
+  const [row] = buildPositionRows(r, 'pol-1', new Map([['educacao_basica', 't']]), new Map([['s1', 'a'], ['s2', 'b']]))
+  assert.equal(row.posicao, 'neutro')
+  assert.equal(row.neutro_motivo, 'nao_responde')
+})
+
+test('buildPositionRows: a neutro position without neutroMotivo writes neutro_motivo as null', () => {
+  const r = research()
+  r.posicoes[0].posicao = 'neutro'
+  const [row] = buildPositionRows(r, 'pol-1', new Map([['educacao_basica', 't']]), new Map([['s1', 'a'], ['s2', 'b']]))
+  assert.equal(row.posicao, 'neutro')
+  assert.equal(row.neutro_motivo, null)
+})
+
+test('buildPositionRows: neutroMotivo on a non-neutro position never reaches neutro_motivo', () => {
+  const r = research()
+  r.posicoes[0].posicao = 'favoravel'
+  // Malformed input (the contract rejects this combination), but the row
+  // builder must not trust posicao's neighbor blindly — neutro_motivo is
+  // only meaningful when posicao is 'neutro'.
+  r.posicoes[0].neutroMotivo = 'ambivalente'
+  const [row] = buildPositionRows(r, 'pol-1', new Map([['educacao_basica', 't']]), new Map([['s1', 'a'], ['s2', 'b']]))
+  assert.equal(row.posicao, 'favoravel')
+  assert.equal(row.neutro_motivo, null)
+})
+
 test('buildAlertRows: resolves the source reference and maps fields', () => {
   const [row] = buildAlertRows(research(), 'pol-1', new Map([['s2', 'src-2']]))
   assert.equal(row.politician_id, 'pol-1')
