@@ -1,7 +1,7 @@
 import { P_NAO_INFORMADO_PCT } from '@/lib/types'
 
 /**
- * Meanings mirror getTemaIcon in CandidatoCard.tsx exactly — keep the two in
+ * Meanings mirror getTemaIcon in TemasPanel.tsx exactly — keep the two in
  * sync if that function changes. Rendered once per results page, not once
  * per card: every card uses the same six glyphs.
  */
@@ -38,7 +38,7 @@ const ITENS: { icone: string; rotulo: string; descricao: string }[] = [
   },
 ]
 
-/** Legend for the six glyphs CandidatoCard can show in a theme row. Renders once per results page. */
+/** Legend for the six glyphs TemasPanel can show in a theme row. Renders once per results page. */
 export function LegendaIcones() {
   return (
     <div className="mb-8 rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-600">
