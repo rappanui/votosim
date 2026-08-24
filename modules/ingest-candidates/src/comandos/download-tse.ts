@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync, existsSync } from 'fs'
 import { basename } from 'path'
 import 'dotenv/config'
-import { planArchiveUrl, bulkArchiveUrl, type BulkDataset } from './lib/gov-plans.js'
+import { planArchiveUrl, bulkArchiveUrl, type BulkDataset } from '../lib/gov-plans.js'
 
 const OUT_DIR = 'data/tse-2026'
 
@@ -31,7 +31,7 @@ async function download(url: string, label: string): Promise<void> {
 /** Entry point. Usage: npm run download-tse -- --uf=BR [--uf=SP ...] [--bulk] */
 async function main(): Promise<void> {
   const electionYear = Number(process.env.ELECTION_YEAR)
-  if (!electionYear) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+  if (!electionYear) throw new Error('Missing ELECTION_YEAR in .env')
 
   const args = process.argv.slice(2)
   const ufs = args.filter(a => a.startsWith('--uf=')).map(a => a.split('=')[1].toUpperCase())

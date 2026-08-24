@@ -5,7 +5,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL
 const SERVICE_ROLE_KEY = process.env.SERVICE_ROLE_KEY
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  throw new Error('Missing SUPABASE_URL or SERVICE_ROLE_KEY in scripts/.env')
+  throw new Error('Missing SUPABASE_URL or SERVICE_ROLE_KEY in .env')
 }
 
 /**

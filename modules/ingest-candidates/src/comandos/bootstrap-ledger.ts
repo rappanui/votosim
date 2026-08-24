@@ -1,5 +1,5 @@
-import { supabase } from './lib/supabase.js'
-import { buildLedgerRows, type LedgerRow } from './lib/ledger.js'
+import { supabase } from '../lib/supabase.js'
+import { buildLedgerRows, type LedgerRow } from '../lib/ledger.js'
 
 const PAGE_SIZE = 1000
 
@@ -12,7 +12,7 @@ interface CandidacyRecord {
 /** Entry point. Usage: npm run bootstrap-ledger [-- --cargo=presidente] */
 async function main(): Promise<void> {
   const electionYear = Number(process.env.ELECTION_YEAR)
-  if (!electionYear) throw new Error('Missing ELECTION_YEAR in scripts/.env')
+  if (!electionYear) throw new Error('Missing ELECTION_YEAR in .env')
 
   const cargoFilter = process.argv.slice(2)
     .find(a => a.startsWith('--cargo='))?.split('=')[1]?.toLowerCase()

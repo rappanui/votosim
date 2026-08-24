@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { findPlanPath, findPlanPaths, diagnosePlanAvailability, renderBrief, loadSocialAccounts, type BriefInput } from './build-brief.ts'
+import { findPlanPath, findPlanPaths, diagnosePlanAvailability, renderBrief, loadSocialAccounts, type BriefInput } from '../src/comandos/build-brief.ts'
 
 // ─── diagnosePlanAvailability ────────────────────────────────────────────────
 // F11: "no plan found" has four very different causes, and reporting them all

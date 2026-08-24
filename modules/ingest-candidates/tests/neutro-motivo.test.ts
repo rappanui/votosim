@@ -1,7 +1,7 @@
-// scripts/neutro-motivo.test.ts
+// tests/neutro-motivo.test.ts
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyNeutroMotivo } from './lib/neutro-motivo.ts'
+import { classifyNeutroMotivo } from '../src/lib/neutro-motivo.ts'
 
 // Fixture texts are verbatim excerpts from real politician_positions rows.
 

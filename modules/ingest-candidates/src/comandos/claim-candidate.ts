@@ -1,4 +1,4 @@
-import { supabase } from './lib/supabase.js'
+import { supabase } from '../lib/supabase.js'
 
 /** Same two stages this research pipeline covers — see lib/ledger.ts's
  * ALL_STAGES for the full five-stage list this project tracks overall. */

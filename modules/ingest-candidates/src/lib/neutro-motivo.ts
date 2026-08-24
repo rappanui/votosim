@@ -1,4 +1,4 @@
-// scripts/lib/neutro-motivo.ts
+// src/lib/neutro-motivo.ts
 
 /**
  * Why a `neutro` row in politician_positions is neutral.
