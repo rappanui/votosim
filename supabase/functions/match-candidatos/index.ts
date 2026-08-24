@@ -141,6 +141,7 @@ async function fetchAlerts(
   supabase: ReturnType<typeof createSupabaseClient>,
   politicianIds: string[],
 ): Promise<AlertRow[]> {
+  if (politicianIds.length === 0) return []
   const { data, error } = await supabase
     .from('v_candidate_alerts')
     .select('politician_id, tipo, severidade, titulo, descricao, fonte_url, badge_cor')
@@ -764,19 +765,29 @@ export async function handler(req: Request): Promise<Response> {
     )
     const candidacyIds = [...new Set([...candidacyIdByPolitician.values()])]
 
-    const [alerts, dossieByCandidacy, fontesByPolitician, detalhesByPolitician] = await Promise.all([
+    // Scoring is already complete and correct at this point. Enrichment is
+    // decorative: a dossier table that 46 of 20,004 candidates have a row in
+    // must never cost a voter their result. Each block already renders nothing
+    // when its data is absent (D8), so an empty fallback is a valid state.
+    const [alertsR, dossieR, fontesR, detalhesR] = await Promise.allSettled([
       fetchAlerts(supabase, finalistIds),
       fetchDossiers(supabase, candidacyIds),
       fetchSources(supabase, finalistIds),
       fetchDetalhePosicoes(supabase, finalistIds, slugById),
     ])
 
+    for (const [nome, r] of [
+      ['alerts', alertsR], ['dossiers', dossieR], ['sources', fontesR], ['position details', detalhesR],
+    ] as const) {
+      if (r.status === 'rejected') console.error(`[match-candidatos] enrichment: ${nome} failed:`, r.reason)
+    }
+
     const finalResult = enrichResult(trimmed, {
-      alerts,
+      alerts: alertsR.status === 'fulfilled' ? alertsR.value : [],
       candidacyIdByPolitician,
-      dossieByCandidacy,
-      fontesByPolitician,
-      detalhesByPolitician,
+      dossieByCandidacy: dossieR.status === 'fulfilled' ? dossieR.value : new Map(),
+      fontesByPolitician: fontesR.status === 'fulfilled' ? fontesR.value : new Map(),
+      detalhesByPolitician: detalhesR.status === 'fulfilled' ? detalhesR.value : new Map(),
     })
 
     return jsonResponse(finalResult)
