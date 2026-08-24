@@ -24,10 +24,16 @@ function makeR(slug: string, posicao: 'favoravel' | 'contrario' | 'neutro', impo
   return { temaSlug: slug, posicao, importancia }
 }
 
-function makeCandidato(id: string, alinhamento: number, cobertura = 100): CandidatoResultado {
+function makeCandidato(
+  id: string,
+  alinhamento: number,
+  cobertura = 100,
+  alinhamentoApurado = alinhamento,
+  confiancaResultado = 100,
+): CandidatoResultado {
   return {
     politicianId: id, nomeUrna: id, partido: 'PT',
-    alinhamento, cobertura, detalhesTemas: [],
+    alinhamento, alinhamentoApurado, cobertura, confiancaResultado, detalhesTemas: [],
     temAlertas: false, alertas: [],
   }
 }
@@ -234,6 +240,25 @@ Deno.test('sortAndLimitCargos: orders cargos by CARGO_ORDER', () => {
   assertEquals(output.cargos[1].cargo, 'deputado_federal')
 })
 
+Deno.test('sortAndLimitCargos: ties break by cobertura, then by name', () => {
+  const mk = (nome: string, alinhamento: number, cobertura: number): CandidatoResultado => ({
+    politicianId: nome, nomeUrna: nome, partido: 'X',
+    alinhamento, alinhamentoApurado: alinhamento, cobertura, confiancaResultado: cobertura,
+    detalhesTemas: [], temAlertas: false, alertas: [],
+  })
+  const result: MatchResult = {
+    cargos: [{ cargo: 'presidente', candidatos: [
+      mk('Zeca', 50, 30),
+      mk('Ana', 50, 30),
+      mk('Beto', 50, 90),
+    ] }],
+    totalCandidatosAnalisados: 3,
+    estado: 'SP',
+  }
+  const sorted = sortAndLimitCargos(result).cargos[0].candidatos
+  assertEquals(sorted.map(c => c.nomeUrna), ['Beto', 'Ana', 'Zeca'])
+})
+
 // ─── buildPartyResults ────────────────────────────────────────────────────────
 
 Deno.test('buildPartyResults: returns empty array when no party positions', () => {
@@ -319,7 +344,7 @@ Deno.test('injectPartyResults: adds party candidato to existing cargo group', ()
   }
   const partyEntry: CandidatoResultado = {
     politicianId: 'party:PT', nomeUrna: 'PT', partido: 'PT',
-    alinhamento: 90, cobertura: 100, detalhesTemas: [],
+    alinhamento: 90, alinhamentoApurado: 90, cobertura: 100, confiancaResultado: 100, detalhesTemas: [],
     temAlertas: false, alertas: [], isParty: true,
   }
   const output = injectPartyResults(result, [{ cargo: 'senador', candidato: partyEntry }])
@@ -331,7 +356,7 @@ Deno.test('injectPartyResults: creates new cargo group when cargo has no individ
   const result: MatchResult = { estado: 'SP', totalCandidatosAnalisados: 0, cargos: [] }
   const partyEntry: CandidatoResultado = {
     politicianId: 'party:PT', nomeUrna: 'PT', partido: 'PT',
-    alinhamento: 70, cobertura: 100, detalhesTemas: [],
+    alinhamento: 70, alinhamentoApurado: 70, cobertura: 100, confiancaResultado: 100, detalhesTemas: [],
     temAlertas: false, alertas: [], isParty: true,
   }
   const output = injectPartyResults(result, [{ cargo: 'senador', candidato: partyEntry }])

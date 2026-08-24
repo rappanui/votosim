@@ -7,6 +7,7 @@ import {
   type FallbackData,
   type MatchRequest,
   type MatchResult,
+  type NeutroMotivo,
   type PositionWithSlug,
   type RespostaUsuario,
   scoreCandidato,
@@ -74,12 +75,18 @@ async function fetchCandidates(
   return [...(stateRes.data ?? []), ...(nationalRes.data ?? [])] as CandidatoRow[]
 }
 
-async function loadThemeSlugMap(
+async function loadThemeMaps(
   supabase: ReturnType<typeof createSupabaseClient>,
-): Promise<Map<string, string>> {
-  const { data, error } = await supabase.from('themes_catalog').select('id, slug')
-  if (error) throw new Error(`Failed to load theme map: ${error.message}`)
-  return new Map((data ?? []).map(t => [t.id as string, t.slug as string]))
+): Promise<{ slugById: Map<string, string>; nomeBySlug: Map<string, string> }> {
+  const { data, error } = await supabase.from('themes_catalog').select('id, slug, nome')
+  if (error) throw new Error(`Failed to fetch themes: ${error.message}`)
+  const slugById = new Map<string, string>()
+  const nomeBySlug = new Map<string, string>()
+  for (const t of (data ?? []) as Array<{ id: string; slug: string; nome: string }>) {
+    slugById.set(t.id, t.slug)
+    nomeBySlug.set(t.slug, t.nome)
+  }
+  return { slugById, nomeBySlug }
 }
 
 async function fetchPositions(
@@ -98,7 +105,7 @@ async function fetchPositions(
     const batch = await Promise.all(
       chunks.slice(i, i + CONCURRENCY).map(chunk =>
         supabase.from('politician_positions')
-          .select('politician_id, theme_id, posicao, intensidade, confianca_ia')
+          .select('politician_id, theme_id, posicao, intensidade, confianca_ia, neutro_motivo, justificativa')
           .in('politician_id', chunk)
       ),
     )
@@ -117,6 +124,8 @@ async function fetchPositions(
       confiancaIa: p.confianca_ia === null || p.confianca_ia === undefined
         ? undefined
         : p.confianca_ia as number,
+      neutroMotivo: (p.neutro_motivo ?? undefined) as NeutroMotivo | undefined,
+      justificativa: (p.justificativa ?? undefined) as string | undefined,
     }))
     .filter(p => p.themeSlug !== '')
 }
@@ -185,7 +194,8 @@ export function buildPartyResults(
   for (const [sigla, cargoSet] of cargosPerParty) {
     const positions = partyPositionsByParty.get(sigla)
     if (!positions || positions.length === 0) continue
-    const { alinhamento, cobertura, detalhesTemas } = scoreCandidato(respostas, positions)
+    const { alinhamento, alinhamentoApurado, cobertura, confiancaResultado, detalhesTemas } =
+      scoreCandidato(respostas, positions)
     for (const cargo of cargoSet) {
       results.push({
         cargo,
@@ -194,7 +204,9 @@ export function buildPartyResults(
           nomeUrna: sigla,
           partido: sigla,
           alinhamento,
+          alinhamentoApurado,
           cobertura,
+          confiancaResultado,
           detalhesTemas,
           temAlertas: false,
           alertas: [],
@@ -349,7 +361,11 @@ export function sortAndLimitCargos(result: MatchResult): MatchResult {
       ...grupo,
       candidatos: [...grupo.candidatos]
         .filter(c => c.alinhamento >= MIN_SCORE_THRESHOLD)
-        .sort((a, b) => b.alinhamento - a.alinhamento)
+        .sort((a, b) =>
+          b.alinhamento - a.alinhamento ||
+          b.cobertura - a.cobertura ||
+          a.nomeUrna.localeCompare(b.nomeUrna, 'pt-BR')
+        )
         .slice(0, EXEC_CARGOS.has(grupo.cargo) ? MAX_EXEC_CANDIDATES : MAX_CANDIDATES_PER_CARGO),
     }))
     .filter(g => g.candidatos.length > 0)
@@ -382,9 +398,9 @@ export async function handler(req: Request): Promise<Response> {
 
     const supabase = createSupabaseClient()
 
-    const [candidates, themeMap] = await Promise.all([
+    const [candidates, { slugById, nomeBySlug }] = await Promise.all([
       fetchCandidates(supabase, body.estado),
-      loadThemeSlugMap(supabase),
+      loadThemeMaps(supabase),
     ])
 
     if (candidates.length === 0) {
@@ -392,7 +408,7 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     const politicianIds = candidates.map(c => c.politician_id)
-    const positions = await fetchPositions(supabase, politicianIds, themeMap)
+    const positions = await fetchPositions(supabase, politicianIds, slugById)
 
     const positionsByCandidate = groupBy(positions, p => p.politician_id) as Record<string, PositionWithSlug[]>
     const filteredCandidates = prefilterCandidates(candidates, positionsByCandidate, body.respostas)
@@ -406,7 +422,7 @@ export async function handler(req: Request): Promise<Response> {
     )]
     const [filteredAlerts, partyPositionsByParty] = await Promise.all([
       fetchAlerts(supabase, [...filteredIds]),
-      fetchPartyPositions(supabase, partySiglas, themeMap),
+      fetchPartyPositions(supabase, partySiglas, slugById),
     ])
 
     const prompt = buildPrompt(filteredCandidates, positionsByCandidate, body.respostas)
@@ -416,6 +432,7 @@ export async function handler(req: Request): Promise<Response> {
       positions: filteredPositions,
       estado: body.estado,
       partyPositionsByParty,
+      temaNomes: nomeBySlug,
     }
 
     const rawResult = await callAI(prompt, fallbackData)
