@@ -51,26 +51,31 @@ Deno.test('scoreCandidato: perfect divergence scores alinhamento=0 cobertura=100
   assertEquals(result.cobertura, 100)
 })
 
-Deno.test('scoreCandidato: no candidate positions scores alinhamento=0 cobertura=0', () => {
+Deno.test('scoreCandidato: no candidate positions scores alinhamento=10 cobertura=0', () => {
+  // Match v3: unaudited themes are no longer free. With zero coverage,
+  // confianca=0, so alinhamento collapses to P_NAO_INFORMADO (10), not 0.
   const respostas: RespostaUsuario[] = [
     { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
   ]
   const result = scoreCandidato(respostas, [])
-  assertEquals(result.alinhamento, 0)
+  assertEquals(result.alinhamento, 10)
   assertEquals(result.cobertura, 0)
   assertEquals(result.detalhesTemas[0].candidatePosicao, null)
   assertEquals(result.detalhesTemas[0].contouNoScore, false)
 })
 
-Deno.test('scoreCandidato: neutro voter excluded from score and cobertura, included in detalhesTemas', () => {
+Deno.test('scoreCandidato: neutro-only voter excluded from denominators, scores P_NAO_INFORMADO', () => {
   const respostas: RespostaUsuario[] = [
     { temaSlug: 'sus', posicao: 'neutro', importancia: 2 },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
+  // Match v3: the voter took no side on anything (the only theme is neutro),
+  // so massaTotal stays 0 and confianca is 0 — alinhamento collapses to the
+  // same P_NAO_INFORMADO baseline as zero coverage, not to 0.
   const result = scoreCandidato(respostas, positions)
-  assertEquals(result.alinhamento, 0)
+  assertEquals(result.alinhamento, 10)
   assertEquals(result.cobertura, 0)
   assertEquals(result.detalhesTemas.length, 1)
   assertEquals(result.detalhesTemas[0].temaSlug, 'sus')
@@ -102,10 +107,13 @@ Deno.test('scoreCandidato: cobertura reflects only themes with real candidate da
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
   ]
-  // totalTemas=2, coveredTemas=1 → cobertura=50
+  // totalTemas=2, credTemas=1 → cobertura=50
   const result = scoreCandidato(respostas, positions)
   assertEquals(result.cobertura, 50)
-  assertEquals(result.alinhamento, 100) // only scored on sus, alignment=1.0
+  // Match v3: confianca=50% (only sus is weighted evidence out of equal
+  // weights), apurado=100% (sus is a perfect match) →
+  // alinhamento = 0.5*1.0 + 0.5*P_NAO_INFORMADO = 0.55
+  assertEquals(result.alinhamento, 55)
 })
 
 Deno.test('scoreCandidato: discordo+contrario is perfectly aligned', () => {
@@ -127,9 +135,10 @@ Deno.test('scoreCandidato: neutro candidate posicao excluded from score (no real
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'neutro', intensidade: 3 },
   ]
-  // neutro posicao = no real stance → not covered, cobertura=0
+  // neutro with no neutroMotivo defaults to nao_encontrado => ausente => not
+  // covered, cobertura=0. Match v3: alinhamento collapses to P_NAO_INFORMADO.
   const result = scoreCandidato(respostas, positions)
-  assertEquals(result.alinhamento, 0)
+  assertEquals(result.alinhamento, 10)
   assertEquals(result.cobertura, 0)
   assertEquals(result.detalhesTemas[0].contouNoScore, false)
 })
@@ -141,8 +150,10 @@ Deno.test('scoreCandidato: variavel candidate posicao excluded from score', () =
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'variavel', intensidade: 3 },
   ]
+  // 'variavel' classifies as ausente → not covered. Match v3: alinhamento
+  // collapses to P_NAO_INFORMADO instead of 0.
   const result = scoreCandidato(respostas, positions)
-  assertEquals(result.alinhamento, 0)
+  assertEquals(result.alinhamento, 10)
   assertEquals(result.cobertura, 0)
   assertEquals(result.detalhesTemas[0].candidatePosicao, null)
 })
@@ -249,4 +260,215 @@ Deno.test('scoreWithoutAI: groups candidates by cargo', () => {
   const result = scoreWithoutAI(data)
   const cargos = result.cargos.map(g => g.cargo).sort()
   assertEquals(cargos, ['deputado_federal', 'senador'])
+})
+
+import {
+  classifyEvidence,
+  P_NAO_INFORMADO,
+} from './ai-providers.ts'
+
+// ─── classifyEvidence ─────────────────────────────────────────────────────────
+
+Deno.test('classifyEvidence: favoravel is direta', () => {
+  assertEquals(
+    classifyEvidence({ politician_id: 'p1', themeSlug: 's', posicao: 'favoravel', intensidade: 4 }, false),
+    'direta',
+  )
+})
+
+Deno.test('classifyEvidence: neutro with nao_encontrado is ausente', () => {
+  assertEquals(
+    classifyEvidence(
+      { politician_id: 'p1', themeSlug: 's', posicao: 'neutro', intensidade: 1, neutroMotivo: 'nao_encontrado' },
+      false,
+    ),
+    'ausente',
+  )
+})
+
+Deno.test('classifyEvidence: neutro with nao_responde is direta', () => {
+  assertEquals(
+    classifyEvidence(
+      { politician_id: 'p1', themeSlug: 's', posicao: 'neutro', intensidade: 2, neutroMotivo: 'nao_responde' },
+      false,
+    ),
+    'direta',
+  )
+})
+
+Deno.test('classifyEvidence: neutro with no motivo defaults to ausente', () => {
+  // NULL means unclassified. ~85% of those turn out to be nao_encontrado, and
+  // defaulting the other way would silently award 0.5 to unaudited themes.
+  assertEquals(
+    classifyEvidence({ politician_id: 'p1', themeSlug: 's', posicao: 'neutro', intensidade: 1 }, false),
+    'ausente',
+  )
+})
+
+Deno.test('classifyEvidence: missing position is ausente', () => {
+  assertEquals(classifyEvidence(undefined, false), 'ausente')
+})
+
+Deno.test('classifyEvidence: party-sourced stance is partido', () => {
+  assertEquals(
+    classifyEvidence({ politician_id: 'PT', themeSlug: 's', posicao: 'favoravel', intensidade: 4 }, true),
+    'partido',
+  )
+})
+
+// ─── Scoring ──────────────────────────────────────────────────────────────────
+
+Deno.test('scoreCandidato: Grassi regression — 5 audited of 14 scores 39', () => {
+  // The real quiz run that motivated match v3: alignment 90% over 5 themes was
+  // displayed as the headline. It must now read 39%.
+  const temas = [
+    'reforma_tributaria', 'sus_saude_publica', 'seguranca_publica_estadual',
+    'educacao_basica', 'meio_ambiente_desmatamento',
+    'privatizacao_estatais', 'reforma_previdencia', 'protecao_minorias',
+    'autonomia_individual', 'corrupcao_transparencia', 'politica_economica',
+    'bolsa_familia_transferencia', 'politica_externa', 'laicidade_valores',
+  ]
+  const respostas: RespostaUsuario[] = temas.map(t => ({
+    temaSlug: t,
+    posicao: t === 'autonomia_individual' ? 'contrario' : 'favoravel',
+    importancia: 2,
+  }))
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'g', themeSlug: 'reforma_tributaria', posicao: 'favoravel', intensidade: 5 },
+    { politician_id: 'g', themeSlug: 'sus_saude_publica', posicao: 'favoravel', intensidade: 4 },
+    { politician_id: 'g', themeSlug: 'seguranca_publica_estadual', posicao: 'favoravel', intensidade: 4 },
+    { politician_id: 'g', themeSlug: 'educacao_basica', posicao: 'favoravel', intensidade: 4 },
+    { politician_id: 'g', themeSlug: 'meio_ambiente_desmatamento', posicao: 'favoravel', intensidade: 3 },
+    ...temas.slice(5).map(t => ({
+      politician_id: 'g', themeSlug: t, posicao: 'neutro', intensidade: 1,
+      neutroMotivo: 'nao_encontrado' as const,
+    })),
+  ]
+  const r = scoreCandidato(respostas, positions)
+  assertEquals(r.alinhamentoApurado, 90)
+  assertEquals(r.cobertura, 36)
+  assertEquals(r.confiancaResultado, 36)
+  assertEquals(r.alinhamento, 39)
+})
+
+Deno.test('scoreCandidato: full coverage leaves the score unpenalized', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'a', posicao: 'favoravel', importancia: 3 },
+    { temaSlug: 'b', posicao: 'contrario', importancia: 3 },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'p', themeSlug: 'a', posicao: 'favoravel', intensidade: 5 },
+    { politician_id: 'p', themeSlug: 'b', posicao: 'contrario', intensidade: 5 },
+  ]
+  const r = scoreCandidato(respostas, positions)
+  assertEquals(r.cobertura, 100)
+  assertEquals(r.confiancaResultado, 100)
+  assertEquals(r.alinhamento, r.alinhamentoApurado)
+  assertEquals(r.alinhamento, 100)
+})
+
+Deno.test('scoreCandidato: zero coverage scores exactly P_NAO_INFORMADO', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'a', posicao: 'favoravel', importancia: 3 },
+  ]
+  const r = scoreCandidato(respostas, [])
+  assertEquals(r.cobertura, 0)
+  assertEquals(r.confiancaResultado, 0)
+  assertEquals(r.alinhamento, Math.round(P_NAO_INFORMADO * 100))
+})
+
+Deno.test('scoreCandidato: an audited neutral scores 0.5, not the penalty', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'a', posicao: 'favoravel', importancia: 3 },
+  ]
+  const positions: PositionWithSlug[] = [
+    {
+      politician_id: 'p', themeSlug: 'a', posicao: 'neutro', intensidade: 2,
+      neutroMotivo: 'nao_responde',
+    },
+  ]
+  const r = scoreCandidato(respostas, positions)
+  assertEquals(r.cobertura, 100)
+  assertEquals(r.alinhamento, 50)
+  assertEquals(r.detalhesTemas[0].evidencia, 'direta')
+})
+
+Deno.test('scoreCandidato: cobertura and confianca diverge on weighted gaps', () => {
+  // Two themes audited, one not — but the unaudited one is the only one the
+  // voter marked as high importance. Plain coverage says 67%; the weighted
+  // metric, which is what the score uses, says 40%.
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'a', posicao: 'favoravel', importancia: 1 },
+    { temaSlug: 'b', posicao: 'favoravel', importancia: 1 },
+    { temaSlug: 'c', posicao: 'favoravel', importancia: 3 },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'p', themeSlug: 'a', posicao: 'favoravel', intensidade: 5 },
+    { politician_id: 'p', themeSlug: 'b', posicao: 'favoravel', intensidade: 5 },
+  ]
+  const r = scoreCandidato(respostas, positions)
+  assertEquals(r.cobertura, 67)
+  assertEquals(r.confiancaResultado, 40)
+})
+
+Deno.test('scoreCandidato: party-sourced stance carries reduced credibility', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'a', posicao: 'favoravel', importancia: 3 },
+  ]
+  const partyPositions: PositionWithSlug[] = [
+    { politician_id: 'PT', themeSlug: 'a', posicao: 'favoravel', intensidade: 5 },
+  ]
+  const r = scoreCandidato(respostas, [], partyPositions)
+  // credibility 0.6: confianca=60, apurado=100 → 0.6*1.0 + 0.4*0.10 = 0.64
+  assertEquals(r.confiancaResultado, 60)
+  assertEquals(r.alinhamentoApurado, 100)
+  assertEquals(r.alinhamento, 64)
+  assertEquals(r.detalhesTemas[0].evidencia, 'partido')
+  assertEquals(r.detalhesTemas[0].posicaoViaPartido, true)
+})
+
+Deno.test('scoreCandidato: voter-neutral themes stay out of both denominators', () => {
+  const respostas: RespostaUsuario[] = [
+    { temaSlug: 'a', posicao: 'favoravel', importancia: 3 },
+    { temaSlug: 'b', posicao: 'neutro', importancia: 3 },
+  ]
+  const positions: PositionWithSlug[] = [
+    { politician_id: 'p', themeSlug: 'a', posicao: 'favoravel', intensidade: 5 },
+  ]
+  const r = scoreCandidato(respostas, positions)
+  assertEquals(r.cobertura, 100)
+  assertEquals(r.confiancaResultado, 100)
+  assertEquals(r.alinhamento, 100)
+})
+
+Deno.test('scoreCandidato: the displayed identity holds for random inputs', () => {
+  // This is the test that keeps the arithmetic and the card's audit line from
+  // drifting apart. Tolerance is 1.5 points because the three outputs are
+  // each rounded to integers before the assertion recombines them.
+  const posicoes = ['favoravel', 'contrario', 'neutro'] as const
+  const motivos = ['nao_encontrado', 'nao_responde', 'ambivalente'] as const
+  for (let seed = 0; seed < 200; seed++) {
+    const n = 1 + (seed % 14)
+    const respostas: RespostaUsuario[] = []
+    const positions: PositionWithSlug[] = []
+    for (let i = 0; i < n; i++) {
+      const slug = `t${i}`
+      respostas.push({
+        temaSlug: slug,
+        posicao: (seed + i) % 5 === 0 ? 'neutro' : ((seed + i) % 2 === 0 ? 'favoravel' : 'contrario'),
+        importancia: ((seed + i) % 3 + 1) as 1 | 2 | 3,
+      })
+      if ((seed + i) % 4 !== 0) {
+        const posicao = posicoes[(seed + i) % 3]
+        positions.push({
+          politician_id: 'p', themeSlug: slug, posicao, intensidade: ((seed + i) % 5) + 1,
+          ...(posicao === 'neutro' ? { neutroMotivo: motivos[(seed + i) % 3] } : {}),
+        })
+      }
+    }
+    const r = scoreCandidato(respostas, positions)
+    const c = r.confiancaResultado / 100
+    const expected = (c * (r.alinhamentoApurado / 100) + (1 - c) * P_NAO_INFORMADO) * 100
+    assertAlmostEquals(r.alinhamento, expected, 1.5, `seed ${seed}`)
+  }
 })
