@@ -52,4 +52,14 @@ describe('FontesBloco', () => {
     fireEvent.click(screen.getByRole('button', { name: /Fontes/ }))
     expect(screen.getByText(/Consultadas em 22\/08\/2026/)).toBeInTheDocument()
   })
+
+  it('falls back to "outra" when camada is outside the known range', () => {
+    // `camada` is DB-constrained to 1–3 (docs/base/11_sp0_foundation.sql), but the
+    // TS union can't enforce that across the JSON boundary from the Edge Function.
+    // The cast below deliberately simulates data that violates the DB constraint.
+    const foraDoRange = { ...oficial, camada: 9 as unknown as 1 | 2 | 3 }
+    render(<FontesBloco fontes={[foraDoRange]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Fontes/ }))
+    expect(screen.getByText('outra')).toBeInTheDocument()
+  })
 })
