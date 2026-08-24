@@ -117,36 +117,37 @@ test('is not fooled by "não se posiciona a favor de X" when Y is defended inste
 })
 
 // Round 3 regression tests: a hand inspection of the real corpus found that
-// even the round-2 patterns can sit in the SAME sentence as a real position
-// on the SAME topic — e.g. an absence claim about the affirmation's literal
-// wording, immediately followed by "mas o programa PROPÕE X" describing an
-// actual, on-topic stance. No pattern can tell "the stance verb is about a
-// different topic than the absence claim" apart from "the stance verb is
-// about THIS topic" — that needs a reader. So classifyNeutroMotivo now has a
+// even the round-2 patterns can sit in the SAME text as a real position on a
+// related topic. No pattern can tell "the stance verb is about a genuinely
+// unrelated topic" apart from "the stance verb is about a topic close enough
+// to be ambiguous" — that needs a reader. So classifyNeutroMotivo now has a
 // guard clause: an absence-pattern match is discarded (returns null instead
 // of nao_encontrado) whenever a stance verb also appears in the text.
 
-test('defers to the AI when a matched absence claim sits next to a real tax position', () => {
-  // Real corpus overfire (fix round 3): the classifier previously called this
-  // nao_encontrado, but the programa DOES propose a documented tax position —
-  // it is nao_responde. Quoted as given by the reviewer (truncated with "...");
-  // the omitted portion of the real stored justificativa is what trips an
-  // ABSENCE_PATTERN — this excerpt alone already returns null with no pattern
-  // match, so the assertion holds regardless, and the guard covers the full
-  // text once the omitted absence clause is present.
+test('defers a genuinely ambiguous row to the AI instead of forcing nao_encontrado', () => {
+  // Full text, verbatim from politician_positions.justificativa (real row).
+  // This is not a misclassification to correct — it is genuinely ambiguous:
+  // the programa has a documented tax position (grandes fortunas, isenções
+  // fiscais, remessa de lucros) that is explicitly orthogonal to the
+  // affirmation ("nada disso decide a afirmação"), which reads as
+  // nao_responde; press searches for the candidate's own statement on the
+  // affirmation itself found nothing, which reads as nao_encontrado. The
+  // guard's value is exactly this: it routes a row like this to a reader
+  // instead of letting a regex pick one of two defensible labels. Verified
+  // both halves fire on this text: the "buscas ... não retornaram" absence
+  // pattern matches ("Buscas na imprensa por declarações ... não retornaram
+  // material atribuível a ele"), and "propõe" trips the stance-verb guard —
+  // so the null here comes from the guard, not from an absence-pattern miss.
   const j = "O programa protocolado no TSE trata de tributos, mas por outro "
     + "ângulo: propõe taxação das grandes fortunas do estado, fim das "
-    + "isenções fiscais..."
-  assert.equal(classifyNeutroMotivo(j), null)
-})
-
-test('defers to the AI when a matched absence claim sits next to a real rights position', () => {
-  // Real corpus overfire (fix round 3): the programa DOES apoia the relevant
-  // autonomy/rights position — nao_responde, not nao_encontrado. Quoted as
-  // given by the reviewer (truncated with "..."); same caveat as above about
-  // the omitted absence-triggering portion of the full stored text.
-  const j = "A afirmação é dupla... O programa apoia amplamente a autonomia "
-    + "sobre a própria vida em outras frentes — direito ao aborto legal..."
+    + "isenções fiscais concedidas a grandes empresas com auditoria pública "
+    + "desses acordos e proibição de remessa de lucros ao exterior. Nada "
+    + "disso decide a afirmação, que pergunta especificamente sobre "
+    + "simplificar e unificar os impostos sobre consumo, renda e produção. "
+    + "Buscas na imprensa por declarações do candidato sobre a reforma "
+    + "tributária não retornaram material atribuível a ele. Registrado como "
+    + "neutro por falta de evidência sobre a afirmação como está escrita, "
+    + "sem inferir posição por proximidade temática."
   assert.equal(classifyNeutroMotivo(j), null)
 })
 
