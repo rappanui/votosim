@@ -117,3 +117,27 @@ describe('ResultadosPage — legitimate empty result', () => {
     expect(screen.queryByText(/Verifique sua conexão/)).not.toBeInTheDocument()
   })
 })
+
+describe('ResultadosPage — group heading', () => {
+  it('renders the cargo label for the group heading, not the raw slug', async () => {
+    mockFetchJson({
+      cargos: [{
+        cargo: 'deputado_distrital',
+        candidatos: [{
+          politicianId: 'p1', nomeUrna: 'CANDIDATA TESTE', partido: 'PT', numeroUrna: '5010',
+          cargo: 'deputado_distrital',
+          alinhamento: 80, alinhamentoApurado: 90, cobertura: 75, confiancaResultado: 75,
+          detalhesTemas: [], temAlertas: false, alertas: [], dossie: null, fontes: [],
+          observacoes: [], coerenciaPorTema: {},
+        }],
+      }],
+      totalCandidatosAnalisados: 1,
+      estado: 'DF',
+    })
+
+    render(<ResultadosPage />)
+
+    expect(await screen.findByText('Deputado Distrital')).toBeInTheDocument()
+    expect(screen.queryByText('deputado_distrital')).not.toBeInTheDocument()
+  })
+})
