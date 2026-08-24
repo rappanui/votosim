@@ -52,6 +52,19 @@ export type NeutroMotivo = 'nao_encontrado' | 'nao_responde' | 'ambivalente'
  */
 export const P_NAO_INFORMADO_PCT = 10
 
+/** Office labels shown to voters. One map: the results page heading and the
+ *  candidate card both read it, and they used to disagree about
+ *  deputado_distrital. Display copy, not part of the Edge Function contract —
+ *  it lives here because this is the module both consumers already import. */
+export const CARGO_LABELS: Record<string, string> = {
+  presidente:         'Presidente',
+  governador:         'Governador',
+  senador:            'Senador',
+  deputado_federal:   'Deputado Federal',
+  deputado_estadual:  'Deputado Estadual',
+  deputado_distrital: 'Deputado Distrital',
+}
+
 /** Same vocabulary as parties.espectro. */
 export type Espectro =
   | 'esquerda' | 'centro_esquerda' | 'centro'

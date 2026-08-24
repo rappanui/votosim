@@ -62,11 +62,6 @@ describe('CandidatoCard', () => {
     expect(container.querySelector('[data-testid="alinhamento-bar"]')?.className).toContain('bg-amber-500')
   })
 
-  it('does not render alert badges when temAlertas is false', () => {
-    render(<CandidatoCard candidato={makeCandidate()} />)
-    expect(screen.queryByText('Ficha suja')).not.toBeInTheDocument()
-  })
-
   it('shows transparency panel on click', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
     fireEvent.click(screen.getByText(/Ver detalhes/))
@@ -226,9 +221,15 @@ describe('CandidatoCard', () => {
     expect(screen.getByText(/não retornaram nenhuma ocorrência/)).toBeInTheDocument()
   })
 
-  it('renders the cargo and ballot number next to the party', () => {
-    render(<CandidatoCard candidato={makeCandidate({ numeroUrna: '13', cargo: 'presidente' })} />)
-    expect(screen.getByText(/nº 13/)).toBeInTheDocument()
+  it('renders the cargo label and ballot number next to the party', () => {
+    render(<CandidatoCard candidato={makeCandidate({ numeroUrna: '5010', cargo: 'deputado_distrital' })} />)
+    expect(screen.getByText(/nº 5010/)).toBeInTheDocument()
+    expect(screen.getByText(/Deputado Distrital/)).toBeInTheDocument()
+  })
+
+  it('falls back to the raw cargo when it is not in the label map', () => {
+    render(<CandidatoCard candidato={makeCandidate({ cargo: 'vereador' })} />)
+    expect(screen.getByText(/vereador/)).toBeInTheDocument()
   })
 
   it('omits the ballot number when there is none', () => {

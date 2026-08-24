@@ -6,17 +6,10 @@ import { useQuiz } from '@/context/QuizContext'
 import { CandidatoCard } from '@/components/CandidatoCard'
 import { LegendaIcones } from '@/components/LegendaIcones'
 import { assertMatchResult, ContractMismatchError } from '@/lib/contract'
+import { CARGO_LABELS } from '@/lib/types'
 import type { MatchResult, CargoResultado, PerfilUsuario } from '@/lib/types'
 
 const EDGE_FUNCTION_PATH = '/functions/v1/match-candidatos'
-
-const CARGO_LABELS: Record<string, string> = {
-  presidente:        'Presidente',
-  governador:        'Governador',
-  senador:           'Senador',
-  deputado_federal:  'Deputado Federal',
-  deputado_estadual: 'Deputado Estadual',
-}
 
 function buildPayload(estado: string, respostas: PerfilUsuario['respostas']): PerfilUsuario {
   return {
