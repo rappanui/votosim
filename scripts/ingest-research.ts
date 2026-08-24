@@ -47,6 +47,7 @@ export function buildPositionRows(
       politician_id: politicianId,
       theme_id: themeId,
       posicao: p.posicao,
+      neutro_motivo: p.posicao === 'neutro' ? (p.neutroMotivo ?? null) : null,
       intensidade: p.intensidade,
       justificativa: p.justificativa,
       coerencia_tema: p.coerenciaTema,

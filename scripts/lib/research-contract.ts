@@ -1,3 +1,5 @@
+import { NEUTRO_MOTIVOS, type NeutroMotivo } from './neutro-motivo.ts'
+
 /** The 14 questionnaire themes. A position on anything else is a defect. */
 export const THEME_SLUGS = [
   'reforma_tributaria', 'sus_saude_publica', 'privatizacao_estatais',
@@ -39,6 +41,11 @@ const SOURCE_TIPOS = [
   // legislative candidates, who file no plano_governo — party platform and
   // biographical profile documents.
   'plataforma_partidaria', 'biografia',
+  // E4b: attendance, votes cast, authored bills and CEAP spending for a
+  // candidate with a legislative mandate. No pre-existing tipo fits —
+  // bens_declarados is declared personal assets, votacao is a single
+  // roll-call. Every E4b figure must cite the exact endpoint queried.
+  'desempenho_mandato',
 ] as const
 const DESTINOS = ['card_candidato', 'pagina_sobre', 'interno'] as const
 const ALERT_TIPOS = [
@@ -65,6 +72,13 @@ export interface ResearchSource {
 export interface ResearchPosition {
   temaSlug: string
   posicao: string
+  /**
+   * Which flavor of "neutro" this is — only meaningful when posicao is
+   * 'neutro'. A missing value on a neutro position is read as
+   * 'nao_encontrado' for backward compatibility with payloads written before
+   * this field existed. See scripts/lib/neutro-motivo.ts.
+   */
+  neutroMotivo?: string | null
   intensidade: number
   justificativa: string
   confiancaIa: number
@@ -267,6 +281,14 @@ export function validateResearch(input: unknown): string[] {
       }
 
       if (!STANCES.includes(p.posicao as typeof STANCES[number])) errors.push(`${label}.posicao: invalid`)
+      if (p.neutroMotivo !== null && p.neutroMotivo !== undefined) {
+        if (!NEUTRO_MOTIVOS.includes(p.neutroMotivo as NeutroMotivo)) {
+          errors.push(`${label}.neutroMotivo: invalid`)
+        }
+        if (p.posicao !== 'neutro') {
+          errors.push(`${label}.neutroMotivo: only allowed when posicao is 'neutro'`)
+        }
+      }
       if (!Number.isInteger(p.intensidade) || !Number.isFinite(p.intensidade as number)
           || (p.intensidade as number) < 1 || (p.intensidade as number) > 5) {
         errors.push(`${label}.intensidade: must be an integer 1-5`)
