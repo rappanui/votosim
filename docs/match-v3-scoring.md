@@ -62,6 +62,14 @@ Each theme the voter took a side on gets one level and a credibility factor:
 > `index.ts` calls `scoreCandidato` without the `temaNomes` map, so legenda entries
 > would render raw theme slugs instead of human names. Harmless while the table is
 > empty; a visible defect the moment it is not.
+>
+> **Same bucket, a second gap:** `index.ts:154`'s `party_positions` select also
+> omits `neutro_motivo` and `justificativa` — correctly, because migration 12
+> (`docs/base/12_neutro_motivo.sql`) only altered `politician_positions`, and
+> neither column exists on `party_positions`. The consequence: a party-sourced
+> neutral can never be audited (there is no motivo to distinguish `nao_encontrado`
+> from `nao_responde`/`ambivalente`), and a party theme row renders no
+> justification. Fix both gaps together before `party_positions` gets real rows.
 
 ## The arithmetic
 
