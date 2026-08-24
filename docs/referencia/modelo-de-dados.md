@@ -1,6 +1,6 @@
 # Modelo de dados
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 18:10
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
 > **Contexto:** as tabelas que existem hoje no Postgres do Supabase e as
 > colunas que importam para quem lê ou grava nelas. Colunas apuradas
 > diretamente no banco em 2026-08-24, não copiadas de documentação anterior —
@@ -72,7 +72,7 @@ lê para pontuar.
 | `intensidade` | Quão central o tema é na plataforma do candidato (não é confiança). |
 | `neutro_motivo` | Só tem sentido quando `posicao = 'neutro'`: `nao_encontrado` (nada achado), `nao_responde` (tem posição, mas não sobre esta afirmação) ou `ambivalente` (contraditório/condicional). **NULL é lido como `nao_encontrado`** — todo registro anterior a 2026-08-24 está NULL, e não houve backfill retroativo; o dado se autocorrige conforme candidatos são pesquisados de novo. |
 | `justificativa` | O relato do analista sobre por que a posição ficou onde ficou — texto exibido por tema no card, nunca usado no cálculo. |
-| `source_ids` | IDs das fontes (`candidate_sources`) que sustentam esta linha. 100% das linhas hoje carregam `source_ids` — só `scripts/ingest-research.ts` escreve este campo. |
+| `source_ids` | IDs das fontes (`candidate_sources`) que sustentam esta linha. 100% das linhas hoje carregam `source_ids` — só `modules/ingest-candidates/src/comandos/ingest-research.ts` escreve este campo. |
 | `confianca_ia` | 0–1, confiança do agente na classificação. Abaixo de 0,75 (`LOW_CONFIDENCE_THRESHOLD` em `scoring.ts`) o tema é marcado como baixa confiança para o eleitor. |
 | `coerencia_tema` | `coerente` \| `incoerente` \| `sem_historico` — se a conduta registrada bate com a plataforma declarada neste tema especificamente. |
 | `gerado_por_ia`, `validado`, `notas_curador` | Rastro de curadoria. |

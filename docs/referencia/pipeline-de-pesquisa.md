@@ -1,14 +1,25 @@
 # Pipeline de pesquisa
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 19:10
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
 > **Contexto:** visão de conjunto de como um candidato sai de "só dados do
 > TSE" para ter posições, alertas e dossiê no banco — os estágios, os scripts
 > que os conectam, e o que a validação recusa. Não é o passo a passo; para
 > executar, use `docs/procedimentos/pesquisa-de-candidato-runbook.md`
 > (comandos) e `docs/procedimentos/pesquisa-de-candidato.md` (regras de
 > conteúdo que o agente de pesquisa segue). Verificado contra
-> `scripts/package.json`, `scripts/lib/research-contract.ts`,
-> `scripts/lib/ledger.ts` e `scripts/ingest-research.ts` em 2026-08-24.
+> `modules/ingest-candidates/package.json`,
+> `modules/ingest-candidates/src/lib/research-contract.ts`,
+> `modules/ingest-candidates/src/lib/ledger.ts` e
+> `modules/ingest-candidates/src/comandos/ingest-research.ts` em 2026-08-24.
+
+A implementação inteira vive em `modules/ingest-candidates/` — é a fonte
+única da verdade para pesquisa e ingestão de candidatos, reempacotável em
+ZIP para quem colabora sem acesso a este repositório (ver
+`modules/ingest-candidates/README.md`). Os comandos `npm` da raiz
+(`bootstrap-ledger`, `next-candidates`, `claim-candidate`, `build-brief`,
+`ingest-research`, `download-tse`) só delegam para lá via
+`npm --prefix ../modules/ingest-candidates run <nome>` — não há mais
+implementação duplicada em `scripts/`.
 
 ---
 
@@ -31,12 +42,12 @@ next-candidates → claim-candidate → build-brief → agente Claude Code → i
 4. O **agente de pesquisa** (Claude Code, seguindo
    `docs/procedimentos/pesquisa-de-candidato.md`) lê o brief e escreve
    `data/research/<tse_sequencial>.json`, no formato que
-   `scripts/lib/research-contract.ts` define.
+   `modules/ingest-candidates/src/lib/research-contract.ts` define.
 5. **`ingest-research`** valida esse JSON, resolve o `tseSequencial` contra
    `candidacies`, imprime a identidade resolvida para conferência humana, e
    só então grava.
 
-`scripts/lib/ledger.ts` controla o estado: cinco etapas por candidatura
+`modules/ingest-candidates/src/lib/ledger.ts` controla o estado: cinco etapas por candidatura
 (`documentos_oficiais`, `ficha_limpa`, `noticias`, `dossie`, `posicoes`),
 cada uma `pendente | em_progresso | concluido | falhou | nao_aplicavel`.
 `nao_aplicavel` é atribuído na criação — candidaturas fora de escopo

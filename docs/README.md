@@ -1,6 +1,6 @@
 # Documentação do VotoSim
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 19:10
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
 > **Contexto:** porta de entrada de `docs/`. Leia isto primeiro para saber
 > onde procurar; ele não repete o conteúdo de cada pasta, só diz onde está.
 
@@ -27,6 +27,17 @@
 Se você não sabe qual pasta procurar: uma pergunta do tipo "como o match
 calcula o percentual?" é referência; uma tarefa do tipo "preciso pesquisar
 um candidato" ou "vou implantar uma migração" é procedimento.
+
+## `modules/` não é `docs/`, mas mora ao lado
+
+`modules/` (na raiz do repositório, fora de `docs/`) guarda código que não é
+runtime da aplicação — o critério é ter distribuição separada ou ciclo de
+vida próprio. Primeiro habitante: `modules/ingest-candidates/`, a
+implementação de pesquisa e ingestão de candidatos, que precisa virar um
+ZIP reempacotável para colaboradores externos sem acesso a este
+repositório — por isso é módulo, e não só uma subpasta de `scripts/`. Ver
+`modules/ingest-candidates/README.md` e
+`docs/referencia/pipeline-de-pesquisa.md`.
 
 ## Todo documento declara a própria validade
 

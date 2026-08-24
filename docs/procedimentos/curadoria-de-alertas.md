@@ -1,6 +1,6 @@
 # Curadoria de alertas
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 18:30
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
 > **Contexto:** como um agente de IA e o desenvolvedor revisam, juntos, os
 > alertas que o pipeline de pesquisa deixou pendentes de curadoria humana.
 > Leia quando `ingest-research` gravar alertas com `validado = false`, ou
@@ -153,7 +153,7 @@ um destes itens ele não tem como decidir:
    (`.gov.br`/`.jus.br`/`.leg.br`/`.mp.br`); `camada=2` é imprensa. Diga qual
    é, e o veículo.
 5. **Por que caiu em curadoria** — qual regra o barrou. As causas possíveis
-   estão em `isAutoValidated()` (`scripts/ingest-research.ts:90-101`):
+   estão em `isAutoValidated()` (`modules/ingest-candidates/src/comandos/ingest-research.ts:90-101`):
    - `polemica`, `incoerencia` e `divergencia_espectro` **nunca** auto-validam,
      seja qual for a fonte;
    - `ficha_suja` e `investigacao` auto-validam **só** com fonte camada 1 e
@@ -272,10 +272,10 @@ curadoria começar, isto passa a valer.
 
 Quando `ingest-research` roda de novo para um candidato já curado:
 
-1. O delete (`scripts/ingest-research.ts:264-275`) filtra
+1. O delete (`modules/ingest-candidates/src/comandos/ingest-research.ts:264-275`) filtra
    `.is('validado_por', null)` e **pula** o alerta curado — correto, é o que
    protege a sua decisão.
-2. O insert (`scripts/ingest-research.ts:341`) é incondicional: reinsere
+2. O insert (`modules/ingest-candidates/src/comandos/ingest-research.ts:341`) é incondicional: reinsere
    todos os alertas do JSON, inclusive aquele. Não há upsert, não há
    deduplicação, e a tabela não tem constraint de unicidade — o próprio
    comentário em `:256-258` registra isso.
