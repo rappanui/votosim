@@ -5,6 +5,8 @@ import {
   buildPartyResults,
   buildPrompt,
   countSimpleMatches,
+  deriveObservacoes,
+  enrichResult,
   groupBy,
   groupDetalhePosicoes,
   groupSources,
@@ -18,11 +20,22 @@ import {
   PREFILTER_LIMIT_DEFAULT,
   PREFILTER_LIMIT_DEPUTADO,
   type AlertRow,
+  type DetalhePosicao,
   type DetalhePosicaoRow,
   type DossierRow,
   type SourceRow,
 } from './index.ts'
-import type { CandidatoResultado, CandidatoRow, MatchResult, PositionWithSlug, RespostaUsuario } from './ai-providers.ts'
+import type {
+  CandidatoResultado,
+  CandidatoRow,
+  CoerenciaTema,
+  Dossie,
+  Fonte,
+  MatchResult,
+  PositionWithSlug,
+  RespostaUsuario,
+  TemaCandidatoDetalhe,
+} from './ai-providers.ts'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -144,7 +157,7 @@ Deno.test('attachAlerts: attaches alerts to matching candidates', () => {
   }
   const alerts: AlertRow[] = [{
     politician_id: 'p1',
-    tipo: 'corrupcao',
+    tipo: 'investigacao',
     severidade: 'alta',
     titulo: 'Investigado',
     descricao: 'Sob investigação',
@@ -462,4 +475,277 @@ Deno.test('groupDetalhePosicoes: drops rows whose theme is not in the catalog', 
     { politician_id: 'p1', theme_id: 'orfao', coerencia_tema: 'incoerente', justificativa: 'x' },
   ]
   assertEquals(groupDetalhePosicoes(rows, new Map()).size, 0)
+})
+
+// ─── deriveObservacoes ───────────────────────────────────────────────────────
+
+function makeDetalhe(overrides: Partial<TemaCandidatoDetalhe> = {}): TemaCandidatoDetalhe {
+  return {
+    temaSlug: 'saude_sus', temaNome: 'Saúde pública',
+    voterPosicao: 'favoravel', voterImportancia: 3,
+    evidencia: 'direta', neutroMotivo: null, justificativa: null,
+    candidatePosicao: 5, candidateImportancia: 4, alignment: 1,
+    contouNoScore: true, posicaoViaPartido: false, baixaConfianca: false,
+    ...overrides,
+  }
+}
+
+function makeAlertRow(tipo: string, badgeCor: string): AlertRow {
+  return {
+    politician_id: 'p1', tipo, severidade: 'baixa',
+    titulo: `Título ${tipo}`, descricao: `Descrição ${tipo}`,
+    fonte_url: 'https://fonte.example', badge_cor: badgeCor,
+  }
+}
+
+Deno.test('deriveObservacoes: an incoerencia alert is a contradiction', () => {
+  const out = deriveObservacoes([makeAlertRow('incoerencia', 'roxo')], [], null, new Map())
+  assertEquals(out.length, 1)
+  assertEquals(out[0].categoria, 'contradicao')
+  assertEquals(out[0].fonteUrl, 'https://fonte.example')
+})
+
+Deno.test('deriveObservacoes: a ressalva_evidencias alert is a ressalva', () => {
+  const out = deriveObservacoes([makeAlertRow('ressalva_evidencias', 'amarelo')], [], null, new Map())
+  assertEquals(out.length, 1)
+  assertEquals(out[0].categoria, 'ressalva')
+})
+
+Deno.test('deriveObservacoes: an incoerente theme becomes a contradiction naming the theme', () => {
+  const coerencia = new Map<string, CoerenciaTema>([['saude_sus', 'incoerente']])
+  const out = deriveObservacoes([], [makeDetalhe({ justificativa: 'Votou contra em 2023.' })], null, coerencia)
+  assertEquals(out.length, 1)
+  assertEquals(out[0].categoria, 'contradicao')
+  assertEquals(out[0].titulo, 'Saúde pública')
+  assertEquals(out[0].descricao, 'Votou contra em 2023.')
+  assertEquals(out[0].temaSlug, 'saude_sus')
+})
+
+Deno.test('deriveObservacoes: a coerente theme produces nothing', () => {
+  const coerencia = new Map<string, CoerenciaTema>([['saude_sus', 'coerente']])
+  assertEquals(deriveObservacoes([], [makeDetalhe()], null, coerencia).length, 0)
+})
+
+Deno.test('deriveObservacoes: a party-sourced theme is a ressalva', () => {
+  const out = deriveObservacoes(
+    [], [makeDetalhe({ evidencia: 'partido', posicaoViaPartido: true })], null, new Map(),
+  )
+  assertEquals(out.length, 1)
+  assertEquals(out[0].categoria, 'ressalva')
+  assertEquals(out[0].temaSlug, 'saude_sus')
+})
+
+Deno.test('deriveObservacoes: a low-confidence direct stance is a ressalva', () => {
+  const out = deriveObservacoes([], [makeDetalhe({ baixaConfianca: true })], null, new Map())
+  assertEquals(out.length, 1)
+  assertEquals(out[0].categoria, 'ressalva')
+})
+
+// D5: v3 already renders `○ não encontrado` per theme and already prices it into
+// the score. Repeating it here would report one fact twice.
+Deno.test('deriveObservacoes: an unaudited theme produces nothing', () => {
+  const detalhe = makeDetalhe({
+    evidencia: 'ausente', neutroMotivo: 'nao_encontrado',
+    candidatePosicao: null, alignment: null, contouNoScore: false,
+  })
+  assertEquals(deriveObservacoes([], [detalhe], null, new Map()).length, 0)
+})
+
+Deno.test('deriveObservacoes: an audited neutral produces nothing', () => {
+  const detalhe = makeDetalhe({
+    evidencia: 'direta', neutroMotivo: 'nao_responde',
+    candidatePosicao: 3, alignment: 0.5,
+  })
+  assertEquals(deriveObservacoes([], [detalhe], null, new Map()).length, 0)
+})
+
+// baixaConfianca is only meaningful where credibility was actually applied.
+Deno.test('deriveObservacoes: low confidence on an absent theme produces nothing', () => {
+  const detalhe = makeDetalhe({
+    evidencia: 'ausente', baixaConfianca: true,
+    candidatePosicao: null, alignment: null, contouNoScore: false,
+  })
+  assertEquals(deriveObservacoes([], [detalhe], null, new Map()).length, 0)
+})
+
+Deno.test('deriveObservacoes: diverging declared and inferred spectrum is a contradiction', () => {
+  const dossie: Dossie = {
+    resumoPerfil: 'r', espectroDeclarado: 'centro', espectroInferido: 'direita',
+    coerenciaIndice: null, coerenciaBase: null, geradoEm: '2026-08-22T00:00:00Z',
+  }
+  const out = deriveObservacoes([], [], dossie, new Map())
+  assertEquals(out.length, 1)
+  assertEquals(out[0].categoria, 'contradicao')
+})
+
+Deno.test('deriveObservacoes: matching spectra produce nothing', () => {
+  const dossie: Dossie = {
+    resumoPerfil: 'r', espectroDeclarado: 'centro', espectroInferido: 'centro',
+    coerenciaIndice: null, coerenciaBase: null, geradoEm: '2026-08-22T00:00:00Z',
+  }
+  assertEquals(deriveObservacoes([], [], dossie, new Map()).length, 0)
+})
+
+Deno.test('deriveObservacoes: a half-known spectrum produces nothing', () => {
+  const dossie: Dossie = {
+    resumoPerfil: 'r', espectroDeclarado: 'centro', espectroInferido: null,
+    coerenciaIndice: null, coerenciaBase: null, geradoEm: '2026-08-22T00:00:00Z',
+  }
+  assertEquals(deriveObservacoes([], [], dossie, new Map()).length, 0)
+})
+
+Deno.test('deriveObservacoes: contradictions are ordered before ressalvas', () => {
+  const coerencia = new Map<string, CoerenciaTema>([['saude_sus', 'incoerente']])
+  const out = deriveObservacoes(
+    [makeAlertRow('ressalva_evidencias', 'amarelo')],
+    [makeDetalhe({ justificativa: 'j' })],
+    null, coerencia,
+  )
+  assertEquals(out.map(o => o.categoria), ['contradicao', 'ressalva'])
+})
+
+// ─── attachAlerts splits accusatory from observational ───────────────────────
+
+Deno.test('attachAlerts: keeps only accusatory types in alertas', () => {
+  const result: MatchResult = {
+    cargos: [{ cargo: 'presidente', candidatos: [makeCandidato('p1', 80)] }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const out = attachAlerts(result, [
+    makeAlertRow('ficha_suja', 'vermelho'),
+    makeAlertRow('ressalva_evidencias', 'amarelo'),
+  ])
+  const c = out.cargos[0].candidatos[0]
+  assertEquals(c.alertas.length, 1)
+  assertEquals((c.alertas[0] as { tipo: string }).tipo, 'ficha_suja')
+  assertEquals(c.temAlertas, true)
+})
+
+Deno.test('attachAlerts: only observational alerts leaves temAlertas false', () => {
+  const result: MatchResult = {
+    cargos: [{ cargo: 'presidente', candidatos: [makeCandidato('p1', 80)] }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const out = attachAlerts(result, [makeAlertRow('ressalva_evidencias', 'amarelo')])
+  assertEquals(out.cargos[0].candidatos[0].temAlertas, false)
+})
+
+// ─── enrichResult ────────────────────────────────────────────────────────────
+
+Deno.test('enrichResult: attaches dossier, sources, coherence and observations', () => {
+  const result: MatchResult = {
+    cargos: [{
+      cargo: 'presidente',
+      candidatos: [{
+        ...makeCandidato('p1', 80),
+        detalhesTemas: [makeDetalhe({ evidencia: 'partido', posicaoViaPartido: true })],
+      }],
+    }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const dossie: Dossie = {
+    resumoPerfil: 'Advogada de Cuiabá.', espectroDeclarado: 'centro', espectroInferido: 'centro',
+    coerenciaIndice: null, coerenciaBase: 'Sem histórico.', geradoEm: '2026-08-22T00:00:00Z',
+  }
+  const fonte: Fonte = {
+    id: 's1', tipo: 'noticia', camada: 2, titulo: 'Matéria', veiculo: 'CNN Brasil',
+    url: 'https://cnn.example', dataPublicacao: '2026-08-05', acessadoEm: '2026-08-22T00:00:00Z',
+  }
+  const out = enrichResult(result, {
+    alerts: [makeAlertRow('ficha_suja', 'vermelho')],
+    candidacyIdByPolitician: new Map([['p1', 'c1']]),
+    dossieByCandidacy: new Map([['c1', dossie]]),
+    fontesByPolitician: new Map([['p1', [fonte]]]),
+    detalhesByPolitician: new Map([['p1', new Map<string, DetalhePosicao>([
+      ['saude_sus', { coerenciaTema: 'coerente', justificativa: 'O plano foca na atenção primária.' }],
+    ])]]),
+  })
+  const c = out.cargos[0].candidatos[0]
+  assertEquals(c.dossie?.resumoPerfil, 'Advogada de Cuiabá.')
+  assertEquals(c.fontes.length, 1)
+  assertEquals(c.alertas.length, 1)
+  assertEquals(c.coerenciaPorTema['saude_sus'], 'coerente')
+  assertEquals(c.observacoes.length, 1)
+  assertEquals(c.observacoes[0].categoria, 'ressalva')
+})
+
+// D13: justificativa no longer arrives through scoreCandidato, so enrichResult
+// is the only thing that can put it on a theme row.
+Deno.test('enrichResult: attaches justificativa onto the matching theme', () => {
+  const result: MatchResult = {
+    cargos: [{
+      cargo: 'presidente',
+      candidatos: [{ ...makeCandidato('p1', 80), detalhesTemas: [makeDetalhe({ justificativa: null })] }],
+    }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const out = enrichResult(result, {
+    alerts: [], candidacyIdByPolitician: new Map(), dossieByCandidacy: new Map(),
+    fontesByPolitician: new Map(),
+    detalhesByPolitician: new Map([['p1', new Map<string, DetalhePosicao>([
+      ['saude_sus', { coerenciaTema: null, justificativa: 'Buscas no plano não retornaram nada.' }],
+    ])]]),
+  })
+  assertEquals(
+    out.cargos[0].candidatos[0].detalhesTemas[0].justificativa,
+    'Buscas no plano não retornaram nada.',
+  )
+})
+
+// The incoerente description falls back to the justificativa, so the attach has
+// to happen before deriveObservacoes reads it.
+Deno.test('enrichResult: an incoerente theme takes its description from the attached justificativa', () => {
+  const result: MatchResult = {
+    cargos: [{
+      cargo: 'presidente',
+      candidatos: [{ ...makeCandidato('p1', 80), detalhesTemas: [makeDetalhe({ justificativa: null })] }],
+    }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const out = enrichResult(result, {
+    alerts: [], candidacyIdByPolitician: new Map(), dossieByCandidacy: new Map(),
+    fontesByPolitician: new Map(),
+    detalhesByPolitician: new Map([['p1', new Map<string, DetalhePosicao>([
+      ['saude_sus', { coerenciaTema: 'incoerente', justificativa: 'Defendeu no plano, votou contra em 2023.' }],
+    ])]]),
+  })
+  const obs = out.cargos[0].candidatos[0].observacoes
+  assertEquals(obs.length, 1)
+  assertEquals(obs[0].categoria, 'contradicao')
+  assertEquals(obs[0].descricao, 'Defendeu no plano, votou contra em 2023.')
+})
+
+Deno.test('enrichResult: a party entry gets no dossier, sources or observations', () => {
+  const partyCandidato: CandidatoResultado = {
+    ...makeCandidato('party:PT', 70), nomeUrna: 'PT', isParty: true,
+    detalhesTemas: [makeDetalhe({ evidencia: 'partido', posicaoViaPartido: true })],
+  }
+  const result: MatchResult = {
+    cargos: [{ cargo: 'senador', candidatos: [partyCandidato] }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const out = enrichResult(result, {
+    alerts: [], candidacyIdByPolitician: new Map(), dossieByCandidacy: new Map(),
+    fontesByPolitician: new Map(), detalhesByPolitician: new Map(),
+  })
+  const c = out.cargos[0].candidatos[0]
+  assertEquals(c.dossie, null)
+  assertEquals(c.fontes.length, 0)
+  assertEquals(c.observacoes.length, 0)
+})
+
+Deno.test('enrichResult: a candidate with no enrichment data keeps empty defaults', () => {
+  const result: MatchResult = {
+    cargos: [{ cargo: 'presidente', candidatos: [makeCandidato('p9', 60)] }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const out = enrichResult(result, {
+    alerts: [], candidacyIdByPolitician: new Map(), dossieByCandidacy: new Map(),
+    fontesByPolitician: new Map(), detalhesByPolitician: new Map(),
+  })
+  const c = out.cargos[0].candidatos[0]
+  assertEquals(c.dossie, null)
+  assertEquals(c.fontes.length, 0)
+  assertEquals(c.observacoes.length, 0)
+  assertEquals(c.alertas.length, 0)
 })

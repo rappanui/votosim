@@ -12,9 +12,11 @@ import {
   type MatchRequest,
   type MatchResult,
   type NeutroMotivo,
+  type Observacao,
   type PositionWithSlug,
   type RespostaUsuario,
   scoreCandidato,
+  type TemaCandidatoDetalhe,
 } from './ai-providers.ts'
 
 // ─── Local types ──────────────────────────────────────────────────────────────
@@ -109,7 +111,7 @@ async function fetchPositions(
     const batch = await Promise.all(
       chunks.slice(i, i + CONCURRENCY).map(chunk =>
         supabase.from('politician_positions')
-          .select('politician_id, theme_id, posicao, intensidade, confianca_ia, neutro_motivo, justificativa')
+          .select('politician_id, theme_id, posicao, intensidade, confianca_ia, neutro_motivo')
           .in('politician_id', chunk)
       ),
     )
@@ -129,7 +131,8 @@ async function fetchPositions(
         ? undefined
         : p.confianca_ia as number,
       neutroMotivo: (p.neutro_motivo ?? undefined) as NeutroMotivo | undefined,
-      justificativa: (p.justificativa ?? undefined) as string | undefined,
+      // justificativa is display-only and now arrives via fetchDetalhePosicoes,
+      // which runs over the ≤23 finalists rather than every candidate in the state.
     }))
     .filter(p => p.themeSlug !== '')
 }
@@ -495,8 +498,104 @@ function alertRowToAlerta(a: AlertRow) {
   }
 }
 
+// An accusation about conduct. These drive the "alertas" counter.
+export const ALERT_TIPOS_ACUSATORIOS = new Set(['ficha_suja', 'investigacao', 'polemica'])
+// A caveat about the reading itself. These drive the "observações" counter and
+// must never appear in the same visual register as an accusation.
+export const ALERT_TIPOS_OBSERVACAO = new Set(['incoerencia', 'divergencia_espectro', 'ressalva_evidencias'])
+
+const ESPECTRO_LABELS: Record<string, string> = {
+  esquerda:          'esquerda',
+  centro_esquerda:   'centro-esquerda',
+  centro:            'centro',
+  centro_direita:    'centro-direita',
+  direita:           'direita',
+  sem_classificacao: 'sem classificação',
+}
+
+/**
+ * Caveats about how this candidate was read.
+ *
+ * Deliberately silent about `evidencia === 'ausente'`: match v3 already renders
+ * those themes as `○ não encontrado` and already charges them
+ * P_NAO_INFORMADO in the score. Repeating them here would state one fact twice
+ * and push a typical counter to ~9, burying the findings that are actually
+ * about this candidate rather than about our coverage.
+ *
+ * Contradictions come first — a voter should meet the stronger claim before the
+ * methodological one.
+ */
+export function deriveObservacoes(
+  obsAlerts: AlertRow[],
+  detalhes: TemaCandidatoDetalhe[],
+  dossie: Dossie | null,
+  coerenciaPorTema: Map<string, CoerenciaTema>,
+): Observacao[] {
+  const contradicoes: Observacao[] = []
+  const ressalvas: Observacao[] = []
+
+  for (const a of obsAlerts) {
+    const isRessalva = a.tipo === 'ressalva_evidencias'
+    ;(isRessalva ? ressalvas : contradicoes).push({
+      categoria: isRessalva ? 'ressalva' : 'contradicao',
+      titulo: a.titulo,
+      descricao: a.descricao,
+      temaSlug: null,
+      fonteUrl: a.fonte_url,
+    })
+  }
+
+  if (dossie?.espectroDeclarado && dossie.espectroInferido &&
+      dossie.espectroDeclarado !== dossie.espectroInferido) {
+    const declarado = ESPECTRO_LABELS[dossie.espectroDeclarado] ?? dossie.espectroDeclarado
+    const inferido = ESPECTRO_LABELS[dossie.espectroInferido] ?? dossie.espectroInferido
+    contradicoes.push({
+      categoria: 'contradicao',
+      titulo: 'Espectro declarado diverge do inferido',
+      descricao: `O candidato se apresenta como ${declarado}, mas a análise das posições documentadas aponta ${inferido}.`,
+      temaSlug: null,
+      fonteUrl: null,
+    })
+  }
+
+  for (const d of detalhes) {
+    if (coerenciaPorTema.get(d.temaSlug) === 'incoerente') {
+      contradicoes.push({
+        categoria: 'contradicao',
+        titulo: d.temaNome,
+        descricao: d.justificativa ?? 'A conduta registrada contradiz a plataforma declarada neste tema.',
+        temaSlug: d.temaSlug,
+        fonteUrl: null,
+      })
+    }
+    if (d.evidencia === 'partido') {
+      ressalvas.push({
+        categoria: 'ressalva',
+        titulo: d.temaNome,
+        descricao: 'Posição lida no programa do partido — não há declaração do próprio candidato sobre este tema.',
+        temaSlug: d.temaSlug,
+        fonteUrl: null,
+      })
+    }
+    // Only where credibility was actually applied: v3 scores a `direta` theme at
+    // full credibility regardless of how sure the model was, and nothing else in
+    // v3 surfaces that. An `ausente` theme is already accounted for elsewhere.
+    if (d.baixaConfianca && d.evidencia === 'direta') {
+      ressalvas.push({
+        categoria: 'ressalva',
+        titulo: d.temaNome,
+        descricao: 'Posição classificada por IA com confiança abaixo do limiar de revisão, mas contada integralmente no cálculo.',
+        temaSlug: d.temaSlug,
+        fonteUrl: null,
+      })
+    }
+  }
+
+  return [...contradicoes, ...ressalvas]
+}
+
 export function attachAlerts(result: MatchResult, alerts: AlertRow[]): MatchResult {
-  const alertMap = groupBy(alerts, a => a.politician_id)
+  const alertMap = groupBy(alerts.filter(a => ALERT_TIPOS_ACUSATORIOS.has(a.tipo)), a => a.politician_id)
   const cargos = result.cargos.map(grupo => ({
     ...grupo,
     candidatos: grupo.candidatos.map(c => {
@@ -505,6 +604,63 @@ export function attachAlerts(result: MatchResult, alerts: AlertRow[]): MatchResu
     }),
   }))
   return { ...result, cargos }
+}
+
+export interface EnrichmentContext {
+  alerts: AlertRow[]
+  candidacyIdByPolitician: Map<string, string>
+  dossieByCandidacy: Map<string, Dossie>
+  fontesByPolitician: Map<string, Fonte[]>
+  detalhesByPolitician: Map<string, Map<string, DetalhePosicao>>
+}
+
+// Party entries (voto de legenda) are not people: no candidacy, no dossier, no
+// source catalogue, and every theme is party-sourced by construction — flagging
+// that as a ressalva would be noise on every row.
+export function enrichResult(result: MatchResult, ctx: EnrichmentContext): MatchResult {
+  const alertsByPolitician = groupBy(ctx.alerts, a => a.politician_id)
+  const withAlerts = attachAlerts(result, ctx.alerts)
+
+  return {
+    ...withAlerts,
+    cargos: withAlerts.cargos.map(grupo => ({
+      ...grupo,
+      candidatos: grupo.candidatos.map(c => {
+        if (c.isParty) return c
+
+        const detalhes = ctx.detalhesByPolitician.get(c.politicianId) ?? new Map<string, DetalhePosicao>()
+
+        // justificativa no longer reaches scoreCandidato (D13) — this is the
+        // only place it can be put on a theme row, and deriveObservacoes below
+        // reads it, so it has to happen first.
+        const detalhesTemas = c.detalhesTemas.map(d => ({
+          ...d,
+          justificativa: detalhes.get(d.temaSlug)?.justificativa ?? null,
+        }))
+
+        const coerencia = new Map<string, CoerenciaTema>()
+        for (const [slug, det] of detalhes) {
+          if (det.coerenciaTema !== null) coerencia.set(slug, det.coerenciaTema)
+        }
+
+        const candidacyId = ctx.candidacyIdByPolitician.get(c.politicianId)
+        const dossie = candidacyId === undefined
+          ? null
+          : ctx.dossieByCandidacy.get(candidacyId) ?? null
+        const obsAlerts = (alertsByPolitician[c.politicianId] ?? [])
+          .filter(a => ALERT_TIPOS_OBSERVACAO.has(a.tipo))
+
+        return {
+          ...c,
+          detalhesTemas,
+          dossie,
+          fontes: ctx.fontesByPolitician.get(c.politicianId) ?? [],
+          coerenciaPorTema: Object.fromEntries(coerencia),
+          observacoes: deriveObservacoes(obsAlerts, detalhesTemas, dossie, coerencia),
+        }
+      }),
+    })),
+  }
 }
 
 export function sortAndLimitCargos(result: MatchResult): MatchResult {
@@ -574,10 +730,9 @@ export async function handler(req: Request): Promise<Response> {
     const partySiglas = [...new Set(
       candidates.filter(c => LEGISLATIVE_CARGOS.has(c.cargo)).map(c => c.partido_atual),
     )]
-    const [filteredAlerts, partyPositionsByParty] = await Promise.all([
-      fetchAlerts(supabase, [...filteredIds]),
-      fetchPartyPositions(supabase, partySiglas, slugById),
-    ])
+    // Only party positions are needed before scoring. Everything else is fetched
+    // after the trim below, when the set is ≤23 candidates instead of ~90.
+    const partyPositionsByParty = await fetchPartyPositions(supabase, partySiglas, slugById)
 
     const prompt = buildPrompt(filteredCandidates, positionsByCandidate, body.respostas)
     const fallbackData: FallbackData = {
@@ -597,8 +752,32 @@ export async function handler(req: Request): Promise<Response> {
     const partyEntries = buildPartyResults(candidates, partyPositionsByParty, body.respostas)
     const mergedResult = injectPartyResults(rawResult, partyEntries)
 
-    const withAlerts = attachAlerts(mergedResult, filteredAlerts)
-    const finalResult = sortAndLimitCargos(withAlerts)
+    const trimmed = sortAndLimitCargos(mergedResult)
+
+    const finalistIds = [...new Set(
+      trimmed.cargos.flatMap(g => g.candidatos).filter(c => !c.isParty).map(c => c.politicianId),
+    )]
+    const candidacyIdByPolitician = new Map(
+      candidates
+        .filter(c => finalistIds.includes(c.politician_id))
+        .map(c => [c.politician_id, c.candidacy_id]),
+    )
+    const candidacyIds = [...new Set([...candidacyIdByPolitician.values()])]
+
+    const [alerts, dossieByCandidacy, fontesByPolitician, detalhesByPolitician] = await Promise.all([
+      fetchAlerts(supabase, finalistIds),
+      fetchDossiers(supabase, candidacyIds),
+      fetchSources(supabase, finalistIds),
+      fetchDetalhePosicoes(supabase, finalistIds, slugById),
+    ])
+
+    const finalResult = enrichResult(trimmed, {
+      alerts,
+      candidacyIdByPolitician,
+      dossieByCandidacy,
+      fontesByPolitician,
+      detalhesByPolitician,
+    })
 
     return jsonResponse(finalResult)
   } catch (err: unknown) {
