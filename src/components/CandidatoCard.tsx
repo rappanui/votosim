@@ -6,17 +6,8 @@ import { CandidatoResumo } from './CandidatoResumo'
 import { FontesBloco } from './FontesBloco'
 import { ObservacoesBloco } from './ObservacoesBloco'
 import { TemasPanel, selectVisibleTemas } from './TemasPanel'
-import { P_NAO_INFORMADO_PCT } from '@/lib/types'
+import { P_NAO_INFORMADO_PCT, CARGO_LABELS } from '@/lib/types'
 import type { CandidatoResultado } from '@/lib/types'
-
-const CARGO_LABELS: Record<string, string> = {
-  presidente:         'Presidente',
-  governador:         'Governador',
-  senador:            'Senador',
-  deputado_federal:   'Deputado Federal',
-  deputado_estadual:  'Deputado Estadual',
-  deputado_distrital: 'Deputado Distrital',
-}
 
 // Penalised scores concentrate in the 20–60% range, so the thresholds are
 // recalibrated relative to the pre-v3 bar (which used 75/50/25) to avoid
