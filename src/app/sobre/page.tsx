@@ -16,7 +16,33 @@ const SECTIONS = [
   {
     title: 'O que o percentual significa',
     content:
-      'O percentual de alinhamento indica o grau de similaridade entre suas posições e as posições públicas dos candidatos. Um percentual alto significa que vocês concordam nos mesmos temas — não é uma recomendação de voto.',
+      'O percentual de alinhamento indica o grau de similaridade entre suas posições e as posições públicas dos candidatos, já descontados os temas em que não encontramos posição documentada. Um percentual alto significa que vocês concordam nos mesmos temas — não é uma recomendação de voto.',
+  },
+  {
+    title: 'Como o percentual é calculado',
+    content:
+      'Para cada tema, comparamos sua resposta com a posição documentada do candidato, ' +
+      'com peso maior nos temas que você marcou como mais importantes. O percentual final é ' +
+      'a média ponderada desses temas, misturada com o peso dos temas que não conseguimos ' +
+      'apurar. Mostramos a conta inteira ao lado de cada candidato: você pode refazê-la à mão.',
+  },
+  {
+    title: 'O que acontece quando não encontramos a posição',
+    content:
+      'Um tema que não conseguimos apurar não é ignorado — ele entra na conta valendo 10%, ' +
+      'bem abaixo dos 50% de um candidato que apuramos e que não toma partido, e um pouco ' +
+      'acima do 0% de quem discorda de você. É uma escolha deliberada: não se pronunciar ' +
+      'publicamente sobre um tema tem custo. A consequência é que candidatos com programas ' +
+      'de governo explícitos tendem a pontuar mais alto do que candidatos que evitam se ' +
+      'comprometer, mesmo quando as posições que conhecemos são parecidas.',
+  },
+  {
+    title: 'Cobertura e confiança',
+    content:
+      'Cobertura é quantos dos 14 temas conseguimos apurar sobre aquele candidato. Confiança ' +
+      'é quanto desses temas são os que VOCÊ marcou como importantes. Quando a cobertura é ' +
+      'alta e a confiança é baixa, quer dizer que sabemos bastante sobre o candidato — só que ' +
+      'não sobre o que te interessa. É a confiança que entra no cálculo do percentual.',
   },
   {
     title: 'De onde vêm os dados',
