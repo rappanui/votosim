@@ -23,6 +23,8 @@ const makeCandidate = (overrides: Partial<CandidatoResultado> = {}): CandidatoRe
   politicianId: 'uuid-1',
   nomeUrna: 'Candidato Teste',
   partido: 'PT',
+  cargo: 'presidente',
+  numeroUrna: '13',
   alinhamento: 80,
   alinhamentoApurado: 90,
   cobertura: 75,
@@ -30,6 +32,10 @@ const makeCandidate = (overrides: Partial<CandidatoResultado> = {}): CandidatoRe
   detalhesTemas: [makeDetalhe()],
   temAlertas: false,
   alertas: [],
+  dossie: null,
+  fontes: [],
+  observacoes: [],
+  coerenciaPorTema: {},
   ...overrides,
 })
 
