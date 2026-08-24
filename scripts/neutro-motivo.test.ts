@@ -88,3 +88,30 @@ test('is not fooled by "não trata... de forma ampla" when a stance follows', ()
   const j = "o plano não trata da reforma de forma ampla, focando apenas em Y"
   assert.equal(classifyNeutroMotivo(j), null)
 })
+
+// Round 2 regression tests: a second review round found the generic-verb
+// lookahead window (round 1's fix) still overfired whenever the absence
+// object happened to land near the verb by coincidence, and that the
+// "não se manifesta/pronuncia/posiciona" pattern had no object guard at all.
+// Both pattern shapes were removed outright rather than patched again.
+
+test('is not fooled by "não registra apoio a X" when a stance follows', () => {
+  // "proposta" sits near "registra" by coincidence — the sentence negates
+  // support for the original proposal, not the existence of a proposal.
+  const j = "o candidato não registra apoio à proposta original, preferindo "
+    + "um modelo alternativo de financiamento"
+  assert.equal(classifyNeutroMotivo(j), null)
+})
+
+test('is not fooled by "não apresenta ressalvas" when it means full agreement', () => {
+  // Negates having reservations, not the existence of the proposal itself.
+  const j = "o programa não apresenta ressalvas à proposta, apoiando-a integralmente"
+  assert.equal(classifyNeutroMotivo(j), null)
+})
+
+test('is not fooled by "não se posiciona a favor de X" when Y is defended instead', () => {
+  // A stance: rejects the current model in favor of full nationalization.
+  const j = "o candidato não se posiciona a favor do modelo atual, defendendo "
+    + "em vez disso a estatização plena"
+  assert.equal(classifyNeutroMotivo(j), null)
+})
