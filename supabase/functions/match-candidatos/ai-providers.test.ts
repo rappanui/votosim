@@ -1,6 +1,6 @@
 /// <reference lib="deno.ns" />
 import { assertEquals, assertAlmostEquals } from 'https://deno.land/std@0.208.0/assert/mod.ts'
-import { posicaoToScale, scoreCandidato, scoreWithoutAI } from './ai-providers.ts'
+import { classifyEvidence, P_NAO_INFORMADO, posicaoToScale, scoreCandidato, scoreWithoutAI } from './ai-providers.ts'
 import type { FallbackData, PositionWithSlug, RespostaUsuario } from './ai-providers.ts'
 
 // ─── posicaoToScale (unchanged behaviour) ─────────────────────────────────────
@@ -92,8 +92,9 @@ Deno.test('scoreCandidato: importancia weights voter theme importance', () => {
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
     { politician_id: 'p1', themeSlug: 'edu', posicao: 'contrario', intensidade: 5 },
   ]
-  // weightedSum = 1.0*1.0 + 0.0*(1/3) = 1.0; totalWeight = 1.333
-  // alinhamento = round(1.0/1.333*100) = 75
+  // Both themes are audited, so confianca=100% and the P_NAO_INFORMADO term
+  // drops out: apuradoScore = somaPonderada/massaApurada = 1.0/1.333 = 0.75
+  // alinhamento = round(0.75*100) = 75
   const result = scoreCandidato(respostas, positions)
   assertEquals(result.alinhamento, 75)
   assertEquals(result.cobertura, 100)
@@ -261,11 +262,6 @@ Deno.test('scoreWithoutAI: groups candidates by cargo', () => {
   const cargos = result.cargos.map(g => g.cargo).sort()
   assertEquals(cargos, ['deputado_federal', 'senador'])
 })
-
-import {
-  classifyEvidence,
-  P_NAO_INFORMADO,
-} from './ai-providers.ts'
 
 // ─── classifyEvidence ─────────────────────────────────────────────────────────
 
@@ -441,16 +437,20 @@ Deno.test('scoreCandidato: voter-neutral themes stay out of both denominators', 
   assertEquals(r.alinhamento, 100)
 })
 
-Deno.test('scoreCandidato: the displayed identity holds for random inputs', () => {
+Deno.test('scoreCandidato: the displayed identity holds exactly for random inputs', () => {
   // This is the test that keeps the arithmetic and the card's audit line from
-  // drifting apart. Tolerance is 1.5 points because the three outputs are
-  // each rounded to integers before the assertion recombines them.
+  // drifting apart. alinhamento is derived from the ROUNDED confiancaResultado
+  // and alinhamentoApurado, so the recombination must match exactly — no
+  // tolerance needed. Seeds route themes across all three evidence levels
+  // (direta, partido, ausente) so credibilidade=0.6 is exercised too, not
+  // just the single hand-written party-credibility test.
   const posicoes = ['favoravel', 'contrario', 'neutro'] as const
   const motivos = ['nao_encontrado', 'nao_responde', 'ambivalente'] as const
   for (let seed = 0; seed < 200; seed++) {
     const n = 1 + (seed % 14)
     const respostas: RespostaUsuario[] = []
     const positions: PositionWithSlug[] = []
+    const partyPositions: PositionWithSlug[] = []
     for (let i = 0; i < n; i++) {
       const slug = `t${i}`
       respostas.push({
@@ -460,15 +460,24 @@ Deno.test('scoreCandidato: the displayed identity holds for random inputs', () =
       })
       if ((seed + i) % 4 !== 0) {
         const posicao = posicoes[(seed + i) % 3]
-        positions.push({
+        const pos: PositionWithSlug = {
           politician_id: 'p', themeSlug: slug, posicao, intensidade: ((seed + i) % 5) + 1,
           ...(posicao === 'neutro' ? { neutroMotivo: motivos[(seed + i) % 3] } : {}),
-        })
+        }
+        // Route roughly half of the audited themes through the party program
+        // instead of the candidate directly, exercising evidencia='partido'.
+        if ((seed + i) % 8 < 4) {
+          positions.push(pos)
+        } else {
+          partyPositions.push({ ...pos, politician_id: 'PT' })
+        }
       }
     }
-    const r = scoreCandidato(respostas, positions)
-    const c = r.confiancaResultado / 100
-    const expected = (c * (r.alinhamentoApurado / 100) + (1 - c) * P_NAO_INFORMADO) * 100
-    assertAlmostEquals(r.alinhamento, expected, 1.5, `seed ${seed}`)
+    const r = scoreCandidato(respostas, positions, partyPositions)
+    const expected = Math.round(
+      (r.confiancaResultado / 100) * (r.alinhamentoApurado / 100) * 100 +
+        (1 - r.confiancaResultado / 100) * P_NAO_INFORMADO * 100,
+    )
+    assertEquals(r.alinhamento, expected, `seed ${seed}`)
   }
 })
