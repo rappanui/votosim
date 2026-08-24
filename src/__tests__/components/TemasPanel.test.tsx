@@ -105,12 +105,14 @@ describe('TemasPanel', () => {
     expect(nomes).toEqual(['Opinado', 'Neutro'])
   })
 
-  it('counts audited themes in the header', () => {
+  it('labels the section without restating coverage as a count', () => {
     render(<TemasPanel detalhes={[
       makeDetalhe({ temaSlug: 'a', evidencia: 'direta' }),
       makeDetalhe({ temaSlug: 'b', evidencia: 'ausente', candidatePosicao: null, alignment: null, contouNoScore: false }),
     ]} />)
-    expect(screen.getByText(/1 de 2 com dado/)).toBeInTheDocument()
+    const rotulo = screen.getByText('Seus temas')
+    expect(rotulo).toBeInTheDocument()
+    expect(rotulo.textContent).not.toMatch(/\d+ de \d+/)
   })
 
   it('hides a neutral theme the voter did not mark as important', () => {
@@ -121,15 +123,6 @@ describe('TemasPanel', () => {
     ]} />)
     const nomes = [...container.querySelectorAll('[data-testid="tema-nome"]')].map(n => n.textContent)
     expect(nomes).toEqual(['Opinado'])
-  })
-
-  it('counts only visible themes in the header', () => {
-    render(<TemasPanel detalhes={[
-      makeDetalhe({ temaSlug: 'o', temaNome: 'Opinado' }),
-      makeDetalhe({ temaSlug: 'n', temaNome: 'Ignorado', voterPosicao: 'neutro', voterImportancia: 1,
-        evidencia: 'ausente', candidatePosicao: null, alignment: null, contouNoScore: false }),
-    ]} />)
-    expect(screen.getByText(/1 de 1 com dado/)).toBeInTheDocument()
   })
 
   it('counts the toggle over visible themes only', () => {
