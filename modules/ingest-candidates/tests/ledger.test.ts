@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildLedgerRows, ALL_STAGES } from './lib/ledger.ts'
+import { buildLedgerRows, ALL_STAGES } from '../src/lib/ledger.ts'
 
 test('buildLedgerRows: emits one row per stage', () => {
   const rows = buildLedgerRows('c1', 'presidente', 'total')

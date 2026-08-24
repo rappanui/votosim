@@ -76,7 +76,7 @@ export interface ResearchPosition {
    * Which flavor of "neutro" this is — only meaningful when posicao is
    * 'neutro'. A missing value on a neutro position is read as
    * 'nao_encontrado' for backward compatibility with payloads written before
-   * this field existed. See scripts/lib/neutro-motivo.ts.
+   * this field existed. See src/lib/neutro-motivo.ts.
    */
   neutroMotivo?: string | null
   intensidade: number

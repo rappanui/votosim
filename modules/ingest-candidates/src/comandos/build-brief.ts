@@ -1,8 +1,8 @@
 import { readdirSync, readFileSync, mkdirSync, writeFileSync, existsSync } from 'fs'
 import { parse } from 'csv-parse/sync'
-import { supabase } from './lib/supabase.js'
-import { extractPdfText } from './lib/pdf.js'
-import { FILES_GOVERNMENT_PLAN } from './lib/ledger.js'
+import { supabase } from '../lib/supabase.js'
+import { extractPdfText } from '../lib/pdf.js'
+import { FILES_GOVERNMENT_PLAN } from '../lib/ledger.js'
 
 const EXTRACTED_DIR = 'data/tse-2026/extracted'
 const ARCHIVE_DIR = 'data/tse-2026'

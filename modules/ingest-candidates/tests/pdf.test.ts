@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { writeFileSync, unlinkSync } from 'fs'
-import { cleanPdfText, extractPdfText } from './lib/pdf.ts'
+import { cleanPdfText, extractPdfText } from '../src/lib/pdf.ts'
 
 test('cleanPdfText: strips pdf2json page break markers', () => {
   const raw = 'PROGRAMA----------------Page (1) Break----------------DE GOVERNO'

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { validateResearch, THEME_SLUGS, type CandidateResearch, type ResearchPosition } from './lib/research-contract.ts'
+import { validateResearch, THEME_SLUGS, type CandidateResearch, type ResearchPosition } from '../src/lib/research-contract.ts'
 
 /** C2: validateResearch requires every one of the 14 THEME_SLUGS to be
  * present exactly once. The other 13 entries beyond educacao_basica exist

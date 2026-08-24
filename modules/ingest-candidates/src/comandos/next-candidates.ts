@@ -1,4 +1,4 @@
-import { supabase } from './lib/supabase.js'
+import { supabase } from '../lib/supabase.js'
 
 /**
  * Prints the next candidates with outstanding enrichment work, in the order

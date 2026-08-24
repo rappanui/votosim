@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs'
-import { supabase } from './lib/supabase.js'
-import { validateResearch, type CandidateResearch, type ResearchSource } from './lib/research-contract.js'
+import { supabase } from '../lib/supabase.js'
+import { validateResearch, type CandidateResearch, type ResearchSource } from '../lib/research-contract.js'
 
 /** Same vocabulary as research-contract.ts's VISIBLE_DESTINOS: a voter can
  * actually reach these, `interno` cannot be shown as an alert's public source. */

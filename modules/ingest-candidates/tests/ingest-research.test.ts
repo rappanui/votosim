@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSourceRows, buildPositionRows, buildAlertRows, hasConfirmFlag, parseResearchJson, nextDossierVersion } from './ingest-research.ts'
-import type { CandidateResearch } from './lib/research-contract.ts'
+import { buildSourceRows, buildPositionRows, buildAlertRows, hasConfirmFlag, parseResearchJson, nextDossierVersion } from '../src/comandos/ingest-research.ts'
+import type { CandidateResearch } from '../src/lib/research-contract.ts'
 
 function research(): CandidateResearch {
   return {
