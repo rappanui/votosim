@@ -12,7 +12,7 @@
 ## Convenções desta pasta
 
 - **Sem limite de linhas.** Um procedimento que omite um passo está quebrado;
-  completude vence concisão. `docs/referencia/` é que tem o teto de 200 linhas.
+  completude vence concisão. `docs/referencia/` mira em torno de 200 linhas.
 - **Pode repetir fatos** que moram na referência — quem executa não pode se dar
   ao luxo de seguir um link. Mas **todo fato repetido nomeia sua fonte**, para
   que a deriva seja encontrável com um grep.

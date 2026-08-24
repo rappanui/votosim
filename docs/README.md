@@ -10,11 +10,14 @@
 
 - **`docs/referencia/`** — como a plataforma funciona hoje. Lê-se pulando
   pra dentro, para consultar um fato específico. Um conceito por arquivo,
-  teto de 200 linhas. Índice: `docs/referencia/README.md`.
+  em torno de 200 linhas por arquivo. Índice: `docs/referencia/README.md`.
 - **`docs/procedimentos/`** — como executar alguma coisa, por um agente de
   IA ou por uma pessoa. Lê-se do início ao fim; um passo omitido é uma
   falha. Sem teto de linhas — completude vence concisão aqui. Índice:
   `docs/procedimentos/README.md`.
+- **`docs/registros/`** — o que foi descoberto operando o sistema, com data.
+  Append-only, sem teto de linhas: a cronologia é o valor. Índice:
+  `docs/registros/README.md`.
 - **`docs/migracoes/`** — os `.sql` já aplicados ao banco de produção.
   Schema vivo, não histórico.
 - **`docs/legado/`** — documentação superada, preservada como raciocínio
