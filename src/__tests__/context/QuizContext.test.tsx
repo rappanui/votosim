@@ -1,15 +1,15 @@
 import { renderHook, act } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { QuizProvider, useQuiz } from '@/context/QuizContext'
-import type { RespostaUsuario } from '@/lib/types'
+import type { RespostaUsuario, VoterPosicao } from '@/lib/types'
 
 const wrapper = ({ children }: { children: ReactNode }) => (
   <QuizProvider>{children}</QuizProvider>
 )
 
-const makeResposta = (slug: string, resposta: 1 | 2 | 3 | 4 | 5, importancia: 1 | 2 | 3 = 2): RespostaUsuario => ({
+const makeResposta = (slug: string, posicao: VoterPosicao, importancia: 1 | 2 | 3 = 2): RespostaUsuario => ({
   temaSlug: slug,
-  resposta,
+  posicao,
   importancia,
 })
 
@@ -28,24 +28,24 @@ describe('QuizContext', () => {
 
   it('setResposta adds a new answer', () => {
     const { result } = renderHook(() => useQuiz(), { wrapper })
-    act(() => { result.current.setResposta(makeResposta('sus_saude_publica', 5)) })
+    act(() => { result.current.setResposta(makeResposta('sus_saude_publica', 'favoravel')) })
     expect(result.current.respostas).toHaveLength(1)
     expect(result.current.respostas[0].importancia).toBe(2)
   })
 
   it('setResposta replaces existing answer for same slug', () => {
     const { result } = renderHook(() => useQuiz(), { wrapper })
-    act(() => { result.current.setResposta(makeResposta('sus_saude_publica', 5, 3)) })
-    act(() => { result.current.setResposta(makeResposta('sus_saude_publica', 2, 1)) })
+    act(() => { result.current.setResposta(makeResposta('sus_saude_publica', 'favoravel', 3)) })
+    act(() => { result.current.setResposta(makeResposta('sus_saude_publica', 'contrario', 1)) })
     expect(result.current.respostas).toHaveLength(1)
-    expect(result.current.respostas[0].resposta).toBe(2)
+    expect(result.current.respostas[0].posicao).toBe('contrario')
     expect(result.current.respostas[0].importancia).toBe(1)
   })
 
   it('resetQuiz clears estado and respostas', () => {
     const { result } = renderHook(() => useQuiz(), { wrapper })
     act(() => { result.current.setEstado('RJ') })
-    act(() => { result.current.setResposta(makeResposta('sus_saude_publica', 5)) })
+    act(() => { result.current.setResposta(makeResposta('sus_saude_publica', 'favoravel')) })
     act(() => { result.current.resetQuiz() })
     expect(result.current.estado).toBe('')
     expect(result.current.respostas).toHaveLength(0)
