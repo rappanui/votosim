@@ -14,7 +14,7 @@ theme slugs in the v2 document are still current; only its scoring section is de
 This branch creates a hard ordering requirement that nothing enforces at
 runtime — read this before deploying any of the three pieces:
 
-1. **Migration** — `docs/base/12_neutro_motivo.sql` (adds
+1. **Migration** — `docs/migracoes/12_neutro_motivo.sql` (adds
    `politician_positions.neutro_motivo`).
 2. **Edge Function** — `supabase/functions/match-candidatos/`.
 3. **Next.js app.**
@@ -84,7 +84,7 @@ Each theme the voter took a side on gets one level and a credibility factor:
 >
 > **Same bucket, a second gap:** `index.ts:154`'s `party_positions` select also
 > omits `neutro_motivo` and `justificativa` — correctly, because migration 12
-> (`docs/base/12_neutro_motivo.sql`) only altered `politician_positions`, and
+> (`docs/migracoes/12_neutro_motivo.sql`) only altered `politician_positions`, and
 > neither column exists on `party_positions`. The consequence: a party-sourced
 > neutral can never be audited (there is no motivo to distinguish `nao_encontrado`
 > from `nao_responde`/`ambivalente`), and a party theme row renders no
@@ -147,7 +147,7 @@ you prioritise". Do not confuse `confiancaResultado` (per candidate) with
 
 ## `neutro_motivo`
 
-`politician_positions.neutro_motivo` (migration in `docs/base/12_neutro_motivo.sql`)
+`politician_positions.neutro_motivo` (migration in `docs/migracoes/12_neutro_motivo.sql`)
 records which of the three facts a `neutro` row is:
 
 | Value | Meaning | Alignment |
@@ -189,14 +189,12 @@ The card shows the penalised `alinhamento` as its headline, `cobertura` and
 Each row also renders its stored `justificativa`, so a blank theme states what was
 searched and what was found rather than showing a bare dash.
 
-> **`justificativa` is display-only, and is fetched in the wrong place.**
-> `fetchPositions` selects it for every candidate in the state, while at most 23
-> survive `sortAndLimitCargos` — roughly 95% of the text is fetched and discarded on
-> every quiz submission. Nothing in the scoring path computes on it: it is a pure
-> pass-through at `ai-providers.ts:312`, and there is no runtime classifier in the
-> Edge Function. Moving it to a post-ranking fetch is owned by the candidate-detail
-> work; the removal and the replacement must land together, or theme rows silently
-> lose their explanation. See `docs/superpowers/notes/2026-08-24-reply-justificativa-in-the-prefilter-query.md`.
+> **`justificativa` is fetched for the finalists only.** It is display-only —
+> nothing in the scoring path computes on it, and there is no runtime classifier
+> in the Edge Function. It used to be selected by `fetchPositions`, which runs
+> over every candidate in the state before ranking, wasting ~2.3 MB of text per
+> request at full ingestion. Since 2026-08-24 it is fetched after
+> `sortAndLimitCargos`, over the ≤23 candidates that survive.
 
 `/sobre` documents the formula, both metrics, and — required, not optional — the fact
 that penalising silence is a deliberate editorial choice that favours candidates who
