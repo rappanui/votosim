@@ -621,6 +621,15 @@ Deno.test('deriveObservacoes: contradictions about different themes both survive
   assertEquals(out.length, 2)
 })
 
+Deno.test('deriveObservacoes: keeps two distinct ressalvas about one theme, since only contradictions have a same-finding guarantee', () => {
+  const alerta = makeAlertRow('ressalva_evidencias', 'amarelo')
+  alerta.titulo = 'Saúde pública'
+  const out = deriveObservacoes(
+    [alerta], [makeDetalhe({ evidencia: 'partido', posicaoViaPartido: true })], null, new Map(),
+  )
+  assertEquals(out.length, 2)
+})
+
 // ─── attachAlerts splits accusatory from observational ───────────────────────
 
 Deno.test('attachAlerts: keeps only accusatory types in alertas', () => {
