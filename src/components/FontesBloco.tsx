@@ -29,7 +29,7 @@ export function FontesBloco({ fontes }: FontesBlocoProps) {
     <Acordeao titulo="Fontes" contador={fontes.length}>
       {fontes.map(f => (
         <div key={f.id} className="mb-2 flex items-baseline gap-2 last:mb-0">
-          <span className="w-16 shrink-0 text-xs text-gray-400">{CAMADA_LABELS[f.camada]}</span>
+          <span className="w-16 shrink-0 text-xs text-gray-400">{CAMADA_LABELS[f.camada] ?? 'outra'}</span>
           <a
             href={f.url}
             target="_blank"
