@@ -1,7 +1,6 @@
 /// <reference lib="deno.ns" />
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import {
-  callAI,
   type CandidatoResultado,
   type CandidatoRow,
   type CoerenciaTema,
@@ -16,6 +15,7 @@ import {
   type PositionWithSlug,
   type RespostaUsuario,
   scoreCandidato,
+  scoreWithoutAI,
   type TemaCandidatoDetalhe,
 } from './ai-providers.ts'
 
@@ -435,57 +435,6 @@ export function prefilterCandidates(
   })
 }
 
-// ─── Prompt builder ───────────────────────────────────────────────────────────
-
-export function buildPrompt(
-  candidates: CandidatoRow[],
-  positionsByCandidate: Record<string, PositionWithSlug[]>,
-  answers: RespostaUsuario[],
-): string {
-  const candidateData = candidates.map(c => ({
-    politicianId: c.politician_id,
-    nomeUrna: c.nome_urna,
-    partido: c.partido_atual,
-    cargo: c.cargo,
-    posicoes: (positionsByCandidate[c.politician_id] ?? []).map(p => ({
-      tema: p.themeSlug,
-      posicao: p.posicao,
-      intensidade: p.intensidade,
-    })),
-  }))
-
-  return JSON.stringify({
-    tarefa: 'Calcule o percentual de alinhamento temático. Retorne um objeto JSON.',
-    instrucoes: [
-      'Para cada candidato, compare a posição do eleitor (favoravel=Concordo, contrario=Discordo, neutro=Neutro — ignorar no score) com as posições documentadas.',
-      'posicao favoravel + candidato favoravel = alinhado. posicao contrario + candidato contrario = alinhado. posicao favoravel + candidato contrario = divergente. posicao contrario + candidato favoravel = divergente.',
-      'intensidade (1-5) indica força da posição — pese mais as posições de intensidade alta.',
-      'importancia (1-3) indica peso do tema para o eleitor — pese mais os temas de alta importancia.',
-      'alinhamento: inteiro 0-100. NÃO use "vote em", "recomendo" ou "escolha" em nenhum campo.',
-    ],
-    formatoEsperado: {
-      cargos: [{
-        cargo: 'string (presidente | governador | senador | deputado_federal | deputado_estadual | deputado_distrital)',
-        candidatos: [{
-          politicianId: 'string',
-          nomeUrna: 'string',
-          partido: 'string',
-          alinhamento: 'number (0-100)',
-          cobertura: 'number (0-100)',
-        }],
-      }],
-      totalCandidatosAnalisados: 'number',
-      estado: 'string',
-    },
-    respostasEleitor: answers.map(a => ({
-      temaSlug: a.temaSlug,
-      posicao: a.posicao,
-      importancia: a.importancia,
-    })),
-    candidatos: candidateData,
-  })
-}
-
 // ─── Response post-processing ─────────────────────────────────────────────────
 
 function alertRowToAlerta(a: AlertRow) {
@@ -758,7 +707,6 @@ export async function handler(req: Request): Promise<Response> {
     // after the trim below, when the set is ≤23 candidates instead of ~90.
     const partyPositionsByParty = await fetchPartyPositions(supabase, partySiglas, slugById)
 
-    const prompt = buildPrompt(filteredCandidates, positionsByCandidate, body.respostas)
     const fallbackData: FallbackData = {
       respostas: body.respostas,
       candidates: filteredCandidates,
@@ -768,7 +716,7 @@ export async function handler(req: Request): Promise<Response> {
       temaNomes: nomeBySlug,
     }
 
-    const rawResult = await callAI(prompt, fallbackData)
+    const rawResult = scoreWithoutAI(fallbackData)
 
     // Party match entries: parties appear as standalone results for legislative cargos
     // (voters may choose the party via voto de legenda). These are distinct from the
