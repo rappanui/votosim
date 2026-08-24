@@ -67,21 +67,9 @@ describe('CandidatoCard', () => {
     expect(screen.queryByText('Ficha suja')).not.toBeInTheDocument()
   })
 
-  it('renders alert badges when candidate has alerts', () => {
-    const candidato = makeCandidate({
-      temAlertas: true,
-      alertas: [{
-        tipo: 'ficha_suja', severidade: 'critica', titulo: 'Condenado por improbidade',
-        descricao: 'Condenação transitada em julgado.', fonteUrl: 'https://tse.jus.br', badgeCor: 'vermelho',
-      }],
-    })
-    render(<CandidatoCard candidato={candidato} />)
-    expect(screen.getByText('Condenado por improbidade')).toBeInTheDocument()
-  })
-
   it('shows transparency panel on click', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText('SUS e saúde pública')).toBeInTheDocument()
   })
 
@@ -90,7 +78,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ alignment: 1.0, contouNoScore: true })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText('✓')).toBeInTheDocument()
   })
 
@@ -99,7 +87,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ alignment: 0.0, contouNoScore: true })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText('✗')).toBeInTheDocument()
   })
 
@@ -108,7 +96,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ candidatePosicao: null, alignment: null, contouNoScore: false })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText('○')).toBeInTheDocument()
   })
 
@@ -117,7 +105,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ voterPosicao: 'neutro', voterImportancia: 2, alignment: null, contouNoScore: false })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText('●')).toBeInTheDocument()
   })
 
@@ -126,7 +114,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ voterPosicao: 'favoravel' })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText(/você: favorável/)).toBeInTheDocument()
   })
 
@@ -135,7 +123,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ posicaoViaPartido: true })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText('partido')).toBeInTheDocument()
   })
 
@@ -144,7 +132,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ posicaoViaPartido: false })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.queryByText('partido')).not.toBeInTheDocument()
   })
 
@@ -153,7 +141,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ baixaConfianca: true })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText('classificação não revisada')).toBeInTheDocument()
   })
 
@@ -162,7 +150,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ baixaConfianca: false })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.queryByText('classificação não revisada')).not.toBeInTheDocument()
   })
 
@@ -171,7 +159,7 @@ describe('CandidatoCard', () => {
       detalhesTemas: [makeDetalhe({ posicaoViaPartido: true, baixaConfianca: true })],
     })
     render(<CandidatoCard candidato={candidato} />)
-    fireEvent.click(screen.getByText(/Ver detalhes por tema/))
+    fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText('partido')).toBeInTheDocument()
     expect(screen.getByText('classificação não revisada')).toBeInTheDocument()
   })
@@ -236,5 +224,95 @@ describe('CandidatoCard', () => {
     render(<CandidatoCard candidato={candidato} />)
     fireEvent.click(screen.getByText(/Ver detalhes/))
     expect(screen.getByText(/não retornaram nenhuma ocorrência/)).toBeInTheDocument()
+  })
+
+  it('renders the cargo and ballot number next to the party', () => {
+    render(<CandidatoCard candidato={makeCandidate({ numeroUrna: '13', cargo: 'presidente' })} />)
+    expect(screen.getByText(/nº 13/)).toBeInTheDocument()
+  })
+
+  it('omits the ballot number when there is none', () => {
+    render(<CandidatoCard candidato={makeCandidate({ numeroUrna: null })} />)
+    expect(screen.queryByText(/nº/)).not.toBeInTheDocument()
+  })
+
+  it('shows the alert counter in the collapsed card', () => {
+    const candidato = makeCandidate({
+      temAlertas: true,
+      alertas: [{
+        tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D',
+        fonteUrl: 'https://x.example', badgeCor: 'vermelho',
+      }],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    expect(screen.getByText('1 alerta encontrado')).toBeInTheDocument()
+  })
+
+  it('pluralizes the alert counter', () => {
+    const alerta = {
+      tipo: 'ficha_suja' as const, severidade: 'critica' as const, titulo: 'T', descricao: 'D',
+      fonteUrl: 'https://x.example', badgeCor: 'vermelho' as const,
+    }
+    render(<CandidatoCard candidato={makeCandidate({ temAlertas: true, alertas: [alerta, alerta] })} />)
+    expect(screen.getByText('2 alertas encontrados')).toBeInTheDocument()
+  })
+
+  it('says there is no alert when the list is empty', () => {
+    render(<CandidatoCard candidato={makeCandidate()} />)
+    expect(screen.getByText('Nenhum alerta')).toBeInTheDocument()
+  })
+
+  it('shows the observation counter in the collapsed card', () => {
+    const candidato = makeCandidate({
+      observacoes: [{
+        categoria: 'ressalva', titulo: 'Saúde', descricao: 'Via partido.',
+        temaSlug: 'saude_sus', fonteUrl: null,
+      }],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    expect(screen.getByText('1 observação encontrada')).toBeInTheDocument()
+  })
+
+  it('omits the observation counter when there are none', () => {
+    render(<CandidatoCard candidato={makeCandidate()} />)
+    expect(screen.queryByText(/observaç/)).not.toBeInTheDocument()
+  })
+
+  it('does not render the panel until expanded', () => {
+    render(<CandidatoCard candidato={makeCandidate()} />)
+    expect(screen.queryByText(/Seus temas/)).not.toBeInTheDocument()
+  })
+
+  it('renders the theme panel when expanded', () => {
+    render(<CandidatoCard candidato={makeCandidate()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+    expect(screen.getByText(/Seus temas/)).toBeInTheDocument()
+  })
+
+  it('renders the profile block when a dossier exists', () => {
+    const candidato = makeCandidate({
+      dossie: {
+        resumoPerfil: 'Advogada de Cuiabá.', espectroDeclarado: 'centro',
+        espectroInferido: 'centro', coerenciaIndice: null,
+        coerenciaBase: null, geradoEm: '2026-08-22T00:00:00Z',
+      },
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+    expect(screen.getByText('Advogada de Cuiabá.')).toBeInTheDocument()
+  })
+
+  it('omits the profile block when there is no dossier', () => {
+    render(<CandidatoCard candidato={makeCandidate({ dossie: null })} />)
+    fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+    expect(screen.queryByText('Quem é')).not.toBeInTheDocument()
+  })
+
+  it('keeps the audit line above the two-column split', () => {
+    render(<CandidatoCard candidato={makeCandidate()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+    const audit = screen.getByTestId('audit-line')
+    const panel = screen.getByTestId('detalhe-colunas')
+    expect(audit.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
