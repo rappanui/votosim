@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useQuiz } from '@/context/QuizContext'
 import { CandidatoCard } from '@/components/CandidatoCard'
 import { LegendaIcones } from '@/components/LegendaIcones'
+import { assertMatchResult, ContractMismatchError } from '@/lib/contract'
 import type { MatchResult, CargoResultado, PerfilUsuario } from '@/lib/types'
 
 const EDGE_FUNCTION_PATH = '/functions/v1/match-candidatos'
@@ -37,7 +38,7 @@ async function callMatchFunction(payload: PerfilUsuario): Promise<MatchResult> {
     body: JSON.stringify(payload),
   })
   if (!response.ok) throw new Error(`Match function returned ${response.status}`)
-  return response.json() as Promise<MatchResult>
+  return assertMatchResult(await response.json())
 }
 
 /** Displays candidate match results with dual metric and per-theme transparency panel. */
@@ -48,12 +49,21 @@ export default function ResultadosPage() {
   const [resultado, setResultado] = useState<MatchResult | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [contratoDesatualizado, setContratoDesatualizado] = useState(false)
 
   useEffect(() => {
     if (!estado) { router.push('/quiz'); return }
     callMatchFunction(buildPayload(estado, respostas))
       .then(data => { setResultado(data); setLoading(false) })
-      .catch(err => { setError((err as Error).message); setLoading(false) })
+      .catch(err => {
+        if (err instanceof ContractMismatchError) {
+          console.error('[resultados] contrato desatualizado — campo ausente:', err.campoAusente)
+          setContratoDesatualizado(true)
+        } else {
+          setError((err as Error).message)
+        }
+        setLoading(false)
+      })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
@@ -61,6 +71,27 @@ export default function ResultadosPage() {
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
         <p className="text-gray-500">Analisando candidatos…</p>
+      </div>
+    )
+  }
+
+  // A stale contract and a failed request are different problems, and the voter
+  // is told which. No score is rendered here: refusing is the only correct
+  // behaviour when the arithmetic cannot be trusted.
+  if (contratoDesatualizado) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-12 text-center">
+        <p className="max-w-md text-danger">
+          Os resultados não puderam ser calculados: o servidor está devolvendo dados
+          em um formato antigo. Nenhum percentual é confiável agora, então preferimos
+          não mostrar nenhum.
+        </p>
+        <p className="text-xs text-gray-500">
+          Se você administra este site: publique a Edge Function antes do app.
+        </p>
+        <button onClick={() => router.push('/quiz')} className="rounded-lg bg-highlight px-6 py-3 text-white">
+          Voltar ao questionário
+        </button>
       </div>
     )
   }
