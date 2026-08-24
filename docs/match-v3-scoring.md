@@ -25,6 +25,19 @@ returns a 500. And if the app ships ahead of the function, the card's audit
 line renders `undefined%` and `NaN%` instead of real numbers, because it
 reads fields the deployed function does not yet send.
 
+**Update (candidate detail on match v3):** that `undefined%`/`NaN%`
+degradation no longer holds as the worst case. `CandidatoCard` (see
+`docs/match-v2-quiz-ui.md`) now computes `candidato.alertas.length` and
+`candidato.observacoes.length` unconditionally on every render, before any
+conditional branch — `src/components/CandidatoCard.tsx:46-47`. Against a
+pre-Task-3 Edge Function response, `alertas` and `observacoes` are
+`undefined`, `.length` throws, and the entire results page fails to render —
+not a degraded card, the whole page, on the very first render, collapsed or
+not. `candidato.fontes` reaches the same kind of unconditional `.length`
+check inside `FontesBloco` (`src/components/FontesBloco.tsx:24`), reached as
+soon as a card is expanded. Shipping the app ahead of the Edge Function now
+breaks `/resultados` outright; it is no longer a cosmetic issue.
+
 This is a documentation note only — there is no runtime check that enforces
 the order, and adding one is a larger change than this note, out of scope
 here.

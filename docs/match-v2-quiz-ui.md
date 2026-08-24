@@ -80,29 +80,66 @@ Client component. On mount:
 4. Shows spinner while loading; shows error UI with "Voltar ao questionário" on failure.
 5. Renders `CandidatoCard` per candidate, grouped by cargo.
 
+The container is `max-w-4xl`, widened from v2's `max-w-xl` to fit the
+`CandidatoCard` detail panel's two-column layout. A single match response
+carries every detail — dossier, sources, alerts and derived observations for
+every finalist — so the card issues no further requests when expanded.
+
 ---
 
 ## CandidatoCard (`src/components/CandidatoCard.tsx`)
 
-Displays one candidate. Key elements:
+A composition, not a monolith. The card owns the header, the score bar, the
+audit line and the expand toggle; everything else is a child component.
 
-- **Header:** `nomeUrna`, `partido`, large `alinhamento%`, small `cobertura%`
-- **Bar:** color-coded by `alinhamento` — green ≥75, amber 50–74, orange 25–49, red <25
-- **Alerts section:** renders when `temAlertas`. Each alert shows `<AlertaBadge>` + `alerta.titulo` side-by-side.
-- **Transparency toggle:** "▼ Ver detalhes por tema" expands a per-theme list.
+**Collapsed:** `nomeUrna`, `partido · nº numeroUrna · cargo`, two counters
+(`⚠ N alertas encontrados` in danger red, `ⓘ N observações encontradas` in
+warning orange), the penalized `alinhamento%`, and both coverage metrics
+(`cobertura X% · confiança Y%`). Bar color uses the match v3 thresholds —
+green ≥55, amber 35–54, orange 20–34, red <20.
 
-### Transparency panel
+The observation counter is omitted entirely at zero; the alert counter always
+renders, reading "Nenhum alerta" in gray.
 
-Filters out themes where `voterResposta === 3 && voterImportancia < 2` (neutral and low-importance).
+**Expanded:** v3's audit line spans the full width, then a
+`md:grid-cols-[1.35fr_1fr]` panel — single column below `md`.
 
-Icons per theme:
+| Side | Component | Renders when |
+|------|-----------|--------------|
+| left | `TemasPanel` | always |
+| right | `CandidatoResumo` | `dossie !== null` |
+| right | `AlertasBloco` | `alertas.length > 0` |
+| right | `ObservacoesBloco` | `observacoes.length > 0` |
+| right | `FontesBloco` | `fontes.length > 0` |
 
-| Icon | Condition |
-|------|-----------|
-| `✓` | `alignment >= 0.75` |
-| `─` | `0.25 < alignment < 0.75` |
-| `✗` | `alignment <= 0.25` |
-| `○` | `alignment === null` (no candidate data) |
-| `●` | `voterResposta === 3 && voterImportancia >= 2` (curious: voter neutral but interested) |
+Right-hand blocks are `Acordeao`s, collapsed by default, each showing a count.
+`CandidatoResumo` is always open. A block with no data renders nothing.
 
-Each row shows `você: {voterResposta} · candidato: {label}` where label is `favorável`, `contrário`, `neutro`, or `—`.
+### Alerts vs. observations
+
+`alertas` carries only accusatory types (`ficha_suja`, `investigacao`,
+`polemica`). Everything else becomes an `Observacao`, derived server-side by
+`deriveObservacoes`:
+
+| Categoria | Sources |
+|-----------|---------|
+| `contradicao` | alerts `incoerencia` / `divergencia_espectro`; a theme whose `coerenciaPorTema` is `incoerente`; a dossier whose declared spectrum differs from the inferred one |
+| `ressalva` | alerts `ressalva_evidencias`; a theme with `evidencia === 'partido'`; a theme with `baixaConfianca` **and** `evidencia === 'direta'` |
+
+**A theme with `evidencia === 'ausente'` is deliberately not an observation.**
+Match v3 already renders it as `○ não encontrado` and already charges it
+`P_NAO_INFORMADO` in the score; repeating it here would state one fact twice.
+
+The last `ressalva` row exists because v3 scores a `direta` theme at full
+credibility regardless of `confiancaIa`. `baixaConfianca` is computed but
+otherwise unused — this block is where it reaches the voter.
+
+### TemasPanel (`src/components/TemasPanel.tsx`)
+
+Holds the five theme states match v3 defines. Themes the voter took a side on
+list before neutral ones; the first four show and the rest sit behind a
+"Ver os N temas" toggle. Each row carries the icon, `temaNome`, the voter and
+candidate labels, the `via partido` and `não revisada` tags, and the position's
+`justificativa` below.
+
+Icons and labels are v3's — see `docs/superpowers/specs/2026-08-23-match-v3-scoring-design.md` §7.
