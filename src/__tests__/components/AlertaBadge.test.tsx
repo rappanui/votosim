@@ -41,4 +41,34 @@ describe('AlertaBadge', () => {
     const { container } = render(<AlertaBadge alerta={makeAlerta('polemica', 'cinza')} />)
     expect((container.firstChild as HTMLElement).className).toContain('bg-gray-400')
   })
+
+  it('renders Incoerência label for incoerencia type', () => {
+    render(<AlertaBadge alerta={makeAlerta('incoerencia', 'roxo')} />)
+    expect(screen.getByText('Incoerência')).toBeInTheDocument()
+  })
+
+  it('renders Divergência de espectro label for divergencia_espectro type', () => {
+    render(<AlertaBadge alerta={makeAlerta('divergencia_espectro', 'azul')} />)
+    expect(screen.getByText('Divergência de espectro')).toBeInTheDocument()
+  })
+
+  it('renders Ressalva label for ressalva_evidencias type', () => {
+    render(<AlertaBadge alerta={makeAlerta('ressalva_evidencias', 'amarelo')} />)
+    expect(screen.getByText('Ressalva')).toBeInTheDocument()
+  })
+
+  it('applies purple styling for badgeCor roxo', () => {
+    const { container } = render(<AlertaBadge alerta={makeAlerta('incoerencia', 'roxo')} />)
+    expect((container.firstChild as HTMLElement).className).toContain('bg-purple-600')
+  })
+
+  it('applies blue styling for badgeCor azul', () => {
+    const { container } = render(<AlertaBadge alerta={makeAlerta('divergencia_espectro', 'azul')} />)
+    expect((container.firstChild as HTMLElement).className).toContain('bg-highlight')
+  })
+
+  it('applies amber styling for badgeCor amarelo', () => {
+    const { container } = render(<AlertaBadge alerta={makeAlerta('ressalva_evidencias', 'amarelo')} />)
+    expect((container.firstChild as HTMLElement).className).toContain('bg-amber-100')
+  })
 })
