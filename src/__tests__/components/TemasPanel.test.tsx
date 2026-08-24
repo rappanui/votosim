@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { TemasPanel } from '@/components/TemasPanel'
 import type { TemaCandidatoDetalhe } from '@/lib/types'
 
@@ -72,27 +72,28 @@ describe('TemasPanel', () => {
     expect(icons).toEqual(['●'])
   })
 
-  it('previews only the first four themes', () => {
+  it('renders every visible theme with no toggle', () => {
     const detalhes = Array.from({ length: 7 }, (_, i) =>
       makeDetalhe({ temaSlug: `t${i}`, temaNome: `Tema ${i}` }))
     render(<TemasPanel detalhes={detalhes} />)
-    expect(screen.getByText('Tema 3')).toBeInTheDocument()
-    expect(screen.queryByText('Tema 4')).not.toBeInTheDocument()
+    for (let i = 0; i < 7; i++) {
+      expect(screen.getByText(`Tema ${i}`)).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
-  it('reveals every theme when the toggle is clicked', () => {
-    const detalhes = Array.from({ length: 7 }, (_, i) =>
-      makeDetalhe({ temaSlug: `t${i}`, temaNome: `Tema ${i}` }))
+  it('shows a theme the voter answered neutral but marked as important', () => {
+    const detalhes = [
+      ...Array.from({ length: 5 }, (_, i) =>
+        makeDetalhe({ temaSlug: `t${i}`, temaNome: `Tema ${i}` })),
+      makeDetalhe({
+        temaSlug: 'curioso', temaNome: 'Tema que me importa',
+        voterPosicao: 'neutro', voterImportancia: 3,
+        alignment: null, contouNoScore: false,
+      }),
+    ]
     render(<TemasPanel detalhes={detalhes} />)
-    fireEvent.click(screen.getByRole('button', { name: /Ver os 7 temas/ }))
-    expect(screen.getByText('Tema 6')).toBeInTheDocument()
-  })
-
-  it('renders no toggle when there are four themes or fewer', () => {
-    const detalhes = Array.from({ length: 3 }, (_, i) =>
-      makeDetalhe({ temaSlug: `t${i}`, temaNome: `Tema ${i}` }))
-    render(<TemasPanel detalhes={detalhes} />)
-    expect(screen.queryByRole('button', { name: /Ver os/ })).not.toBeInTheDocument()
+    expect(screen.getByText('Tema que me importa')).toBeInTheDocument()
   })
 
   it('orders themes the voter had an opinion on before neutral ones', () => {
@@ -123,16 +124,6 @@ describe('TemasPanel', () => {
     ]} />)
     const nomes = [...container.querySelectorAll('[data-testid="tema-nome"]')].map(n => n.textContent)
     expect(nomes).toEqual(['Opinado'])
-  })
-
-  it('counts the toggle over visible themes only', () => {
-    const detalhes = [
-      ...Array.from({ length: 5 }, (_, i) => makeDetalhe({ temaSlug: `t${i}`, temaNome: `Tema ${i}` })),
-      makeDetalhe({ temaSlug: 'n', temaNome: 'Ignorado', voterPosicao: 'neutro', voterImportancia: 1,
-        alignment: null, contouNoScore: false }),
-    ]
-    render(<TemasPanel detalhes={detalhes} />)
-    expect(screen.getByRole('button', { name: /Ver os 5 temas/ })).toBeInTheDocument()
   })
 
   it('renders nothing when every theme is filtered out', () => {

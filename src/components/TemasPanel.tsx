@@ -1,9 +1,4 @@
-'use client'
-
-import { useState } from 'react'
 import type { TemaCandidatoDetalhe, VoterPosicao } from '@/lib/types'
-
-export const PREVIEW_COUNT = 4
 
 // ── Moved verbatim from the v3 card (see Task 7 Step 1) ─────────────────────
 // v3 owns the meaning of these states. Do not redesign them here.
@@ -51,17 +46,15 @@ interface TemasPanelProps {
 }
 
 /** Per-theme transparency list. Themes the voter took a side on come first —
- *  those are the only ones that moved the score. */
+ *  those are the only ones that moved the score. Every visible theme renders;
+ *  there is no preview to expand. */
 export function TemasPanel({ detalhes }: TemasPanelProps) {
-  const [showAll, setShowAll] = useState(false)
-
   const visibleTemas = selectVisibleTemas(detalhes)
   const ordered = [...visibleTemas].sort((a, b) => {
     const aNeutro = a.voterPosicao === 'neutro' ? 1 : 0
     const bNeutro = b.voterPosicao === 'neutro' ? 1 : 0
     return aNeutro - bNeutro
   })
-  const preview = showAll ? ordered : ordered.slice(0, PREVIEW_COUNT)
 
   if (visibleTemas.length === 0) return null
 
@@ -72,7 +65,7 @@ export function TemasPanel({ detalhes }: TemasPanelProps) {
       </p>
 
       <div className="divide-y divide-gray-100 border-t border-gray-100">
-        {preview.map(d => (
+        {ordered.map(d => (
           <div key={d.temaSlug} className="flex flex-col px-3 py-2">
             <div className="flex items-center gap-3">
               <span data-testid="tema-icone" className="w-4 shrink-0 text-center text-sm">
@@ -113,16 +106,6 @@ export function TemasPanel({ detalhes }: TemasPanelProps) {
           </div>
         ))}
       </div>
-
-      {ordered.length > PREVIEW_COUNT && (
-        <button
-          type="button"
-          onClick={() => setShowAll(v => !v)}
-          className="px-3 py-2 text-sm text-highlight underline"
-        >
-          {showAll ? 'Mostrar menos' : `Ver os ${ordered.length} temas`}
-        </button>
-      )}
     </div>
   )
 }
