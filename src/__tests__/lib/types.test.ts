@@ -1,4 +1,4 @@
-import type { RespostaUsuario, CandidatoResultado, TemaCandidatoDetalhe, PerfilUsuario } from '@/lib/types'
+import type { RespostaUsuario, CandidatoResultado, TemaCandidatoDetalhe, PerfilUsuario, Dossie, Fonte, Observacao } from '@/lib/types'
 
 describe('RespostaUsuario shape', () => {
   it('accepts posicao and importancia', () => {
@@ -20,6 +20,8 @@ describe('CandidatoResultado shape', () => {
       politicianId: 'x',
       nomeUrna: 'Test',
       partido: 'PT',
+      cargo: 'presidente',
+      numeroUrna: '13',
       alinhamento: 80,
       alinhamentoApurado: 90,
       cobertura: 75,
@@ -27,6 +29,10 @@ describe('CandidatoResultado shape', () => {
       detalhesTemas: [],
       temAlertas: false,
       alertas: [],
+      dossie: null,
+      fontes: [],
+      observacoes: [],
+      coerenciaPorTema: {},
     }
     expect(c.alinhamento).toBe(80)
     expect(c.cobertura).toBe(75)
@@ -86,5 +92,50 @@ describe('PerfilUsuario shape', () => {
     expect(p.estado).toBe('SP')
     expect('municipio' in p).toBe(false)
     expect('faixaEtaria' in p).toBe(false)
+  })
+})
+
+describe('enriched candidate contract on match v3', () => {
+  it('accepts a fully enriched candidate', () => {
+    const dossie: Dossie = {
+      resumoPerfil: 'Advogada de Cuiabá, primeira candidatura a cargo eletivo.',
+      espectroDeclarado: 'centro',
+      espectroInferido: 'centro',
+      coerenciaIndice: null,
+      coerenciaBase: 'Sem histórico para comparar.',
+      geradoEm: '2026-08-22T14:58:56.730052+00:00',
+    }
+    const fonte: Fonte = {
+      id: 's1', tipo: 'noticia', camada: 2, titulo: 'DC oficializa candidatura',
+      veiculo: 'CNN Brasil', url: 'https://cnn.example',
+      dataPublicacao: '2026-08-05', acessadoEm: '2026-08-22T14:58:56Z',
+    }
+    const observacao: Observacao = {
+      categoria: 'ressalva',
+      titulo: 'Saúde pública',
+      descricao: 'Posição lida no programa do partido.',
+      temaSlug: 'saude_sus',
+      fonteUrl: null,
+    }
+    const candidato: CandidatoResultado = {
+      politicianId: 'uuid-1', nomeUrna: 'CLARIANA BARÃO', partido: 'DC',
+      cargo: 'presidente', numeroUrna: '27',
+      alinhamento: 39, alinhamentoApurado: 90, cobertura: 36, confiancaResultado: 36,
+      detalhesTemas: [{
+        temaSlug: 'saude_sus', temaNome: 'Saúde pública',
+        voterPosicao: 'favoravel', voterImportancia: 3,
+        evidencia: 'partido', neutroMotivo: null,
+        justificativa: 'O eixo de saúde do plano foca na atenção primária.',
+        candidatePosicao: 4, candidateImportancia: 2, alignment: 0.75,
+        contouNoScore: true, posicaoViaPartido: true, baixaConfianca: false,
+      }],
+      temAlertas: false, alertas: [],
+      dossie, fontes: [fonte], observacoes: [observacao],
+      coerenciaPorTema: { saude_sus: 'sem_historico' },
+    }
+    expect(candidato.dossie?.coerenciaIndice).toBeNull()
+    expect(candidato.fontes[0].camada).toBe(2)
+    expect(candidato.observacoes[0].categoria).toBe('ressalva')
+    expect(candidato.coerenciaPorTema.saude_sus).toBe('sem_historico')
   })
 })

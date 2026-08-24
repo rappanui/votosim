@@ -52,6 +52,51 @@ export type NeutroMotivo = 'nao_encontrado' | 'nao_responde' | 'ambivalente'
  */
 export const P_NAO_INFORMADO_PCT = 10
 
+/** Same vocabulary as parties.espectro. */
+export type Espectro =
+  | 'esquerda' | 'centro_esquerda' | 'centro'
+  | 'centro_direita' | 'direita' | 'sem_classificacao'
+
+/** Whether conduct on a theme matched the declared platform. Distinct from
+ *  NivelEvidencia, which measures how well the theme is documented. */
+export type CoerenciaTema = 'coerente' | 'incoerente' | 'sem_historico'
+
+/** Generated candidate profile — newest version of candidate_dossiers. */
+export interface Dossie {
+  resumoPerfil: string
+  espectroDeclarado: Espectro | null
+  espectroInferido: Espectro | null
+  /** null = no track record to measure. Never zero for that case. */
+  coerenciaIndice: number | null
+  coerenciaBase: string | null
+  geradoEm: string
+}
+
+/** One catalogued source. camada: 1 official · 2 press · 3 fact-checking. */
+export interface Fonte {
+  id: string
+  tipo: string
+  camada: 1 | 2 | 3
+  titulo: string | null
+  veiculo: string | null
+  url: string
+  dataPublicacao: string | null
+  acessadoEm: string
+}
+
+/** A caveat about how a candidate was read — never an accusation.
+ *  Themes with evidencia 'ausente' are deliberately absent: the theme row and
+ *  the score already account for them. */
+export type ObservacaoCategoria = 'contradicao' | 'ressalva'
+
+export interface Observacao {
+  categoria: ObservacaoCategoria
+  titulo: string
+  descricao: string
+  temaSlug: string | null
+  fonteUrl: string | null
+}
+
 /** Per-theme breakdown enabling the transparency panel in results. */
 export interface TemaCandidatoDetalhe {
   temaSlug: string
@@ -73,6 +118,8 @@ export interface CandidatoResultado {
   politicianId: string
   nomeUrna: string
   partido: string
+  cargo: string
+  numeroUrna: string | null
   alinhamento: number          // 0–100, penalised: unaudited themes count as P_NAO_INFORMADO_PCT
   alinhamentoApurado: number   // 0–100, audited themes only
   cobertura: number            // 0–100
@@ -80,6 +127,10 @@ export interface CandidatoResultado {
   detalhesTemas: TemaCandidatoDetalhe[]
   temAlertas: boolean
   alertas: Alerta[]
+  dossie: Dossie | null
+  fontes: Fonte[]
+  observacoes: Observacao[]
+  coerenciaPorTema: Record<string, CoerenciaTema>
   isParty?: boolean
 }
 
