@@ -63,6 +63,30 @@ const ABSENCE_PATTERNS: RegExp[] = [
 ]
 
 /**
+ * Round 3 guard: after three rounds, tightening ABSENCE_PATTERNS further
+ * cannot close the remaining failure shape — a justification that opens with
+ * a genuine absence claim about one topic, then goes on to describe a real
+ * position ("Buscas por X não retornaram nada... mas o programa PROPÕE Y").
+ * A regex over the whole string cannot tell "the stance verb is about a
+ * different topic than the absence claim" (fine, still nao_encontrado) apart
+ * from "the stance verb is about THIS topic" (a nao_responde miscalled as
+ * nao_encontrado) — that discrimination needs a reader, not a pattern.
+ *
+ * So instead of encoding that judgment call in a pattern, this is a guard
+ * clause: if a stance verb appears anywhere in a justification that also
+ * matched an absence pattern, defer to the AI pass rather than guess. On the
+ * real corpus this reroutes a small slice of matched rows (justifications
+ * that happen to contain one of these verbs) to the AI, including the two
+ * confirmed overfires ("propõe taxação...", "apoia amplamente..."). A few
+ * rows that actually are nao_encontrado get re-decided by the AI at trivial
+ * cost — the right direction to err, per the same asymmetry as everywhere
+ * else in this module: a false nao_encontrado is expensive, a deferred null
+ * is not.
+ */
+const STANCE_VERBS =
+  /\b(defende|apoia|propõe|promete|prioriza|critica|rejeita|preferindo|apoiando|reafirma)/i
+
+/**
  * Classifies a stored justification by pattern alone.
  *
  * Returns null when the text is not decidable this way — the caller escalates
@@ -74,7 +98,10 @@ export function classifyNeutroMotivo(justificativa: string): NeutroMotivo | null
   const text = (justificativa ?? '').trim()
   if (text === '') return null
   for (const pattern of ABSENCE_PATTERNS) {
-    if (pattern.test(text)) return 'nao_encontrado'
+    if (pattern.test(text)) {
+      if (STANCE_VERBS.test(text)) return null
+      return 'nao_encontrado'
+    }
   }
   return null
 }

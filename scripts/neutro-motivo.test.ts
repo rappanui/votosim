@@ -115,3 +115,51 @@ test('is not fooled by "não se posiciona a favor de X" when Y is defended inste
     + "em vez disso a estatização plena"
   assert.equal(classifyNeutroMotivo(j), null)
 })
+
+// Round 3 regression tests: a hand inspection of the real corpus found that
+// even the round-2 patterns can sit in the SAME sentence as a real position
+// on the SAME topic — e.g. an absence claim about the affirmation's literal
+// wording, immediately followed by "mas o programa PROPÕE X" describing an
+// actual, on-topic stance. No pattern can tell "the stance verb is about a
+// different topic than the absence claim" apart from "the stance verb is
+// about THIS topic" — that needs a reader. So classifyNeutroMotivo now has a
+// guard clause: an absence-pattern match is discarded (returns null instead
+// of nao_encontrado) whenever a stance verb also appears in the text.
+
+test('defers to the AI when a matched absence claim sits next to a real tax position', () => {
+  // Real corpus overfire (fix round 3): the classifier previously called this
+  // nao_encontrado, but the programa DOES propose a documented tax position —
+  // it is nao_responde. Quoted as given by the reviewer (truncated with "...");
+  // the omitted portion of the real stored justificativa is what trips an
+  // ABSENCE_PATTERN — this excerpt alone already returns null with no pattern
+  // match, so the assertion holds regardless, and the guard covers the full
+  // text once the omitted absence clause is present.
+  const j = "O programa protocolado no TSE trata de tributos, mas por outro "
+    + "ângulo: propõe taxação das grandes fortunas do estado, fim das "
+    + "isenções fiscais..."
+  assert.equal(classifyNeutroMotivo(j), null)
+})
+
+test('defers to the AI when a matched absence claim sits next to a real rights position', () => {
+  // Real corpus overfire (fix round 3): the programa DOES apoia the relevant
+  // autonomy/rights position — nao_responde, not nao_encontrado. Quoted as
+  // given by the reviewer (truncated with "..."); same caveat as above about
+  // the omitted absence-triggering portion of the full stored text.
+  const j = "A afirmação é dupla... O programa apoia amplamente a autonomia "
+    + "sobre a própria vida em outras frentes — direito ao aborto legal..."
+  assert.equal(classifyNeutroMotivo(j), null)
+})
+
+test('defers a correctly-matched nao_encontrado to the AI when a stance verb is also present', () => {
+  // This one genuinely exercises the guard end-to-end: the text DOES match
+  // the "buscas ... não retornaram" absence pattern (Bolsa Família is not
+  // found), and this row really is nao_encontrado. But "prioriza" elsewhere
+  // in the same justification trips the stance-verb guard, so the classifier
+  // now defers it to the AI instead of guessing — the accepted cost of
+  // erring toward precision (a few correct rows re-decided by the AI) is
+  // cheaper than a missed nao_responde overfire.
+  const j = "Buscas por Bolsa Família não retornaram nenhuma ocorrência no "
+    + "plano. Sem posição identificável — o plano prioriza reestatização de "
+    + "serviços"
+  assert.equal(classifyNeutroMotivo(j), null)
+})
