@@ -62,14 +62,13 @@ export function TemasPanel({ detalhes }: TemasPanelProps) {
     return aNeutro - bNeutro
   })
   const preview = showAll ? ordered : ordered.slice(0, PREVIEW_COUNT)
-  const apurados = visibleTemas.filter(d => d.evidencia !== 'ausente').length
 
   if (visibleTemas.length === 0) return null
 
   return (
     <div>
       <p className="px-3 py-2 text-xs font-bold uppercase tracking-wide text-gray-400">
-        Seus temas · {apurados} de {visibleTemas.length} com dado
+        Seus temas
       </p>
 
       <div className="divide-y divide-gray-100 border-t border-gray-100">
