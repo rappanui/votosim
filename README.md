@@ -38,7 +38,7 @@ matching (`supabase/functions/`), não para rodar o app.
 **Se `/quiz` carregar mas não mostrar candidatos:** a base pode estar vazia
 ou sem candidatos ingeridos para o cargo/estado testado. Ver `scripts/` para
 o pipeline de pesquisa e ingestão de candidatos (`export/README.md` tem o
-passo-a-passo completo, ou `docs/candidate-research-procedure.md`).
+passo-a-passo completo, ou `docs/procedimentos/pesquisa-de-candidato.md`).
 
 ## Este NÃO é o Next.js que você conhece
 

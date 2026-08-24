@@ -6,7 +6,7 @@ const POSITION_FETCH_LIMIT = 10000
 
 /** Entry point. Usage: npm run audit-party-positions */
 async function main(): Promise<void> {
-  // The column is party_sigla (see docs/base/10_party_positions.sql), mapped
+  // The column is party_sigla (see docs/migracoes/10_party_positions.sql), mapped
   // onto the audit's `sigla` field.
   const { data, error } = await supabase
     .from('party_positions')

@@ -81,7 +81,7 @@ function chooseAlertSource(fonteRefs: string[], byRef: Map<string, ResearchSourc
 }
 
 /**
- * Rule B of docs/base/04_schema_alerts.md authorises auto-publishing only
+ * Rule B of docs/legado/base/04_schema_alerts.md authorises auto-publishing only
  * ficha_suja and investigacao, and only "com fonte do TSE/STF" — a layer-1
  * source. polemica is explicitly the subjective type needing curation, and
  * incoerencia / divergencia_espectro are AI inferences about a real person
@@ -125,7 +125,7 @@ export function buildAlertRows(
       fonte_nome: source?.veiculo ?? source?.titulo ?? 'fonte',
       gerado_por_ia: true,
       validado: isAutoValidated(a.tipo, source, resolved),
-      // Rule D of docs/base/04_schema_alerts.md: a resolved matter is never
+      // Rule D of docs/legado/base/04_schema_alerts.md: a resolved matter is never
       // deleted, only marked inactive with the resolution on record.
       ativo: !resolved,
       resolucao: a.resolucao,
@@ -243,7 +243,7 @@ async function main(): Promise<void> {
   // ledger rows to em_progresso *before* anything is deleted means a crash
   // anywhere in this run leaves status=em_progresso, and v_enrichment_queue
   // treats em_progresso as outstanding by explicit design (see
-  // docs/sp0-schema-additions.md) — so the candidate stays visible and gets
+  // docs/referencia/schema-adicoes-sp0.md) — so the candidate stays visible and gets
   // picked up again instead of vanishing with zero positions and a stale
   // status=concluido from a prior successful run.
   const { error: guardErr } = await supabase
@@ -265,7 +265,7 @@ async function main(): Promise<void> {
     .from('politician_alerts')
     .delete()
     .eq('politician_id', politicianId)
-    // Rule D of docs/base/04_schema_alerts.md: a resolved alert is never
+    // Rule D of docs/legado/base/04_schema_alerts.md: a resolved alert is never
     // deleted, only ativo=false with resolucao filled, because "o histórico
     // é mantido para transparência". A curator's approval (validado_por set)
     // must also survive a re-run. Only replace what this pipeline generated
@@ -318,7 +318,7 @@ async function main(): Promise<void> {
 
   const idByUrl = new Map((insertedSources ?? []).map(s => [s.url as string, s.id as string]))
 
-  // D8 (docs/base/04_schema_alerts.md): every displayed fact must trace to a
+  // D8 (docs/legado/base/04_schema_alerts.md): every displayed fact must trace to a
   // listed source. A url that did not come back from the insert would make
   // ref -> id resolution silently drop that source from source_ids / write a
   // null source_id on an alert whose fonte_url still displays a link — a
