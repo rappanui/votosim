@@ -6,7 +6,10 @@ import {
   buildPrompt,
   countSimpleMatches,
   groupBy,
+  groupDetalhePosicoes,
+  groupSources,
   injectPartyResults,
+  pickLatestDossiers,
   prefilterCandidates,
   sortAndLimitCargos,
   MAX_CANDIDATES_PER_CARGO,
@@ -15,6 +18,9 @@ import {
   PREFILTER_LIMIT_DEFAULT,
   PREFILTER_LIMIT_DEPUTADO,
   type AlertRow,
+  type DetalhePosicaoRow,
+  type DossierRow,
+  type SourceRow,
 } from './index.ts'
 import type { CandidatoResultado, CandidatoRow, MatchResult, PositionWithSlug, RespostaUsuario } from './ai-providers.ts'
 
@@ -32,9 +38,10 @@ function makeCandidato(
   confiancaResultado = 100,
 ): CandidatoResultado {
   return {
-    politicianId: id, nomeUrna: id, partido: 'PT',
+    politicianId: id, nomeUrna: id, partido: 'PT', cargo: 'senador', numeroUrna: null,
     alinhamento, alinhamentoApurado, cobertura, confiancaResultado, detalhesTemas: [],
     temAlertas: false, alertas: [],
+    dossie: null, fontes: [], observacoes: [], coerenciaPorTema: {},
   }
 }
 
@@ -90,8 +97,10 @@ Deno.test('countSimpleMatches: unknown candidate returns 0', () => {
 Deno.test('prefilterCandidates: limits deputados to PREFILTER_LIMIT_DEPUTADO', () => {
   const candidates: CandidatoRow[] = Array.from({ length: 30 }, (_, i) => ({
     politician_id: `p${i}`,
+    candidacy_id: `c${i}`,
     nome_urna: `CANDIDATO ${i}`,
     partido_atual: 'PT',
+    numero_urna: null,
     cargo: 'deputado_federal',
   }))
   const result = prefilterCandidates(candidates, {}, [])
@@ -101,8 +110,10 @@ Deno.test('prefilterCandidates: limits deputados to PREFILTER_LIMIT_DEPUTADO', (
 Deno.test('prefilterCandidates: limits non-deputados to PREFILTER_LIMIT_DEFAULT', () => {
   const candidates: CandidatoRow[] = Array.from({ length: 20 }, (_, i) => ({
     politician_id: `p${i}`,
+    candidacy_id: `c${i}`,
     nome_urna: `CANDIDATO ${i}`,
     partido_atual: 'PT',
+    numero_urna: null,
     cargo: 'senador',
   }))
   const result = prefilterCandidates(candidates, {}, [])
@@ -111,8 +122,8 @@ Deno.test('prefilterCandidates: limits non-deputados to PREFILTER_LIMIT_DEFAULT'
 
 Deno.test('prefilterCandidates: selects best-matching candidates', () => {
   const candidates: CandidatoRow[] = [
-    { politician_id: 'best', nome_urna: 'MELHOR', partido_atual: 'PT', cargo: 'senador' },
-    { politician_id: 'worst', nome_urna: 'PIOR', partido_atual: 'PL', cargo: 'senador' },
+    { politician_id: 'best', candidacy_id: 'cbest', nome_urna: 'MELHOR', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
+    { politician_id: 'worst', candidacy_id: 'cworst', nome_urna: 'PIOR', partido_atual: 'PL', numero_urna: null, cargo: 'senador' },
   ]
   const positionsByCandidate: Record<string, PositionWithSlug[]> = {
     best: [{ politician_id: 'best', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 }],
@@ -242,9 +253,10 @@ Deno.test('sortAndLimitCargos: orders cargos by CARGO_ORDER', () => {
 
 Deno.test('sortAndLimitCargos: ties break by cobertura, then by name', () => {
   const mk = (nome: string, alinhamento: number, cobertura: number): CandidatoResultado => ({
-    politicianId: nome, nomeUrna: nome, partido: 'X',
+    politicianId: nome, nomeUrna: nome, partido: 'X', cargo: 'presidente', numeroUrna: null,
     alinhamento, alinhamentoApurado: alinhamento, cobertura, confiancaResultado: cobertura,
     detalhesTemas: [], temAlertas: false, alertas: [],
+    dossie: null, fontes: [], observacoes: [], coerenciaPorTema: {},
   })
   const result: MatchResult = {
     cargos: [{ cargo: 'presidente', candidatos: [
@@ -263,7 +275,7 @@ Deno.test('sortAndLimitCargos: ties break by cobertura, then by name', () => {
 
 Deno.test('buildPartyResults: returns empty array when no party positions', () => {
   const candidates: CandidatoRow[] = [
-    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'senador' },
+    { politician_id: 'p1', candidacy_id: 'c1', nome_urna: 'A', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
   ]
   const result = buildPartyResults(candidates, new Map(), [])
   assertEquals(result.length, 0)
@@ -271,8 +283,8 @@ Deno.test('buildPartyResults: returns empty array when no party positions', () =
 
 Deno.test('buildPartyResults: creates one entry per legislative cargo per party', () => {
   const candidates: CandidatoRow[] = [
-    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'senador' },
-    { politician_id: 'p2', nome_urna: 'B', partido_atual: 'PT', cargo: 'deputado_federal' },
+    { politician_id: 'p1', candidacy_id: 'c1', nome_urna: 'A', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
+    { politician_id: 'p2', candidacy_id: 'c2', nome_urna: 'B', partido_atual: 'PT', numero_urna: null, cargo: 'deputado_federal' },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -284,7 +296,7 @@ Deno.test('buildPartyResults: creates one entry per legislative cargo per party'
 
 Deno.test('buildPartyResults: sets isParty=true and correct politicianId and alinhamento', () => {
   const candidates: CandidatoRow[] = [
-    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'senador' },
+    { politician_id: 'p1', candidacy_id: 'c1', nome_urna: 'A', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -299,8 +311,8 @@ Deno.test('buildPartyResults: sets isParty=true and correct politicianId and ali
 
 Deno.test('buildPartyResults: excludes parties without positions', () => {
   const candidates: CandidatoRow[] = [
-    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'senador' },
-    { politician_id: 'p2', nome_urna: 'B', partido_atual: 'PL', cargo: 'senador' },
+    { politician_id: 'p1', candidacy_id: 'c1', nome_urna: 'A', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
+    { politician_id: 'p2', candidacy_id: 'c2', nome_urna: 'B', partido_atual: 'PL', numero_urna: null, cargo: 'senador' },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -312,9 +324,9 @@ Deno.test('buildPartyResults: excludes parties without positions', () => {
 
 Deno.test('buildPartyResults: excludes non-legislative cargos (presidente, governador)', () => {
   const candidates: CandidatoRow[] = [
-    { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'presidente' },
-    { politician_id: 'p2', nome_urna: 'B', partido_atual: 'PT', cargo: 'governador' },
-    { politician_id: 'p3', nome_urna: 'C', partido_atual: 'PT', cargo: 'senador' },
+    { politician_id: 'p1', candidacy_id: 'c1', nome_urna: 'A', partido_atual: 'PT', numero_urna: null, cargo: 'presidente' },
+    { politician_id: 'p2', candidacy_id: 'c2', nome_urna: 'B', partido_atual: 'PT', numero_urna: null, cargo: 'governador' },
+    { politician_id: 'p3', candidacy_id: 'c3', nome_urna: 'C', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'PT', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -343,9 +355,10 @@ Deno.test('injectPartyResults: adds party candidato to existing cargo group', ()
     cargos: [{ cargo: 'senador', candidatos: [makeCandidato('p1', 80)] }],
   }
   const partyEntry: CandidatoResultado = {
-    politicianId: 'party:PT', nomeUrna: 'PT', partido: 'PT',
+    politicianId: 'party:PT', nomeUrna: 'PT', partido: 'PT', cargo: 'senador', numeroUrna: null,
     alinhamento: 90, alinhamentoApurado: 90, cobertura: 100, confiancaResultado: 100, detalhesTemas: [],
-    temAlertas: false, alertas: [], isParty: true,
+    temAlertas: false, alertas: [],
+    dossie: null, fontes: [], observacoes: [], coerenciaPorTema: {}, isParty: true,
   }
   const output = injectPartyResults(result, [{ cargo: 'senador', candidato: partyEntry }])
   assertEquals(output.cargos[0].candidatos.length, 2)
@@ -355,9 +368,10 @@ Deno.test('injectPartyResults: adds party candidato to existing cargo group', ()
 Deno.test('injectPartyResults: creates new cargo group when cargo has no individual results', () => {
   const result: MatchResult = { estado: 'SP', totalCandidatosAnalisados: 0, cargos: [] }
   const partyEntry: CandidatoResultado = {
-    politicianId: 'party:PT', nomeUrna: 'PT', partido: 'PT',
+    politicianId: 'party:PT', nomeUrna: 'PT', partido: 'PT', cargo: 'senador', numeroUrna: null,
     alinhamento: 70, alinhamentoApurado: 70, cobertura: 100, confiancaResultado: 100, detalhesTemas: [],
-    temAlertas: false, alertas: [], isParty: true,
+    temAlertas: false, alertas: [],
+    dossie: null, fontes: [], observacoes: [], coerenciaPorTema: {}, isParty: true,
   }
   const output = injectPartyResults(result, [{ cargo: 'senador', candidato: partyEntry }])
   assertEquals(output.cargos.length, 1)
@@ -369,7 +383,7 @@ Deno.test('injectPartyResults: creates new cargo group when cargo has no individ
 
 Deno.test('buildPrompt: returns valid JSON string', () => {
   const candidates: CandidatoRow[] = [
-    { politician_id: 'p1', nome_urna: 'CANDIDATO A', partido_atual: 'PT', cargo: 'senador' },
+    { politician_id: 'p1', candidacy_id: 'c1', nome_urna: 'CANDIDATO A', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
   ]
   const positions: PositionWithSlug[] = [
     { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -380,4 +394,72 @@ Deno.test('buildPrompt: returns valid JSON string', () => {
   assertEquals(typeof parsed.tarefa, 'string')
   assertEquals(parsed.candidatos.length, 1)
   assertEquals(parsed.candidatos[0].nomeUrna, 'CANDIDATO A')
+})
+
+// ─── Enrichment mappers ──────────────────────────────────────────────────────
+
+Deno.test('pickLatestDossiers: keeps the highest versao per candidacy', () => {
+  const rows: DossierRow[] = [
+    { candidacy_id: 'c1', resumo_perfil: 'antigo', espectro_declarado: 'centro',
+      espectro_inferido: 'centro', coerencia_indice: 50, coerencia_base: 'base v1',
+      versao: 1, gerado_em: '2026-08-01T00:00:00Z' },
+    { candidacy_id: 'c1', resumo_perfil: 'novo', espectro_declarado: 'centro',
+      espectro_inferido: 'direita', coerencia_indice: 70, coerencia_base: 'base v2',
+      versao: 2, gerado_em: '2026-08-20T00:00:00Z' },
+  ]
+  const out = pickLatestDossiers(rows)
+  assertEquals(out.size, 1)
+  assertEquals(out.get('c1')?.resumoPerfil, 'novo')
+  assertEquals(out.get('c1')?.espectroInferido, 'direita')
+})
+
+Deno.test('pickLatestDossiers: preserves a null coerencia_indice as null', () => {
+  const rows: DossierRow[] = [
+    { candidacy_id: 'c1', resumo_perfil: 'r', espectro_declarado: null,
+      espectro_inferido: null, coerencia_indice: null, coerencia_base: 'sem histórico',
+      versao: 1, gerado_em: '2026-08-01T00:00:00Z' },
+  ]
+  assertEquals(pickLatestDossiers(rows).get('c1')?.coerenciaIndice, null)
+})
+
+Deno.test('groupSources: groups by politician and orders camada 1 first', () => {
+  const rows: SourceRow[] = [
+    { id: 's2', politician_id: 'p1', tipo: 'noticia', camada: 2, titulo: 'Matéria',
+      veiculo: 'CNN Brasil', url: 'https://cnn.example', data_publicacao: '2026-08-05',
+      acessado_em: '2026-08-22T00:00:00Z' },
+    { id: 's1', politician_id: 'p1', tipo: 'judicial', camada: 1, titulo: 'Acórdão',
+      veiculo: 'TRE-SP', url: 'https://tre.example', data_publicacao: '2025-12-01',
+      acessado_em: '2026-08-22T00:00:00Z' },
+  ]
+  assertEquals(groupSources(rows).get('p1')?.map(f => f.id), ['s1', 's2'])
+})
+
+Deno.test('groupDetalhePosicoes: keys by politician then theme slug', () => {
+  const rows: DetalhePosicaoRow[] = [
+    { politician_id: 'p1', theme_id: 't1', coerencia_tema: 'incoerente', justificativa: 'Votou contra em 2023.' },
+    { politician_id: 'p1', theme_id: 't2', coerencia_tema: 'coerente', justificativa: null },
+  ]
+  const slugById = new Map([['t1', 'saude_sus'], ['t2', 'seguranca_publica_estadual']])
+  const out = groupDetalhePosicoes(rows, slugById)
+  assertEquals(out.get('p1')?.get('saude_sus')?.coerenciaTema, 'incoerente')
+  assertEquals(out.get('p1')?.get('saude_sus')?.justificativa, 'Votou contra em 2023.')
+  assertEquals(out.get('p1')?.get('seguranca_publica_estadual')?.justificativa, null)
+})
+
+// A row with neither column carries nothing, but a row with only one still
+// matters — most rows have a justificativa and no coherence assessment.
+Deno.test('groupDetalhePosicoes: keeps a row that has only a justificativa', () => {
+  const rows: DetalhePosicaoRow[] = [
+    { politician_id: 'p1', theme_id: 't1', coerencia_tema: null, justificativa: 'Nada encontrado no plano.' },
+  ]
+  const out = groupDetalhePosicoes(rows, new Map([['t1', 'saude_sus']]))
+  assertEquals(out.get('p1')?.get('saude_sus')?.coerenciaTema, null)
+  assertEquals(out.get('p1')?.get('saude_sus')?.justificativa, 'Nada encontrado no plano.')
+})
+
+Deno.test('groupDetalhePosicoes: drops rows whose theme is not in the catalog', () => {
+  const rows: DetalhePosicaoRow[] = [
+    { politician_id: 'p1', theme_id: 'orfao', coerencia_tema: 'incoerente', justificativa: 'x' },
+  ]
+  assertEquals(groupDetalhePosicoes(rows, new Map()).size, 0)
 })
