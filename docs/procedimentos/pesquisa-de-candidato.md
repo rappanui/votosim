@@ -1,149 +1,161 @@
-# VotoSim — Candidate Research Procedure
+# VotoSim — Procedimento de pesquisa de candidato
 
-**Context:** This is the procedure a research agent follows to turn one candidate's
-brief (produced by `scripts/build-brief.ts`) into a validated research JSON
-document (the shape defined by `scripts/lib/research-contract.ts`). Every document
-the agent produces is checked by `validateResearch()` before anything is written to
-the database — a document that fails validation is rejected outright, and nothing
-is persisted. Read this before running the per-candidate research agent, and before
-changing the brief format, the contract, or the ingestion pipeline.
-
----
-
-**Language rule:** every voter-facing string in the output — `dossie.resumoPerfil`,
-every position's `justificativa`, and every alert's `titulo` and `descricao` — is
-written in **Brazilian Portuguese (pt-BR)**. Field names, enum values, theme slugs
-and URLs stay exactly as the contract defines them; only the human-readable prose
-changes. These strings are shown directly to Brazilian voters.
+> **Status:** válido · **Atualizado em:** 2026-08-24
+> **Contexto:** este é o procedimento que um agente de pesquisa segue para
+> transformar o brief de um candidato (produzido por `scripts/build-brief.ts`)
+> em um documento JSON de pesquisa validado (o formato definido por
+> `scripts/lib/research-contract.ts`). Todo documento que o agente produz é
+> verificado por `validateResearch()` antes de qualquer gravação no banco —
+> um documento que falha na validação é rejeitado por completo, e nada é
+> persistido. Leitor: um agente de pesquisa (Claude Code). Leia isto antes de
+> rodar o agente de pesquisa por candidato, e antes de alterar o formato do
+> brief, o contrato, ou o pipeline de ingestão.
 
 ---
 
-## 1. The five stages
+**Regra de idioma:** toda string voltada ao eleitor na saída — `dossie.resumoPerfil`,
+a `justificativa` de cada posição, e o `titulo` e a `descricao` de cada alerta — é
+escrita em **português do Brasil (pt-BR)**. Nomes de campo, valores de enum, slugs
+de tema e URLs permanecem exatamente como o contrato os define; só o texto legível
+por humanos muda. Essas strings são exibidas diretamente a eleitores brasileiros.
 
-The agent runs one pass, in this order, accumulating context as it goes. Nothing
-here is a separate invocation — later stages depend on what earlier stages already
-hold in context.
+---
 
-### E1 — Read official material
+## 1. Os cinco estágios
 
-**Produces:** Declared priorities, structured — the candidate's own stated
-platform, extracted from the government plan (when one was filed) and other
-official material in the brief. `dossie.resumoPerfil` also states **prior
-elected offices and terms held**, not only the current platform — a former
-president running again is described as a former president. A biography that
-opens with "concorre à reeleição" and never says what came before is
-incomplete.
+O agente roda em uma única passagem, nesta ordem, acumulando contexto conforme
+avança. Nada aqui é uma invocação separada — estágios posteriores dependem do
+que os estágios anteriores já mantêm em contexto.
 
-**Must not:** score intensity, confidence, or coherence yet — those are E5 and E4
-work. Must not draw conclusions about coherence with conduct; E1 only records what
-the candidate says about themselves. Must not fabricate content for a missing
-government plan — an absent plan is stated as absent, not worked around.
+### E1 — Ler material oficial
 
-**Only `presidente` and `governador` file a government plan with the TSE.**
-For `senador`, `deputado_federal` and `deputado_estadual` the brief will always
-say no plan was filed, and the ledger already marks their `documentos_oficiais`
-stage `nao_aplicavel`. That is the expected case, **not** an anomaly — do not
-log it as a finding, and do not treat it as evidence of anything about the
-candidate. For these offices, E1's official material is instead: the
-candidate's declared campaign accounts (in the brief), their party's published
-platform, and — for an incumbent or former legislator — their own bills and
-roll-call record (see E4a below), which is far stronger evidence of declared
-priorities than any plan document would be. In the output contract, a party
-platform document is typed `fontes[].tipo = "plataforma_partidaria"` and a
-biographical profile `"biografia"` — not `"noticia"`, and not
-`"plano_governo"`, which is reserved for an actual TSE government plan.
+**Produz:** Prioridades declaradas, estruturadas — a própria plataforma
+declarada pelo candidato, extraída do plano de governo (quando um foi
+protocolado) e de outro material oficial presente no brief. `dossie.resumoPerfil`
+também declara **cargos eletivos e mandatos anteriores**, não só a plataforma
+atual — um ex-presidente concorrendo novamente é descrito como ex-presidente.
+Uma biografia que começa com "concorre à reeleição" e nunca diz o que veio
+antes está incompleta.
 
-### E2 — Clean record / judicial
+**Não pode:** pontuar intensidade, confiança ou coerência ainda — isso é
+trabalho de E5 e E4. Não pode tirar conclusões sobre coerência com a conduta;
+E1 só registra o que o candidato diz sobre si mesmo. Não pode fabricar conteúdo
+para um plano de governo ausente — um plano ausente é declarado como ausente,
+nunca contornado.
 
-**Produces:** `ficha_suja` and `investigacao` alerts, primary-sourced from layer 1
-only (TSE, STF, STJ, TCU, MPF, and equivalent official bodies).
+**Só `presidente` e `governador` protocolam plano de governo no TSE.** Para
+`senador`, `deputado_federal` e `deputado_estadual` o brief sempre dirá que
+nenhum plano foi protocolado, e o ledger já marca o estágio `documentos_oficiais`
+deles como `nao_aplicavel`. Este é o caso esperado, **não** uma anomalia — não
+registre isso como achado, e não trate como evidência de nada sobre o
+candidato. Para esses cargos, o material oficial da E1 é, em vez disso: as
+contas de campanha declaradas pelo candidato (no brief), a plataforma
+publicada pelo partido dele e — para um titular do cargo ou ex-legislador —
+os próprios projetos de lei e o histórico de votações nominais dele (ver E4a
+abaixo), que é evidência bem mais forte de prioridades declaradas do que
+qualquer documento de plano seria. No contrato de saída, um documento de
+plataforma partidária é tipado `fontes[].tipo = "plataforma_partidaria"` e um
+perfil biográfico `"biografia"` — nunca `"noticia"`, e nunca `"plano_governo"`,
+que é reservado para um plano de governo real do TSE.
 
-**Must not:** draw on news coverage or fact-checking for these two alert types —
-they exist specifically because they carry the weight of an official record, and
-diluting that with secondary sourcing would misrepresent their certainty. Must not
-rely on rumor, social media, or unofficial aggregators. **Must not rely on
-background knowledge instead of a search.** Run a query naming the candidate
-specifically for judicial/criminal history — a general "ficha limpa 2026"
-search that returns results about *other* candidates is not evidence this
-candidate has none; it is evidence the query did not surface them. A fact
-recalled from training data with no citation does not belong in E2, resolved
-or not — this stage exists precisely so that claims about a real person's
-record are never asserted from memory.
+### E2 — Ficha limpa / judicial
 
-**A resolved matter is not an absent one.** A conviction later annulled, a
-case archived, an absolution — these are still real events, and Rule D of
-`docs/legado/base/04_schema_alerts.md` requires them on record, not omitted: "o
-alerta não é deletado — apenas ativo = false e resolução preenchida." Search
-for them, cite them, and set `resolucao` (what happened) and `dataResolucao`
-(when, if known) on the alert. Do not represent a resolved matter as if it
-never occurred, and do not represent it as an active disqualification either
-— both are false. See section 6.1 for the field shape; a resolved alert is
-never auto-published regardless of source layer, since Rule B's "no review
-needed" badge means the disqualification is current.
+**Produz:** alertas `ficha_suja` e `investigacao`, com fonte primária vinda
+apenas da camada 1 (TSE, STF, STJ, TCU, MPF e órgãos oficiais equivalentes).
 
-> **Recorded incident (2026-08-22):** a first pass over LULA (280002542548)
-> produced a dossier stating neither that he had served two prior presidential
-> terms, nor that his 2018 conviction — later annulled by the STF in 2021 —
-> ever happened. The prior-terms omission was a plain E1 gap. The conviction
-> omission was worse: E2 searched only "ficha limpa 2026" generically, which
-> surfaced other candidates' disputes, and the absence of a hit was read as
-> "nothing to report" rather than as a reason to search for this candidate's
-> own history by name. Both fixes above exist because of this incident.
+**Não pode:** recorrer a cobertura jornalística ou checagem de fatos para
+esses dois tipos de alerta — eles existem especificamente porque carregam o
+peso de um registro oficial, e diluir isso com fonte secundária deturparia
+essa certeza. Não pode se apoiar em boato, redes sociais ou agregadores não
+oficiais. **Não pode se apoiar em conhecimento de base em vez de uma busca.**
+Rode uma consulta nomeando o candidato especificamente para histórico
+judicial/criminal — uma busca genérica por "ficha limpa 2026" que retorna
+resultados sobre *outros* candidatos não é evidência de que este candidato
+não tem nada; é evidência de que a consulta não os trouxe à tona. Um fato
+lembrado dos dados de treinamento sem citação não pertence à E2, resolvido
+ou não — este estágio existe precisamente para que afirmações sobre o
+registro de uma pessoa real nunca sejam feitas de memória.
 
-### E3 — News research
+**Um caso resolvido não é um caso ausente.** Uma condenação depois anulada,
+um processo arquivado, uma absolvição — esses continuam sendo eventos reais,
+e a Regra D de `docs/legado/base/04_schema_alerts.md` exige que fiquem
+registrados, não omitidos: "o alerta não é deletado — apenas ativo = false e
+resolução preenchida." Busque por eles, cite-os e preencha `resolucao` (o que
+aconteceu) e `dataResolucao` (quando, se conhecido) no alerta. Não represente
+um caso resolvido como se nunca tivesse ocorrido, e não o represente como uma
+desqualificação ativa tampouco — as duas coisas são falsas. Ver seção 6.1 para
+o formato do campo; um alerta resolvido nunca é publicado automaticamente
+independentemente da camada da fonte, já que o selo "sem necessidade de
+revisão" da Regra B significa que a desqualificação é atual.
 
-**Produces:** Dated events, each with a source and a URL — the raw material E4 and
-E5 will later interpret.
+> **Incidente registrado (2026-08-22):** uma primeira passada sobre LULA
+> (280002542548) produziu um dossiê que não declarava nem que ele havia
+> cumprido dois mandatos presidenciais anteriores, nem que sua condenação de
+> 2018 — depois anulada pelo STF em 2021 — jamais aconteceu. A omissão dos
+> mandatos anteriores foi uma lacuna simples de E1. A omissão da condenação
+> foi pior: E2 buscou apenas "ficha limpa 2026" de forma genérica, o que
+> trouxe disputas de outros candidatos, e a ausência de resultado foi lida
+> como "nada a relatar" em vez de motivo para buscar o histórico deste
+> candidato especificamente, pelo nome. As duas correções acima existem por
+> causa deste incidente.
 
-**Must not:** draw conclusions across events yet, and must not cite excluded
-sources (partisan blogs, sites without an editorial masthead, aggregators, social
-media as a primary source of fact). A single non-primary source on its own is not
-yet a fact for D9 purposes — that judgment belongs to E5's alert construction.
+### E3 — Pesquisa de notícias
 
-### E4a — Roll-call record (legislative candidates only)
+**Produz:** eventos datados, cada um com uma fonte e uma URL — o material bruto
+que E4 e E5 vão interpretar depois.
 
-**Applies to:** any candidate who currently holds or previously held a
-legislative seat — `senador`, `deputado_federal`, `deputado_estadual`,
-`vereador`, and executive candidates who served in the legislature before (a
-governor who was a federal deputy, or a sitting city councilor running for
-governor, both have a roll-call record too). Skip entirely for a candidate
-who has never held a legislative seat.
+**Não pode:** tirar conclusões entre eventos ainda, e não pode citar fontes
+excluídas (blogs partidários, sites sem expediente editorial, agregadores,
+redes sociais como fonte primária de fato). Uma única fonte não primária,
+isoladamente, ainda não é um fato para os fins da D9 — esse julgamento
+pertence à construção de alertas da E5.
 
-**Produces:** Nominal roll-call votes on the questionnaire's 14 themes, each
-one a citable source. This is the single strongest form of evidence this
-procedure can gather: it is what the candidate *did* under their own name and
-on the record, not what they say they will do.
+### E4a — Histórico de votações nominais (só candidatos legislativos)
 
-**Where to look, in this order:**
+**Aplica-se a:** qualquer candidato que atualmente ocupa ou já ocupou uma
+cadeira legislativa — `senador`, `deputado_federal`, `deputado_estadual`,
+`vereador`, e candidatos ao Executivo que já foram legisladores (um
+governador que foi deputado federal, ou um vereador em exercício concorrendo
+a governador, ambos também têm histórico de votações nominais). Pule
+totalmente para um candidato que nunca ocupou cadeira legislativa.
 
-| Office | Source | Camada |
+**Produz:** votos nominais nos 14 temas do questionário, cada um uma fonte
+citável. Esta é a forma de evidência mais forte que este procedimento pode
+reunir: é o que o candidato *fez* em seu próprio nome e de forma registrada,
+não o que diz que fará.
+
+**Onde procurar, nesta ordem:**
+
+| Cargo | Fonte | Camada |
 |---|---|---|
-| `deputado_federal` | `dadosabertos.camara.leg.br` — authored bills (see below) | 1 |
-| `senador` | `senado.leg.br` — the senator's page, "Votações" | 1 |
-| `deputado_estadual` | the state assembly's own portal (`al<UF>.<uf>.leg.br`, e.g. `al.sp.gov.br`) | 1 |
-| `vereador` | the municipal chamber's own portal (see below — not every one publishes nominal votes) | 1 |
+| `deputado_federal` | `dadosabertos.camara.leg.br` — projetos de autoria (ver abaixo) | 1 |
+| `senador` | `senado.leg.br` — a página do senador, "Votações" | 1 |
+| `deputado_estadual` | o portal próprio da assembleia estadual (`al<UF>.<uf>.leg.br`, ex.: `al.sp.gov.br`) | 1 |
+| `vereador` | o portal próprio da câmara municipal (ver abaixo — nem toda câmara publica votos nominais) | 1 |
 
-**For `vereador`, check whether the chamber publishes nominal votes at all
-before assuming it does.** Verified 2026-08-23 against Câmara Municipal do
-Rio de Janeiro (`aplicnt.camara.rj.gov.br`, camada 1, William Siri): plenary
-deliberations are recorded as **symbolic votes** only ("os senhores
-vereadores que aprovam permaneçam como estão") — there is no per-vereador
-yes/no record to cite, for any theme, ever. This is not a search failure; the
-record genuinely does not exist. When a nominal vote is unavailable, fall
-back to the same authored-legislation approach as the federal-deputy case
-below: query the chamber's own legislation system for bills the candidate
-authored or co-authored (`contlei.nsf`-style search on `aplicnt.camara.rj.gov.br`
-for the Rio chamber) and cite those, with `coerenciaBase` stating plainly that
-no nominal vote exists and coherence rests on authored legislation instead.
-Do not treat the absence of a votes endpoint as reason to skip E4a entirely —
-authored legislation is still first-person, on-the-record evidence, just not
-a vote.
+**Para `vereador`, verifique se a câmara publica votos nominais antes de
+supor que publica.** Verificado em 2026-08-23 contra a Câmara Municipal do
+Rio de Janeiro (`aplicnt.camara.rj.gov.br`, camada 1, William Siri): as
+deliberações do plenário são registradas apenas como **votos simbólicos**
+("os senhores vereadores que aprovam permaneçam como estão") — não há
+registro de sim/não por vereador para citar, em nenhum tema, nunca. Isto não
+é falha de busca; o registro genuinamente não existe. Quando um voto nominal
+não está disponível, recorra à mesma abordagem de legislação de autoria usada
+no caso do deputado federal abaixo: consulte o sistema de legislação da
+própria câmara por projetos que o candidato apresentou ou co-apresentou
+(busca no estilo `contlei.nsf` em `aplicnt.camara.rj.gov.br` para a câmara do
+Rio) e cite-os, com `coerenciaBase` declarando explicitamente que não existe
+voto nominal e que a coerência se baseia em legislação de autoria em vez
+disso. Não trate a ausência de um endpoint de votos como motivo para pular a
+E4a inteiramente — legislação de autoria continua sendo evidência em
+primeira pessoa, registrada, apenas não um voto.
 
-**For `deputado_federal`, query authored bills, not roll-call votes.** Verified
-2026-08-23: the Câmara's open-data API has **no per-deputy vote endpoint** —
-`/deputados/{id}/votacoes` returns HTTP 405, because votes are indexed by
-session (`/votacoes/{id}/votos`), not by parliamentarian. Reconstructing one
-deputy's record would mean enumerating every session. Use this instead:
+**Para `deputado_federal`, consulte projetos de autoria, não votos nominais.**
+Verificado em 2026-08-23: a API de dados abertos da Câmara **não tem endpoint
+de voto por deputado** — `/deputados/{id}/votacoes` retorna HTTP 405, porque
+os votos são indexados por sessão (`/votacoes/{id}/votos`), não por
+parlamentar. Reconstruir o histórico de um deputado exigiria enumerar toda
+sessão. Use isto em vez disso:
 
 ```
 GET https://dadosabertos.camara.leg.br/api/v2/proposicoes
@@ -151,374 +163,400 @@ GET https://dadosabertos.camara.leg.br/api/v2/proposicoes
     &ano=2023&ano=2024&ano=2025&ano=2026&itens=100
 ```
 
-The `siglaTipo` filter matters: an unfiltered query returns ~90% `REQ`
-(procedural requests — near-zero policy signal). `PL`/`PEC`/`PLP` are the
-substantive output, and each `ementa` states the policy directly, which maps
-onto the 14 themes far more cleanly than a yes/no vote does. A bill the
-candidate *authored* is also stronger evidence of priority than a vote they
-cast with their bench.
+O filtro `siglaTipo` importa: uma consulta sem filtro retorna ~90% de `REQ`
+(requerimentos processuais — sinal de política quase nulo). `PL`/`PEC`/`PLP`
+são o resultado substantivo, e cada `ementa` declara a política diretamente,
+o que mapeia para os 14 temas de forma muito mais limpa do que um voto
+sim/não. Um projeto que o candidato *apresentou* também é evidência mais
+forte de prioridade do que um voto que deu acompanhando sua bancada.
 
-Get `{id}` from `GET /deputados?siglaUf={UF}` (one call returns the whole
-state delegation).
+Obtenha `{id}` em `GET /deputados?siglaUf={UF}` (uma chamada retorna toda a
+bancada do estado).
 
-`.leg.br` and `.gov.br` are already on the camada-1 allowlist the validator
-enforces, so a roll-call citation qualifies as `camada: 1` — cite it with
-`fontes[].tipo: "votacao"`.
+`.leg.br` e `.gov.br` já estão na lista de domínios de camada 1 que o
+validador aplica, então uma citação de votação nominal se qualifica como
+`camada: 1` — cite com `fontes[].tipo: "votacao"`.
 
-**The term to judge is 2023–2026**, not the candidate's whole career. A vote
-from a previous term is context for `resumoPerfil`, not evidence of coherence
-with a 2026 platform.
+**O mandato a julgar é 2023–2026**, não a carreira inteira do candidato. Um
+voto de um mandato anterior é contexto para `resumoPerfil`, não evidência de
+coerência com uma plataforma de 2026.
 
-**Must not:** assert how a candidate voted from background knowledge. If the
-vote was not looked up in this session and cannot be cited with a URL, it does
-not exist for this procedure — the theme falls back to whatever E1/E3 support
-it, exactly as it would for a first-time candidate. Must not infer a vote from
-the party's position: a legislator who voted against their own bench is
-precisely the case this stage exists to catch. Must not extrapolate one vote
-to a neighbouring theme — the framing trap (section 4) applies to votes just
-as it applies to platform text.
+**Não pode:** afirmar como um candidato votou a partir de conhecimento de
+base. Se o voto não foi consultado nesta sessão e não pode ser citado com uma
+URL, ele não existe para os fins deste procedimento — o tema recai sobre o
+que E1/E3 sustentarem, exatamente como aconteceria para um candidato de
+primeira viagem. Não pode inferir um voto a partir da posição do partido: um
+legislador que votou contra sua própria bancada é precisamente o caso que
+este estágio existe para capturar. Não pode extrapolar um voto para um tema
+vizinho — a armadilha de enquadramento (seção 4) se aplica a votos tanto
+quanto se aplica a texto de plataforma.
 
-### E4b — Mandate performance record (anyone with a legislative mandate)
+### E4b — Registro de desempenho do mandato (qualquer um com mandato legislativo)
 
-**Applies to:** any candidate who **holds or held** a legislative mandate,
-**regardless of which office they are running for now**. A federal deputy
-running for the Senate, a senator running for governor, a deputy switching
-states — all qualify. The trigger is *having a mandate to account for*, not
-running for the same seat again. Skip only for candidates who never held one.
+**Aplica-se a:** qualquer candidato que **ocupa ou ocupou** um mandato
+legislativo, **independentemente de qual cargo está disputando agora**. Um
+deputado federal concorrendo ao Senado, um senador concorrendo a governador,
+um deputado trocando de estado — todos se qualificam. O gatilho é *ter um
+mandato a prestar contas*, não concorrer à mesma cadeira de novo. Pule apenas
+para candidatos que nunca ocuparam um mandato.
 
-**Produces:** Four voter-facing accountability facts about how the candidate
-used the mandate they already have: **attendance**, **votes cast**, **bills
-authored (and how many became law)**, and **public money spent**.
+**Produz:** quatro fatos de accountability voltados ao eleitor sobre como o
+candidato usou o mandato que já teve: **presença**, **votos dados**,
+**projetos apresentados (e quantos viraram lei)**, e **dinheiro público
+gasto**.
 
-**Hard rule — only what the source already gives.** Collect these *only* from
-the endpoints below, which return the data in one call. **Do not go hunting**:
-no scraping a portal, no per-item lookups to reconstruct a total, no
-estimating, no inferring from a proxy. If an item is not in the table below
-for that house, it is **omitted from the dossier and stated as unavailable** —
-never approximated. An `/eventos`-style endpoint listing events attended is
-**not** an attendance rate; using it as one would be inventing a statistic.
+**Regra rígida — só o que a fonte já fornece.** Colete esses dados *apenas*
+dos endpoints abaixo, que retornam o dado em uma única chamada. **Não saia
+caçando**: nada de raspar um portal, nada de consultas item a item para
+reconstruir um total, nada de estimar, nada de inferir a partir de um proxy.
+Se um item não está na tabela abaixo para aquela casa legislativa, ele é
+**omitido do dossiê e declarado como indisponível** — nunca aproximado. Um
+endpoint no estilo `/eventos` que lista eventos com presença registrada
+**não é** uma taxa de comparecimento; usá-lo como tal seria inventar uma
+estatística.
 
-**Always cite the exact URL queried** as a `fontes[]` entry, typed
-`fontes[].tipo = "desempenho_mandato"`. These are numeric claims about a real
-person's job performance; every one must be traceable to the request that
-produced it. One entry per endpoint actually queried — do not cite the Radar
-once and attribute both attendance and spending figures to it generically.
+**Sempre cite a URL exata consultada** como uma entrada em `fontes[]`,
+tipada `fontes[].tipo = "desempenho_mandato"`. Essas são afirmações numéricas
+sobre o desempenho profissional de uma pessoa real; cada uma precisa ser
+rastreável até a requisição que a produziu. Uma entrada por endpoint
+efetivamente consultado — não cite o Radar uma vez e atribua a ele tanto a
+cifra de presença quanto a de gastos de forma genérica.
 
-**Where the numbers go.** The contract has no structured field for them
-(`ResearchDossier` carries only `resumoPerfil`, spectrum and coherence), so
-they are written as prose in **`dossie.resumoPerfil`**, which is voter-facing.
-State them plainly and completely — the raw counts, not a derived grade:
-*"Em 2025 teve 117 presenças em 121 sessões deliberativas, com 4 ausências
-justificadas e nenhuma injustificada. Apresentou 120 projetos (PL/PEC/PLP)
-entre 2023 e 2026; quantos viraram lei não foi possível obter na fonte
-consultada. Gastou R$ X da cota parlamentar, com maior item em Y."* Never
-convert these into a score, a ranking or an adjective ("bom comparecimento") —
-the figure is the fact; the judgment is the voter's.
+**Onde os números vão.** O contrato não tem campo estruturado para eles
+(`ResearchDossier` carrega apenas `resumoPerfil`, espectro e coerência),
+então eles são escritos como texto corrido em **`dossie.resumoPerfil`**, que
+é voltado ao eleitor. Declare-os de forma clara e completa — os números
+brutos, não uma nota derivada: *"Em 2025 teve 117 presenças em 121 sessões
+deliberativas, com 4 ausências justificadas e nenhuma injustificada.
+Apresentou 120 projetos (PL/PEC/PLP) entre 2023 e 2026; quantos viraram lei
+não foi possível obter na fonte consultada. Gastou R$ X da cota
+parlamentar, com maior item em Y."* Nunca converta esses números em uma
+nota, um ranking ou um adjetivo ("bom comparecimento") — o número é o fato;
+o julgamento é do eleitor.
 
 #### Câmara dos Deputados
 
-| Item | Available? | Source |
+| Item | Disponível? | Fonte |
 |---|---|---|
-| Attendance | ✅ one call | `radar.congressoemfoco.com.br/api/parlamentares/{idVoz}/assiduidade` — per year: sessions, presences, justified vs **unjustified** absences |
-| Public spending (CEAP) | ✅ one call | `…/api/parlamentares/{idVoz}/gastos-ceap` — itemised: category, specification, date, **supplier**, amount |
-| Votes cast | ⚠️ aggregate only | `…/api/parlamentares/{idVoz}/votos` — returns `{proposicaoId-votacaoId: 1\|-1\|2}`. The **totals** are free; the *subject* of each vote is not (keys are opaque ids; resolving 900+ would be hunting). Report totals, never per-theme. |
-| Bills authored | ✅ one call | `dadosabertos.camara.leg.br/api/v2/proposicoes?idDeputadoAutor={id}&siglaTipo=PL&siglaTipo=PEC&siglaTipo=PLP&ano=…` |
-| Bills **approved** | ❌ unavailable | Verified 2026-08-23: the API's `codSituacao` filter is **silently ignored** — a nonexistent code returns the same count as no filter. Per-bill status lookup would be hunting. **State the presented count with an explicit caveat that approval status was not obtainable** — never imply the presented figure is an approval figure. |
+| Presença | ✅ uma chamada | `radar.congressoemfoco.com.br/api/parlamentares/{idVoz}/assiduidade` — por ano: sessões, presenças, ausências justificadas vs. **injustificadas** |
+| Gasto público (CEAP) | ✅ uma chamada | `…/api/parlamentares/{idVoz}/gastos-ceap` — detalhado: categoria, especificação, data, **fornecedor**, valor |
+| Votos dados | ⚠️ só agregado | `…/api/parlamentares/{idVoz}/votos` — retorna `{proposicaoId-votacaoId: 1\|-1\|2}`. Os **totais** são de graça; o *assunto* de cada voto não é (as chaves são ids opacos; resolver 900+ seria caçar). Reporte totais, nunca por tema. |
+| Projetos apresentados | ✅ uma chamada | `dadosabertos.camara.leg.br/api/v2/proposicoes?idDeputadoAutor={id}&siglaTipo=PL&siglaTipo=PEC&siglaTipo=PLP&ano=…` |
+| Projetos **aprovados** | ❌ indisponível | Verificado em 2026-08-23: o filtro `codSituacao` da API é **silenciosamente ignorado** — um código inexistente retorna a mesma contagem que nenhum filtro. Consultar o status projeto a projeto seria caçar. **Declare a contagem de projetos apresentados com uma ressalva explícita de que o status de aprovação não foi obtido** — nunca implique que a cifra de projetos apresentados é uma cifra de aprovação. |
 
-`{idVoz}` comes from `radar.congressoemfoco.com.br/api/parlamentares` (one
-call, all 513 deputies, includes **CPF** for a reliable join). `{id}` is the
-Câmara id from `dadosabertos.camara.leg.br/api/v2/deputados?siglaUf={UF}`.
+`{idVoz}` vem de `radar.congressoemfoco.com.br/api/parlamentares` (uma
+chamada, os 513 deputados, inclui **CPF** para um cruzamento confiável).
+`{id}` é o id da Câmara em `dadosabertos.camara.leg.br/api/v2/deputados?siglaUf={UF}`.
 
-**The Radar is camada 2, not camada 1.** `congressoemfoco.com.br` is press,
-not a `.leg.br`/`.gov.br` domain, so the validator will type it `camada: 2` —
-correct, and it means an alert resting on it never auto-publishes. It is also
-an undocumented SPA-internal API: it works today, it is not a contract, and it
-may change without notice. Prefer the official `dadosabertos.camara.leg.br`
-for anything it does cover.
+**O Radar é camada 2, não camada 1.** `congressoemfoco.com.br` é imprensa,
+não um domínio `.leg.br`/`.gov.br`, então o validador vai tipá-lo `camada: 2`
+— correto, e significa que um alerta apoiado nele nunca é publicado
+automaticamente. Também é uma API interna de SPA não documentada: funciona
+hoje, não é um contrato, e pode mudar sem aviso. Prefira o
+`dadosabertos.camara.leg.br` oficial para tudo que ele cobre.
 
 #### Senado Federal
 
-Richer than the Câmara — votes arrive **with the ementa inline**, so the
-subject of each vote is free here (unlike the Câmara).
+Mais rico que a Câmara — os votos chegam **com a ementa embutida**, então o
+assunto de cada voto é de graça aqui (diferente da Câmara).
 
-| Item | Available? | Source |
+| Item | Disponível? | Fonte |
 |---|---|---|
-| Votes + subject | ✅ one call | `legis.senado.leg.br/dadosabertos/senador/{cod}/votacoes.json` — each item carries `Materia.Ementa` and `SiglaDescricaoVoto` (`Sim`/`Não`/`Abstenção`/`Votou`) |
-| Attendance | ✅ same call | Derived from the same records: `NCom` (não compareceu), `LS` (licença saúde), `MIS` (missão), `AP`, `P-NRV` (presente, não registrou voto) against total sessions |
-| Bills authored | ✅ one call | `…/senador/{cod}/autorias.json` — filter `Sigla` to `PL/PEC/PLP/PLS`; also carries `IndicadorAutorPrincipal`, so **primary** authorship can be distinguished from co-authorship |
-| Public spending | ❌ unavailable | `/senador/{cod}/despesas.json` → 404. Omit and state as unavailable. |
+| Votos + assunto | ✅ uma chamada | `legis.senado.leg.br/dadosabertos/senador/{cod}/votacoes.json` — cada item carrega `Materia.Ementa` e `SiglaDescricaoVoto` (`Sim`/`Não`/`Abstenção`/`Votou`) |
+| Presença | ✅ mesma chamada | Derivada dos mesmos registros: `NCom` (não compareceu), `LS` (licença saúde), `MIS` (missão), `AP`, `P-NRV` (presente, não registrou voto) contra o total de sessões |
+| Projetos apresentados | ✅ uma chamada | `…/senador/{cod}/autorias.json` — filtre `Sigla` por `PL/PEC/PLP/PLS`; também carrega `IndicadorAutorPrincipal`, então a autoria **principal** pode ser distinguida da coautoria |
+| Gasto público | ❌ indisponível | `/senador/{cod}/despesas.json` → 404. Omita e declare como indisponível. |
 
-`{cod}` comes from `legis.senado.leg.br/dadosabertos/senador/lista/atual.json`.
+`{cod}` vem de `legis.senado.leg.br/dadosabertos/senador/lista/atual.json`.
 
-**`Votou` is a secret-session vote** — the senator voted but the direction is
-not published. Count it as attendance, never as a position on the theme.
+**`Votou` é um voto de sessão secreta** — o senador votou mas a direção não é
+publicada. Conte como presença, nunca como posição sobre o tema.
 
-**A licensed senator serving as minister is a special case.** Verified
-2026-08-23: Marina Silva and Simone Tebet hold Senate seats but are absent
-from `lista/atual.json` because they are licensed to serve as ministers.
-Their attendance figures would read as absenteeism when the cause is a
-different public office. If a candidate is not in the current list but is
-known to hold a seat, say so in `resumoPerfil` and **omit the attendance
-figure** rather than publishing a number that means the opposite of what it
-appears to mean.
+**Um senador licenciado servindo como ministro é um caso especial.**
+Verificado em 2026-08-23: Marina Silva e Simone Tebet ocupam cadeiras no
+Senado mas estão ausentes de `lista/atual.json` porque estão licenciadas
+para servir como ministras. As cifras de presença delas seriam lidas como
+absenteísmo quando a causa é um cargo público diferente. Se um candidato não
+está na lista atual mas é sabido que ocupa uma cadeira, declare isso em
+`resumoPerfil` e **omita a cifra de presença** em vez de publicar um número
+que significa o oposto do que parece significar.
 
 #### Assembleias estaduais e câmaras municipais
 
-No general rule — each house publishes differently, and most publish far less.
-Apply the same hard rule: one call or nothing. Do not build a scraper.
+Sem regra geral — cada casa publica de forma diferente, e a maioria publica
+muito menos. Aplique a mesma regra rígida: uma chamada ou nada. Não construa
+um raspador.
 
-### E4 — Coherence and spectrum
+### E4 — Coerência e espectro
 
-**Produces:** Cross-references E1 (promises) with E4a (votes) and E3 (conduct)
-to produce a coherence index, an inferred political spectrum, and a
-`divergencia_espectro` alert when the declared and inferred spectra disagree.
+**Produz:** cruza E1 (promessas) com E4a (votos) e E3 (conduta) para
+produzir um índice de coerência, um espectro político inferido, e um alerta
+`divergencia_espectro` quando o espectro declarado e o inferido divergem.
 
-**Must not:** score a coherence index of zero for a candidate with no track
-record — the absence of evidence is `null`, not a measured `0` (see section 6).
-Must not treat a single, uncorroborated news item as established conduct. This
-stage only works with E1 and E3 already in the same context — splitting it into a
-separate pass would mean re-reading everything.
+**Não pode:** pontuar um índice de coerência zero para um candidato sem
+histórico — a ausência de evidência é `null`, não um `0` medido (ver seção
+6). Não pode tratar uma única notícia não corroborada como conduta
+estabelecida. Este estágio só funciona com E1 e E3 já no mesmo contexto —
+dividi-lo em uma passagem separada exigiria reler tudo de novo.
 
-### E5 — Synthesis
+### E5 — Síntese
 
-**Produces:** The profile dossier plus positions on the 14 questionnaire themes,
-each with justification, intensity, sources, and confidence. **Every position
-whose `posicao` is `neutro` also sets `neutroMotivo`.** The contract still
-accepts a document that omits it — for backward compatibility with payloads
-written before this field existed — but an omission from this procedure is
-never correct: a missing value is read downstream as `nao_encontrado`, which
-is right only when that is actually what happened, and silently wrong
-otherwise.
+**Produz:** o dossiê de perfil mais as posições nos 14 temas do questionário,
+cada uma com justificativa, intensidade, fontes e confiança. **Toda posição
+cujo `posicao` é `neutro` também define `neutroMotivo`.** O contrato ainda
+aceita um documento que o omite — por compatibilidade retroativa com
+payloads escritos antes deste campo existir — mas uma omissão vinda deste
+procedimento nunca está correta: um valor ausente é lido a jusante como
+`nao_encontrado`, o que só está certo quando é de fato o que aconteceu, e
+silenciosamente errado do contrário.
 
-**Choosing the motivo — the distinction that is easiest to get wrong:**
-- `nao_encontrado` — the search came up empty. No stance on this theme was
-  found anywhere in E1–E4b.
-- `nao_responde` — the candidate DID take a documented position on the theme,
-  but it does not answer the specific affirmation asked. This is not "no
-  evidence"; it is evidence that misses the mark. Worked example: the
-  affirmation asks about **expanding** a programme, and the candidate's own
-  material promises only to **maintain** it — that is `nao_responde`, not
-  `nao_encontrado`, because a stance was found and read; it simply does not
-  settle the affirmation as worded (the same discipline as section 4, the
-  framing trap, applied to the neutral case).
-- `ambivalente` — the candidate's position is contradictory across sources, or
-  explicitly conditional ("depends on the scenario/context").
+**Escolhendo o motivo — a distinção mais fácil de errar:**
+- `nao_encontrado` — a busca não trouxe nada. Nenhuma posição sobre este
+  tema foi encontrada em nenhum lugar de E1 a E4b.
+- `nao_responde` — o candidato TEM uma posição documentada sobre o tema, mas
+  ela não responde à afirmação específica perguntada. Isto não é "sem
+  evidência"; é evidência que não acerta o alvo. Exemplo concreto: a
+  afirmação pergunta sobre **ampliar** um programa, e o próprio material do
+  candidato promete apenas **manter** o programa — isso é `nao_responde`,
+  não `nao_encontrado`, porque uma posição foi encontrada e lida; ela
+  simplesmente não resolve a afirmação como está redigida (a mesma
+  disciplina da seção 4, a armadilha de enquadramento, aplicada ao caso
+  neutro).
+- `ambivalente` — a posição do candidato é contraditória entre fontes, ou
+  explicitamente condicional ("depende do cenário/contexto").
 
-Confusing `nao_encontrado` with `nao_responde` costs a real candidate 0.40 of
-alignment on that theme. "Found a stance that misses the affirmation" and
-"found nothing" are never interchangeable — if a source is cited describing
-what the candidate actually said or did on the theme, it is `nao_responde` or
-`ambivalente`, never `nao_encontrado`.
+Confundir `nao_encontrado` com `nao_responde` custa a um candidato real 0,40
+de alinhamento naquele tema. "Encontrei uma posição que não acerta a
+afirmação" e "não encontrei nada" nunca são intercambiáveis — se uma fonte é
+citada descrevendo o que o candidato de fato disse ou fez sobre o tema, é
+`nao_responde` ou `ambivalente`, nunca `nao_encontrado`.
 
-**Must not:** invent a position for a theme with no evidence — that theme gets
-`neutro` with `neutroMotivo: "nao_encontrado"`, a low `confiancaIa`, and a
-justification stating evidence was not found (see section 7). Must not write a
-`neutro` position without a `neutroMotivo` — every `neutro` verdict states
-which of the three it is. Must not write any claim that does not trace back to
-the source catalogue — every position and every alert is checked against the
-sources declared in the same document.
+**Não pode:** inventar uma posição para um tema sem evidência — esse tema
+recebe `neutro` com `neutroMotivo: "nao_encontrado"`, um `confiancaIa` baixo,
+e uma justificativa declarando que a evidência não foi encontrada (ver seção
+7). Não pode escrever uma posição `neutro` sem `neutroMotivo` — todo veredito
+`neutro` declara qual dos três motivos é. Não pode escrever nenhuma
+afirmação que não remonte ao catálogo de fontes — toda posição e todo alerta
+são conferidos contra as fontes declaradas no mesmo documento.
 
-**`ressalva_evidencias` — when the evidence base itself needs a caveat.** Emit
-this alert type when the positions rest on evidence weaker than the candidate's
-own verified statements, so the reader is never left believing a party-platform
-or degraded-extraction position is a personal declaration. Concretely:
-- Positions inferred from a **party platform** rather than the candidate's own
-  words (e.g. a legislative candidate with no `plano_governo`): the caveat makes
-  explicit that the positions are the party's, not the candidate's.
-- A source whose **text extraction was degraded** (e.g. a PDF whose words came
-  out scrambled, read from preserved vocabulary with moderate confidence).
-- Any other material gap between the evidence actually read and what the card
-  implies.
+**`ressalva_evidencias` — quando a própria base de evidências precisa de uma
+ressalva.** Emita este tipo de alerta quando as posições se apoiam em
+evidência mais fraca do que declarações próprias e verificadas do candidato,
+para que o leitor nunca fique achando que uma posição inferida de plataforma
+partidária ou de uma extração degradada é uma declaração pessoal.
+Concretamente:
+- Posições inferidas de uma **plataforma partidária** em vez das palavras do
+  próprio candidato (ex.: um candidato legislativo sem `plano_governo`): a
+  ressalva deixa explícito que as posições são do partido, não do candidato.
+- Uma fonte cuja **extração de texto foi degradada** (ex.: um PDF cujas
+  palavras saíram embaralhadas, lido a partir de vocabulário preservado com
+  confiança moderada).
+- Qualquer outra lacuna material entre a evidência realmente lida e o que o
+  card sugere.
 
-Set `severidade` to `baixa`, cite the evidence source the caveat refers to, and
-leave `resolucao`/`dataResolucao` `null` — this is a standing transparency flag,
-not a resolved matter. It is auto-published on ingest (section 6.1) and renders
-with the `amarelo` badge.
+Defina `severidade` como `baixa`, cite a fonte de evidência a que a ressalva
+se refere, e deixe `resolucao`/`dataResolucao` como `null` — este é um sinal
+permanente de transparência, não um caso resolvido. É publicado
+automaticamente na ingestão (seção 6.1) e renderiza com o selo `amarelo`.
 
 ---
 
-## 2. The source layers
+## 2. As camadas de fonte
 
-| Layer | Sources |
+| Camada | Fontes |
 |---|---|
-| 1 — Primary/official | TSE, STF, STJ, TCU, MPF, Câmara, Senado, official gazettes, transparency portals |
-| 2 — Reference press | Agência Brasil/EBC, Agências Câmara and Senado, G1, Folha, Estadão, O Globo, UOL, Valor, BBC Brasil, Reuters |
-| 3 — Fact-checking | Agência Lupa, Aos Fatos, Projeto Comprova, Estadão Verifica |
+| 1 — Primária/oficial | TSE, STF, STJ, TCU, MPF, Câmara, Senado, diários oficiais, portais de transparência |
+| 2 — Imprensa de referência | Agência Brasil/EBC, Agências Câmara e Senado, G1, Folha, Estadão, O Globo, UOL, Valor, BBC Brasil, Reuters |
+| 3 — Checagem de fatos | Agência Lupa, Aos Fatos, Projeto Comprova, Estadão Verifica |
 
-Excluded: partisan blogs, sites without an editorial masthead, aggregators, and
-social media as a primary source of fact.
+Excluídos: blogs partidários, sites sem expediente editorial, agregadores, e
+redes sociais como fonte primária de fato.
 
-**Every position and every alert must cite at least one voter-visible source** —
-a source whose `destinoExibicao` is `card_candidato` or `pagina_sobre`. A source
-marked `interno` (institutional material nobody wants to click from a candidate
-card, like a raw TSE ficha) is real and stays in the catalogue, but it cannot be
-the *only* citation on a claim: a reader has no way to reach it, so a claim
-resting solely on an `interno` source ships untraceable, which is exactly what
-D8 forbids. `interno` sources may still be cited alongside a visible one — they
-just cannot carry a claim alone. The validator enforces this on every
-`fonteRefs` array, positions and alerts alike.
-
----
-
-## 3. The D9 admission rule
-
-A `polemica` alert requires **two independent layer-2 sources that do not cite
-each other, or one layer-1 source.** Nothing less clears the bar.
-
-The validator enforces this mechanically: `validateResearch()` counts the
-distinct layer-2 refs cited by a `polemica` alert (after deduplication — citing
-the same source twice does not count as two) and checks for a layer-1 ref among
-them. A document that violates D9 is rejected outright, before anything reaches
-the database.
+**Toda posição e todo alerta precisam citar ao menos uma fonte visível ao
+eleitor** — uma fonte cujo `destinoExibicao` é `card_candidato` ou
+`pagina_sobre`. Uma fonte marcada `interno` (material institucional que
+ninguém clicaria a partir do card de um candidato, como uma ficha bruta do
+TSE) é real e permanece no catálogo, mas não pode ser a *única* citação em
+uma afirmação: um leitor não tem como acessá-la, então uma afirmação apoiada
+só em uma fonte `interno` sai não rastreável, exatamente o que a D8 proíbe.
+Fontes `interno` ainda podem ser citadas ao lado de uma fonte visível — só
+não podem sustentar uma afirmação sozinhas. O validador aplica isso em todo
+array `fonteRefs`, tanto em posições quanto em alertas.
 
 ---
 
-## 4. The framing trap
+## 3. A regra de admissão D9
 
-This is the single most common failure mode. Each theme's affirmation is a
-**specific political stance**, not a neutral topic description. `favoravel` means
-the candidate agrees with the affirmation **as written** — not with the general
-subject area, not with "caring about" the theme.
+Um alerta `polemica` exige **duas fontes de camada 2 independentes que não
+se citam mutuamente, ou uma fonte de camada 1.** Nada menos que isso
+atravessa a barra.
 
-Three worked examples, verbatim:
+O validador aplica isso mecanicamente: `validateResearch()` conta as
+referências distintas de camada 2 citadas por um alerta `polemica` (após
+deduplicação — citar a mesma fonte duas vezes não conta como duas) e
+verifica se há uma referência de camada 1 entre elas. Um documento que viola
+a D9 é rejeitado por completo, antes de qualquer coisa chegar ao banco.
 
-- `reforma_previdencia` asks about *loosening* retirement rules. A candidate who
-  tightened them is `contrario`.
-- `politica_economica` asks about *more* state participation. A candidate
-  favouring less is `contrario`.
-- `politica_externa` asks about prioritising *Western* alignment. A candidate
-  favouring South-South multilateralism is `contrario`.
-- `autonomia_individual`'s affirmation is double-barrelled: *"O governo deve
+---
+
+## 4. A armadilha de enquadramento
+
+Este é o modo de falha mais comum de todos. A afirmação de cada tema é uma
+**posição política específica**, não uma descrição neutra de assunto.
+`favoravel` significa que o candidato concorda com a afirmação **como está
+escrita** — não com a área geral do assunto, não com "se importar" com o
+tema.
+
+Três exemplos concretos, literais:
+
+- `reforma_previdencia` pergunta sobre *flexibilizar* regras de
+  aposentadoria. Um candidato que as endureceu é `contrario`.
+- `politica_economica` pergunta sobre *mais* participação do Estado. Um
+  candidato favorável a menos é `contrario`.
+- `politica_externa` pergunta sobre priorizar alinhamento *Ocidental*. Um
+  candidato favorável ao multilateralismo Sul-Sul é `contrario`.
+- A afirmação de `autonomia_individual` tem duas partes: *"O governo deve
   ampliar o direito dos cidadãos de tomarem decisões sobre sua própria vida,
-  incluindo o acesso a armas de fogo para uso pessoal."* The slug name — a
-  holdover from when the theme was called `porte_armas` — hides a specific and
-  decisive second clause. A candidate's stance on personal autonomy **in
-  general** does not settle this affirmation; it is settled by their position
-  specifically on firearms access. A candidate who supports broad personal
-  autonomy but opposes civilian firearm access is `contrario`, not `favoravel`.
+  incluindo o acesso a armas de fogo para uso pessoal."* O nome do slug —
+  um resquício de quando o tema se chamava `porte_armas` — esconde uma
+  segunda cláusula específica e decisiva. A posição de um candidato sobre
+  autonomia pessoal **em geral** não resolve esta afirmação; ela é resolvida
+  pela posição específica dele sobre acesso a armas de fogo. Um candidato
+  que apoia ampla autonomia pessoal mas se opõe ao acesso civil a armas de
+  fogo é `contrario`, não `favoravel`.
 
-Read the affirmation first, every time. Do not infer a position from the theme's
-name alone.
+Leia a afirmação primeiro, sempre. Não infira uma posição só a partir do nome
+do tema.
 
 ---
 
-## 5. Coherence rules
+## 5. Regras de coerência
 
-The coherence index compares the candidate's **2026 platform** against their
-**conduct in 2023–2026** — what they promised versus what they did.
+O índice de coerência compara a **plataforma de 2026** do candidato contra a
+**conduta dele em 2023–2026** — o que prometeu versus o que fez.
 
-- It is `null`, never zero, when there is no track record to compare against.
-  Zero means the comparison was made and it came out incoherent; `null` means the
-  comparison could not be made at all. Conflating the two would misrepresent a
-  first-time candidate as someone who broke their own promises.
-- It is strong for **legislative** candidates, who have nominal roll-call votes
-  to compare against their platform. Gather them in E4a — that stage exists to
-  make this rule actionable rather than aspirational.
-- It is weak for **executive** candidates, whose conduct surfaces only through
-  news coverage rather than a votable record.
-- `coerencia_base` must state, in plain language, what was compared against
-  what — e.g. "2026 government plan pledges compared against nominal roll-call
-  votes 2023–2026," not a bare number with no explanation of its basis.
+- É `null`, nunca zero, quando não há histórico para comparar. Zero
+  significa que a comparação foi feita e deu incoerente; `null` significa
+  que a comparação não pôde ser feita. Confundir os dois representaria um
+  candidato de primeira viagem como alguém que quebrou as próprias
+  promessas.
+- É forte para candidatos **legislativos**, que têm votos nominais para
+  comparar com a plataforma. Reúna-os na E4a — esse estágio existe para
+  tornar esta regra acionável, não apenas aspiracional.
+- É fraca para candidatos ao **Executivo**, cuja conduta só aparece por
+  cobertura jornalística, não por um histórico votável.
+- `coerencia_base` precisa declarar, em linguagem clara, o que foi comparado
+  contra o quê — ex.: "compromissos do plano de governo de 2026 comparados
+  contra votos nominais de 2023–2026", não um número seco sem explicação da
+  base.
 
-**Per-theme coherence for a sitting or former legislator.** `coerenciaTema` is
-decided theme by theme, from what E4a actually found — it describes the record
-*on that theme*, not the candidate's career as a whole:
+**Coerência por tema para um legislador em exercício ou ex-legislador.**
+`coerenciaTema` é decidida tema a tema, a partir do que a E4a de fato
+encontrou — descreve o histórico *naquele tema*, não a carreira inteira do
+candidato:
 
-| What E4a found for this theme | `coerenciaTema` |
+| O que a E4a encontrou para este tema | `coerenciaTema` |
 |---|---|
-| A cited vote that matches the candidate's stated position | `coerente` |
-| A cited vote that contradicts their stated position | `incoerente` |
-| No vote found on this theme | `sem_historico` |
+| Um voto citado que confere com a posição declarada do candidato | `coerente` |
+| Um voto citado que contradiz a posição declarada do candidato | `incoerente` |
+| Nenhum voto encontrado sobre este tema | `sem_historico` |
 
-**The career-level statement belongs in `coerenciaBase`, not in the per-theme
-enum.** A four-term senator whose roll-call record happens to be silent on
-most themes still gets `sem_historico` on those themes — that is accurate,
-because there is no vote on *that* theme to compare. What must not happen is
-`coerenciaBase` saying "não há base de comparação: nunca ocupou cargo eletivo"
-about someone who has held a seat for sixteen years. For a legislator,
-`coerenciaBase` states which mandate was examined, where the votes were looked
-up, and how many themes had a vote to compare — e.g. "Plataforma de 2026
-confrontada com o histórico de votações nominais do mandato 2023-2026 na
-Câmara; 6 dos 14 temas tiveram votação nominal identificada."
+**A declaração de nível de carreira pertence a `coerenciaBase`, não ao enum
+por tema.** Um senador em quarto mandato cujo histórico de votações nominais
+por acaso é silencioso na maioria dos temas ainda recebe `sem_historico`
+nesses temas — isso é correto, porque não há voto *naquele* tema para
+comparar. O que não pode acontecer é `coerenciaBase` dizer "não há base de
+comparação: nunca ocupou cargo eletivo" sobre alguém que ocupa uma cadeira há
+dezesseis anos. Para um legislador, `coerenciaBase` declara qual mandato foi
+examinado, onde os votos foram consultados, e quantos temas tiveram voto
+para comparar — ex.: "Plataforma de 2026 confrontada com o histórico de
+votações nominais do mandato 2023-2026 na Câmara; 6 dos 14 temas tiveram
+votação nominal identificada."
 
-A theme marked `incoerente` is a candidate for an `incoerencia` alert — but
-only where the contradiction is direct and both sides are cited (the platform
-text and the vote). A shift in emphasis is not a contradiction, and a vote on
-a bill whose subject merely overlaps the theme is not a contradiction either.
+Um tema marcado `incoerente` é candidato a um alerta `incoerencia` — mas só
+onde a contradição é direta e os dois lados são citados (o texto da
+plataforma e o voto). Uma mudança de ênfase não é uma contradição, e um voto
+em um projeto cujo assunto apenas tangencia o tema também não é uma
+contradição.
 
 ---
 
-## 6. The output contract
+## 6. O contrato de saída
 
-### 6.1 Enum reference
+### 6.1 Referência de enums
 
-Every allowed value for every enum field, matching `scripts/lib/research-contract.ts`
-exactly. The worked example below does not use every value — it cannot,
-without becoming unreadable — so this table is the authority, not the example.
+Todo valor permitido para todo campo de enum, batendo exatamente com
+`scripts/lib/research-contract.ts`. O exemplo trabalhado abaixo não usa todo
+valor — não pode, sem ficar ilegível — então esta tabela é a autoridade, não
+o exemplo.
 
-| Field | Allowed values |
+| Campo | Valores permitidos |
 |---|---|
 | `fontes[].tipo` | `plano_governo`, `coligacao`, `bens_declarados`, `votacao`, `tse_oficial`, `noticia`, `checagem`, `judicial`, `plataforma_partidaria`, `biografia` |
-| `fontes[].camada` | `1` (primary/official — see the domain requirement below), `2` (reference press), `3` (fact-checking) |
+| `fontes[].camada` | `1` (primária/oficial — ver o requisito de domínio abaixo), `2` (imprensa de referência), `3` (checagem de fatos) |
 | `fontes[].destinoExibicao` | `card_candidato`, `pagina_sobre`, `interno` |
 | `posicoes[].posicao` | `favoravel`, `contrario`, `neutro` |
-| `posicoes[].neutroMotivo` | `nao_encontrado`, `nao_responde`, `ambivalente`, or `null`/omitted when `posicao` is not `neutro` — required whenever `posicao` is `neutro` (see E5 above for how to choose) |
-| `posicoes[].coerenciaTema` | `coerente`, `incoerente`, `sem_historico`, or `null` (no track record to compare — see section 5) |
+| `posicoes[].neutroMotivo` | `nao_encontrado`, `nao_responde`, `ambivalente`, ou `null`/omitido quando `posicao` não é `neutro` — obrigatório sempre que `posicao` é `neutro` (ver E5 acima para como escolher) |
+| `posicoes[].coerenciaTema` | `coerente`, `incoerente`, `sem_historico`, ou `null` (sem histórico para comparar — ver seção 5) |
 | `alertas[].tipo` | `ficha_suja`, `investigacao`, `polemica`, `incoerencia`, `divergencia_espectro`, `ressalva_evidencias` |
 | `alertas[].severidade` | `critica`, `alta`, `media`, `baixa` |
-| `alertas[].resolucao` | `null` (still open) or a string describing what happened and how it was resolved |
-| `alertas[].dataResolucao` | ISO date the resolution became final, or `null` if resolved but the date is unknown — never set without `resolucao` also set |
+| `alertas[].resolucao` | `null` (ainda em aberto) ou uma string descrevendo o que aconteceu e como foi resolvido |
+| `alertas[].dataResolucao` | data ISO em que a resolução se tornou final, ou `null` se resolvido mas a data é desconhecida — nunca definido sem `resolucao` também definido |
 
-**A resolved alert is still an alert, and it never auto-publishes.**
-`resolucao` maps to `politician_alerts.ativo = false` and the text itself; a
-`null` `resolucao` means the matter is still open (`ativo = true`). Per Rule B
-of `docs/legado/base/04_schema_alerts.md`, a `ficha_suja` or `investigacao` on a
-layer-1 source normally publishes with no human review — but a resolved one
-never does, regardless of source layer, because the point of that badge is
-that the disqualification is *current*. Publishing a resolved matter
-unreviewed would tell a voter something is true that is not.
+**Um alerta resolvido continua sendo um alerta, e nunca é publicado
+automaticamente.** `resolucao` mapeia para `politician_alerts.ativo = false`
+e o próprio texto; uma `resolucao` `null` significa que o caso ainda está
+aberto (`ativo = true`). Pela Regra B de `docs/legado/base/04_schema_alerts.md`,
+um `ficha_suja` ou `investigacao` sobre fonte de camada 1 normalmente é
+publicado sem nenhuma revisão humana — mas um resolvido nunca é, independente
+da camada da fonte, porque o propósito daquele selo é que a desqualificação é
+*atual*. Publicar um caso resolvido sem revisão diria ao eleitor algo
+verdadeiro que não é.
 
-**Camada 1 requires an official domain.** `camada` is not a self-assessment —
-the validator checks it. A source is only accepted as `camada: 1` when its
-url's hostname ends in `.jus.br`, `.gov.br`, `.leg.br` or `.mp.br` (e.g.
-`tse.jus.br`, `camara.leg.br`, `www.gov.br`, `mpf.mp.br`). A news article, a
-blog, or any other source that is not on one of these domains must be `camada
-2` or `3`, whatever its actual reliability — do not round up a good source to
-`camada: 1` to strengthen an alert or satisfy D9. The document is rejected
-outright if a `camada: 1` source fails this check.
+**Camada 1 exige um domínio oficial.** `camada` não é uma autoavaliação — o
+validador confere. Uma fonte só é aceita como `camada: 1` quando o hostname
+da url termina em `.jus.br`, `.gov.br`, `.leg.br` ou `.mp.br` (ex.:
+`tse.jus.br`, `camara.leg.br`, `www.gov.br`, `mpf.mp.br`). Uma matéria
+jornalística, um blog, ou qualquer outra fonte que não esteja em um desses
+domínios precisa ser `camada 2` ou `3`, independentemente de sua
+confiabilidade real — não arredonde uma boa fonte para `camada: 1` para
+fortalecer um alerta ou satisfazer a D9. O documento é rejeitado por completo
+se uma fonte `camada: 1` falhar nessa checagem.
 
-**Publication rule for alerts.** A `ficha_suja` or `investigacao` alert backed
-by a layer-1 (official) source is **published to voters immediately, with no
-human review** — Rule B of `docs/legado/base/04_schema_alerts.md`. A
-`ressalva_evidencias` alert — a methodological caveat about the evidence base
-(e.g. a degraded PDF extraction, or positions inferred from a party platform
-rather than the candidate's own statements) — is also auto-published, because
-it is a factual transparency flag, never an accusation, and hiding it would
-defeat its purpose. Every other alert type, and a `ficha_suja` or
-`investigacao` backed by anything less than a layer-1 source, waits for
-curation before it is ever shown. Choosing `tipo` and deciding which sources
-to cite on E2's alerts **is** the publication decision — the agent making that
-call must know that it is not an incidental classification, it is a decision
-about whether a claim reaches a voter unreviewed.
+**Regra de publicação para alertas.** Um alerta `ficha_suja` ou
+`investigacao` apoiado em fonte de camada 1 (oficial) é **publicado ao
+eleitor imediatamente, sem revisão humana** — Regra B de
+`docs/legado/base/04_schema_alerts.md`. Um alerta `ressalva_evidencias` — uma
+ressalva metodológica sobre a base de evidências (ex.: uma extração de PDF
+degradada, ou posições inferidas de uma plataforma partidária em vez das
+declarações próprias do candidato) — também é publicado automaticamente,
+porque é um sinal factual de transparência, nunca uma acusação, e escondê-lo
+derrotaria seu propósito. Todo outro tipo de alerta, e um `ficha_suja` ou
+`investigacao` apoiado em algo menos que uma fonte de camada 1, aguarda
+curadoria antes de ser mostrado. Escolher `tipo` e decidir quais fontes citar
+nos alertas da E2 **é** a decisão de publicação — o agente que faz essa
+escolha precisa saber que não é uma classificação incidental, é uma decisão
+sobre se uma afirmação chega a um eleitor sem revisão.
 
-### 6.2 Worked example
+### 6.2 Exemplo trabalhado
 
-A complete, filled example, matching `scripts/lib/research-contract.ts` exactly.
-Every field below is populated with realistic values, and all 14 themes are
-covered — a real submission carries all 14, and copying a partial shape is a
-common mistake. Justifications on the less illustrative themes are kept to one
-sentence; the point of those entries is to show the complete shape, not to be
-elaborate. The example also demonstrates the honesty rule in action
-(`corrupcao_transparencia` is `neutro` with low confidence, citing the source
-that was checked and found silent), the D9 rule in action (the `polemica`
-alert cites two independent layer-2 sources), a genuine `incoerente` reading
-(`bolsa_familia_transferencia`, where the 2026 platform diverges from
-documented past conduct), and E2's `ficha_suja` alert, auto-published on a
-layer-1 source per the rule above.
+Um exemplo completo e preenchido, batendo exatamente com
+`scripts/lib/research-contract.ts`. Todo campo abaixo está preenchido com
+valores realistas, e os 14 temas estão cobertos — uma submissão real carrega
+todos os 14, e copiar um formato parcial é um erro comum. As justificativas
+nos temas menos ilustrativos são mantidas a uma frase; o ponto dessas
+entradas é mostrar o formato completo, não ser elaborado. O exemplo também
+demonstra a regra de honestidade em ação (`corrupcao_transparencia` é
+`neutro` com confiança baixa, citando a fonte que foi checada e encontrada
+silenciosa), a regra D9 em ação (o alerta `polemica` cita duas fontes de
+camada 2 independentes), uma leitura `incoerente` genuína
+(`bolsa_familia_transferencia`, onde a plataforma de 2026 diverge da conduta
+passada documentada), e o alerta `ficha_suja` de E2, publicado
+automaticamente sobre fonte de camada 1 pela regra acima.
 
-**Note:** the `tseSequencial` below is a placeholder, not a real TSE identifier.
-The candidate name and party are placeholders too — this is an illustration of
-shape, not a real dossier.
+**Nota:** o `tseSequencial` abaixo é um placeholder, não um identificador
+real do TSE. O nome e o partido do candidato também são placeholders — isto
+é uma ilustração de formato, não um dossiê real.
 
 ```json
 {
@@ -787,31 +825,33 @@ shape, not a real dossier.
 }
 ```
 
-The second entry demonstrates the resolved path added after the 2026-08-22 incident:
-the inquiry is on record — not omitted — but `resolucao` is set, so it maps to
-`ativo = false` and is **not** auto-published under Rule B, even though its
-source is layer 1 and the tipo qualifies. A voter reading it sees that it was
-investigated and cleared, not that it is a live disqualification.
+A segunda entrada demonstra o caminho de resolução acrescentado após o
+incidente de 2026-08-22: o inquérito está registrado — não omitido — mas
+`resolucao` está definida, então ele mapeia para `ativo = false` e **não** é
+publicado automaticamente pela Regra B, mesmo com fonte de camada 1 e o tipo
+se qualificando. Um eleitor lendo isso vê que foi investigado e arquivado,
+não que é uma desqualificação em curso.
 
 ---
 
-## 7. Honesty rules
+## 7. Regras de honestidade
 
-- A theme with no evidence gets `neutro` with `neutroMotivo: "nao_encontrado"`,
-  a low `confiancaIa`, and a justification that says evidence was not found.
-  Never invent a position to fill a gap. See E5 above for how to tell this
-  apart from `nao_responde` and `ambivalente`.
-- The validator requires `fonteRefs` to be non-empty on **every** position,
-  including a `neutro` one recording that no evidence was found — an empty
-  array is a rejection, not an honest silence. A `neutro` position with no
-  evidence still cites the sources that were **searched and found silent**:
-  the government plan, the news search, whatever was actually consulted. The
-  citation records where you looked, not what you found. This is not a
-  loophole around the honesty rule; it is how the rule is expressed inside a
-  contract that requires every claim to be traceable. Copy the
-  `corrupcao_transparencia` entry in section 6 as the pattern — it cites
-  `fonte-plano-2026` precisely because that is the document that was checked
-  and came up silent on the theme.
-- An absent government plan is stated as absent, plainly, in the dossier and in
-  any position that would otherwise have relied on it. It is never worked
-  around silently by treating other sources as if they were the plan.
+- Um tema sem evidência recebe `neutro` com `neutroMotivo: "nao_encontrado"`,
+  um `confiancaIa` baixo, e uma justificativa que diz que a evidência não foi
+  encontrada. Nunca invente uma posição para preencher uma lacuna. Ver E5
+  acima para como distinguir isso de `nao_responde` e `ambivalente`.
+- O validador exige que `fonteRefs` seja não vazio em **toda** posição,
+  inclusive uma `neutro` que registra que nenhuma evidência foi encontrada —
+  um array vazio é uma rejeição, não um silêncio honesto. Uma posição
+  `neutro` sem evidência ainda cita as fontes que foram **buscadas e
+  encontradas silenciosas**: o plano de governo, a busca de notícias, o que
+  quer que tenha sido de fato consultado. A citação registra onde você
+  procurou, não o que você encontrou. Isto não é uma brecha para contornar a
+  regra de honestidade; é como a regra se expressa dentro de um contrato que
+  exige que toda afirmação seja rastreável. Copie a entrada
+  `corrupcao_transparencia` da seção 6 como padrão — ela cita
+  `fonte-plano-2026` precisamente porque esse é o documento que foi checado e
+  ficou silencioso sobre o tema.
+- Um plano de governo ausente é declarado como ausente, de forma clara, no
+  dossiê e em qualquer posição que de outro modo dependeria dele. Nunca é
+  contornado silenciosamente tratando outras fontes como se fossem o plano.
