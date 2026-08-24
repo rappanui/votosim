@@ -308,6 +308,19 @@ describe('CandidatoCard', () => {
     expect(screen.queryByText('Quem é')).not.toBeInTheDocument()
   })
 
+  // The one candidate shape that broke before correction 2: a voter who left
+  // every theme neutral and unimportant filters the whole panel away, yet still
+  // gets a headline score that needs explaining.
+  it('still explains the score when no theme survives the filter', () => {
+    const candidato = makeCandidate({
+      detalhesTemas: [makeDetalhe({ voterPosicao: 'neutro', voterImportancia: 1 })],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    fireEvent.click(screen.getByText(/Ver detalhes/))
+    expect(screen.getByTestId('audit-line')).toBeInTheDocument()
+    expect(screen.queryByText(/Seus temas/)).not.toBeInTheDocument()
+  })
+
   it('keeps the audit line above the two-column split', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
     fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
