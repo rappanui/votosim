@@ -27,7 +27,14 @@ For example:
 ### posicao (the candidate's position on the affirmation)
 - "favoravel" — candidate clearly AGREES with the affirmation: supports, advocates for, has enacted or proposed policies aligned with it
 - "contrario" — candidate clearly DISAGREES: opposes, has enacted or proposed policies contrary to it, has made public statements against it
-- "neutro" — candidate avoids the topic, has contradictory positions, or explicitly says "it depends on context"
+- "neutro" — you found a documented position, but it does not pick a side on
+  this affirmation. Always accompany it with `neutro_motivo`:
+  - "nao_responde" — the candidate has a stance on the theme, but it does not
+    answer this specific affirmation (e.g. the affirmation asks about EXPANDING
+    a program and the candidate promises to MAINTAIN it)
+  - "ambivalente" — the candidate's position is contradictory, mixed, or
+    explicitly conditional
+  - "nao_encontrado" — you searched and found nothing at all on this theme
 
 ### intensidade (strength of the position, 1–5)
 - 5 = Core signature policy, campaign flagship, has legislation/decree on it
@@ -40,7 +47,12 @@ For example:
 - 0.90+ = Multiple independent documentary sources (speeches + votes + program)
 - 0.80–0.90 = One strong documentary source + consistent historical record
 - 0.70–0.80 = Mainly party alignment or historical inference
-- Below 0.70 = Use "neutro" instead and note low confidence
+- Below 0.70 = Use "neutro" with the appropriate `neutro_motivo` instead of a low-confidence guess
+
+Never use "neutro" merely because you are unsure. Low confidence on a real
+stance belongs in `confianca_ia`, not in the position value. If you genuinely
+found nothing, that is "neutro" with `neutro_motivo: "nao_encontrado"` — an
+explicit statement of absence, not a hedge.
 
 ## The 14 Themes
 
@@ -110,6 +122,7 @@ Return ONLY a JSON array. No preamble, no explanation outside the JSON.
   {
     "temaSlug": "reforma_tributaria",
     "posicao": "favoravel" | "contrario" | "neutro",
+    "neutro_motivo": "nao_encontrado" | "nao_responde" | "ambivalente" | null,
     "intensidade": 1-5,
     "justificativa": "One or two sentences citing the specific evidence: quote, vote, speech, or document. Be concrete.",
     "confianca_ia": 0.70-0.95,

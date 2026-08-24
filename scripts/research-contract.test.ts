@@ -411,6 +411,51 @@ test('validateResearch: accepts biografia as a source tipo', () => {
   assert.deepEqual(validateResearch(doc), [])
 })
 
+test('validateResearch: accepts desempenho_mandato as a source tipo', () => {
+  // E4b cites attendance, votes, authored bills and CEAP spending. None of the
+  // pre-existing tipos covers them: bens_declarados is declared assets, votacao
+  // is a single roll-call. Without this the E4b rule cannot cite its own source.
+  const doc = valid()
+  doc.fontes[0].tipo = 'desempenho_mandato'
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+// ─── neutroMotivo: which flavor of "neutro" this position records ──────────
+
+test('validateResearch: accepts a neutro position carrying a valid neutroMotivo', () => {
+  const doc = valid()
+  doc.posicoes[0].posicao = 'neutro'
+  doc.posicoes[0].neutroMotivo = 'nao_responde'
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('validateResearch: rejects an unknown neutroMotivo value', () => {
+  const doc = valid()
+  doc.posicoes[0].posicao = 'neutro'
+  // deliberately invalid — the contract is what we are testing
+  doc.posicoes[0].neutroMotivo = 'sei_la' as never
+  const errors = validateResearch(doc)
+  assert.ok(errors.some(e => e.includes('neutroMotivo')), errors.join(' | '))
+})
+
+test('validateResearch: rejects neutroMotivo on a non-neutro position', () => {
+  const doc = valid()
+  doc.posicoes[0].posicao = 'favoravel'
+  doc.posicoes[0].neutroMotivo = 'nao_encontrado'
+  const errors = validateResearch(doc)
+  assert.ok(errors.some(e => e.includes('neutroMotivo')), errors.join(' | '))
+})
+
+test('validateResearch: accepts a neutro position with neutroMotivo omitted', () => {
+  // Backward compatibility: fillerPositions() already emits 13 neutro entries
+  // with no motivo, and every existing payload looks like that. Readers
+  // default a missing motivo to nao_encontrado.
+  const doc = valid()
+  doc.posicoes[0].posicao = 'neutro'
+  delete doc.posicoes[0].neutroMotivo
+  assert.deepEqual(validateResearch(doc), [])
+})
+
 test('validateResearch: accepts ressalva_evidencias as an alert tipo', () => {
   const doc = valid()
   doc.alertas.push({
