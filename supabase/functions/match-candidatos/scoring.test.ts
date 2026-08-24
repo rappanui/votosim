@@ -1,7 +1,7 @@
 /// <reference lib="deno.ns" />
 import { assertEquals, assertAlmostEquals } from 'https://deno.land/std@0.208.0/assert/mod.ts'
-import { classifyEvidence, P_NAO_INFORMADO, posicaoToScale, scoreCandidato, scoreWithoutAI } from './ai-providers.ts'
-import type { FallbackData, PositionWithSlug, RespostaUsuario } from './ai-providers.ts'
+import { classifyEvidence, P_NAO_INFORMADO, posicaoToScale, scoreCandidato, scoreWithoutAI } from './scoring.ts'
+import type { FallbackData, PositionWithSlug, RespostaUsuario } from './scoring.ts'
 
 // ─── posicaoToScale (unchanged behaviour) ─────────────────────────────────────
 

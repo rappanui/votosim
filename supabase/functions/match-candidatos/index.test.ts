@@ -34,7 +34,7 @@ import type {
   PositionWithSlug,
   RespostaUsuario,
   TemaCandidatoDetalhe,
-} from './ai-providers.ts'
+} from './scoring.ts'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -47,7 +47,7 @@ export type NeutroMotivo = 'nao_encontrado' | 'nao_responde' | 'ambivalente'
 
 /**
  * What an unaudited theme is worth, as a percentage, for display copy.
- * Mirrors P_NAO_INFORMADO in the Edge Function's ai-providers.ts — the two
+ * Mirrors P_NAO_INFORMADO in the Edge Function's scoring.ts — the two
  * runtimes share no module, so this is the single edit site on the app side.
  */
 export const P_NAO_INFORMADO_PCT = 10

@@ -290,7 +290,7 @@ export function scoreCandidato(
   // Derived from the ROUNDED components on purpose: the results card shows this
   // same arithmetic to the voter as an audit line, and a headline that does not
   // reproduce from the numbers beside it is worse than one that is a fraction
-  // of a point less precise. A property test in ai-providers.test.ts enforces
+  // of a point less precise. A property test in scoring.test.ts enforces
   // this identity holds exactly against the returned rounded values.
   const alinhamentoPct = Math.round(
     (confiancaPct / 100) * (apuradoPct / 100) * 100 + (1 - confiancaPct / 100) * P_NAO_INFORMADO * 100,
