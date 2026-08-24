@@ -9,6 +9,28 @@ theme slugs in the v2 document are still current; only its scoring section is de
 
 ---
 
+## Deploy order
+
+This branch creates a hard ordering requirement that nothing enforces at
+runtime — read this before deploying any of the three pieces:
+
+1. **Migration** — `docs/base/12_neutro_motivo.sql` (adds
+   `politician_positions.neutro_motivo`).
+2. **Edge Function** — `supabase/functions/match-candidatos/`.
+3. **Next.js app.**
+
+`index.ts:108` selects `neutro_motivo` unconditionally, with no fallback: on
+an environment where the migration has not run yet, every quiz submission
+returns a 500. And if the app ships ahead of the function, the card's audit
+line renders `undefined%` and `NaN%` instead of real numbers, because it
+reads fields the deployed function does not yet send.
+
+This is a documentation note only — there is no runtime check that enforces
+the order, and adding one is a larger change than this note, out of scope
+here.
+
+---
+
 ## The defect this fixes
 
 A real quiz run returned `VETERINÁRIO WILSON GRASSI — 90%, cobertura 36%`, with 9 of
