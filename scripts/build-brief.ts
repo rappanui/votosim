@@ -71,7 +71,7 @@ export interface BriefInput {
  * alongside a leiame.pdf that is not a plan. A plan split across multiple
  * files (_01, _02, _03...) is one document, not several — every part must be
  * read, or the brief silently drops most of what the candidate actually
- * filed (see docs/sp0-findings-log.md F10).
+ * filed (see docs/referencia/achados-sp0.md F10).
  */
 export function findPlanPaths(sequencial: string, files: string[]): string[] {
   const pattern = new RegExp(`\\d{4}[A-Z]{2}${sequencial}(_(\\d+))?\\.pdf$`, 'i')
@@ -123,7 +123,7 @@ export function renderBrief(input: BriefInput): string {
   lines.push('theme), `nao_responde` (a documented stance exists but does not answer this')
   lines.push('affirmation — e.g. the affirmation asks about EXPANDING a programme and the')
   lines.push('candidate promises only to MAINTAIN it), or `ambivalente` (contradictory or')
-  lines.push('explicitly conditional). See docs/candidate-research-procedure.md section E5')
+  lines.push('explicitly conditional). See docs/procedimentos/pesquisa-de-candidato.md section E5')
   lines.push('for the full rule — getting `nao_encontrado` and `nao_responde` confused costs')
   lines.push('a real candidate 0.40 of alignment on that theme.')
   lines.push('')
@@ -132,7 +132,7 @@ export function renderBrief(input: BriefInput): string {
     lines.push(t.afirmacao)
     lines.push('')
     // I8: contexto_questionario is the disambiguating paragraph — the direct
-    // antidote to the framing trap (see docs/candidate-research-procedure.md
+    // antidote to the framing trap (see docs/procedimentos/pesquisa-de-candidato.md
     // section 4). It is context for judging the affirmation above, not part
     // of the affirmation itself, so it is labelled and kept visually
     // separate rather than appended to it.
@@ -250,7 +250,7 @@ function reportPlanMisconfiguration(kind: 'misconfigured' | 'uf_not_downloaded',
   console.error('')
   console.error('Por que isto aborta em vez de seguir: sem os planos, o brief diria')
   console.error('"filed no government plan" para um candidato que protocolou um — e essa')
-  console.error('frase acabaria no dossiê que o eleitor lê. Ver docs/sp0-findings-log.md, F11.')
+  console.error('frase acabaria no dossiê que o eleitor lê. Ver docs/referencia/achados-sp0.md, F11.')
   console.error('='.repeat(72))
 }
 

@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   // The two archive shapes need two different destinations, and getting this
   // wrong fails silently: build-brief reports "NONE FILED" for every candidate
   // and loads zero social accounts, with nothing indicating the data is simply
-  // in the wrong folder. See docs/sp0-findings-log.md F11.
+  // in the wrong folder. See docs/referencia/achados-sp0.md F11.
   console.log('\nUnzip with:')
   console.log(`  # plans — the archive already contains a {UF}/ folder, so extract INTO planos/`)
   console.log(`  unzip -o '${OUT_DIR}/proposta_governo_*.zip' -d ${OUT_DIR}/extracted/planos`)

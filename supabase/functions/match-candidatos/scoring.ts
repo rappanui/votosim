@@ -38,7 +38,7 @@ export interface PositionWithSlug {
 /**
  * Below this, an AI-written position is flagged to the voter as unreviewed.
  * Positions publish with no human curation (unlike alerts under Rule B of
- * docs/base/04_schema_alerts.md), so this is the only signal a voter gets
+ * docs/legado/base/04_schema_alerts.md), so this is the only signal a voter gets
  * that a specific classification is weaker than the rest.
  */
 export const LOW_CONFIDENCE_THRESHOLD = 0.75

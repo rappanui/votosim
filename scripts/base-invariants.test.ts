@@ -81,7 +81,7 @@ test("politician_positions: every 'neutro' row has confianca_ia <= 0.5", async (
 
 // ─── 3. neutro_motivo is null or one of the three permitted values, and is ────
 //        null on every non-neutro row.
-// The DB constraint (docs/base/12_neutro_motivo.sql) is supposed to enforce
+// The DB constraint (docs/migracoes/12_neutro_motivo.sql) is supposed to enforce
 // this already — this test catches the constraint being dropped.
 
 test('politician_positions: neutro_motivo is valid, and null on non-neutro rows', async () => {

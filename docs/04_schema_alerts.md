@@ -12,7 +12,7 @@ alert_type:     'ficha_suja' | 'investigacao' | 'polemica' | 'incoerencia'
 alert_severity: 'critica' | 'alta' | 'media' | 'baixa'
 ```
 
-`incoerencia` and `divergencia_espectro` were added by SP-0 (docs/base/11_sp0_foundation.sql).
+`incoerencia` and `divergencia_espectro` were added by SP-0 (docs/migracoes/11_sp0_foundation.sql).
 `ressalva_evidencias` was added 2026-08-23: a caveat about the evidence base itself
 (degraded extraction, positions inferred from a party platform rather than the
 candidate's own statements). It is a transparency flag, never an accusation.

@@ -87,7 +87,7 @@ test('buildAlertRows: polemica requires curation before display, others do not',
   r.alertas.push({ tipo: 'polemica', severidade: 'media', titulo: 'P', descricao: 'D', dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s2'] })
   const rows = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1'], ['s2', 'src-2']]))
 
-  // Rule B of docs/base/04_schema_alerts.md: polemica needs human curation.
+  // Rule B of docs/legado/base/04_schema_alerts.md: polemica needs human curation.
   assert.equal(rows[0].validado, true, 'investigacao backed by a layer-1 source is auto-validated')
   assert.equal(rows[1].validado, false, 'polemica awaits curation')
 })
@@ -167,7 +167,7 @@ test('buildAlertRows: an alert citing an interno source first still writes the v
   assert.equal(row.fonte_nome, 'TSE')
 })
 
-// ─── Resolved alerts — Rule D of docs/base/04_schema_alerts.md ──────────────
+// ─── Resolved alerts — Rule D of docs/legado/base/04_schema_alerts.md ──────────────
 
 test('buildAlertRows: an unresolved alert maps to ativo=true with no resolucao', () => {
   const rows = buildAlertRows(research(), 'pol-1', new Map([['s2', 'src-2']]))
@@ -201,7 +201,7 @@ test('buildAlertRows: a resolved matter is never auto-validated, regardless of s
 })
 
 // ─── ressalva_evidencias: pipeline-authored, never an accusation ─────────────
-// docs/base/04_schema_alerts.md Regra B: auto-validated regardless of source
+// docs/legado/base/04_schema_alerts.md Regra B: auto-validated regardless of source
 // layer, because it is a factual note about the evidence base itself, not a
 // disqualification claim that needs a TSE/STF-grade source to back it.
 

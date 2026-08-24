@@ -37,7 +37,7 @@ const COHERENCE = ['coerente', 'incoerente', 'sem_historico'] as const
 const SOURCE_TIPOS = [
   'plano_governo', 'coligacao', 'bens_declarados', 'votacao',
   'tse_oficial', 'noticia', 'checagem', 'judicial',
-  // Added 2026-08-23 (docs/sp0-schema-additions.md): the E1 evidence base for
+  // Added 2026-08-23 (docs/referencia/schema-adicoes-sp0.md): the E1 evidence base for
   // legislative candidates, who file no plano_governo — party platform and
   // biographical profile documents.
   'plataforma_partidaria', 'biografia',
@@ -94,7 +94,7 @@ export interface ResearchAlert {
   dataOcorrencia: string | null
   fonteRefs: string[]
   /**
-   * Rule D of docs/base/04_schema_alerts.md: a resolved matter (charges
+   * Rule D of docs/legado/base/04_schema_alerts.md: a resolved matter (charges
    * dropped, conviction overturned, absolved) is never deleted or omitted —
    * only marked inactive with the resolution on record, for transparency.
    * null means the matter is still open. Non-null maps to ativo=false and

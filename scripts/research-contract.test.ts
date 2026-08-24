@@ -223,7 +223,7 @@ test('validateResearch: rejects an alert with no sources', () => {
   assert.match(validateResearch(doc).join(' '), /at least one source/i)
 })
 
-// ─── Resolved alerts — Rule D of docs/base/04_schema_alerts.md: a resolved ──
+// ─── Resolved alerts — Rule D of docs/legado/base/04_schema_alerts.md: a resolved ──
 // matter is never deleted, only marked inactive with a resolution on record.
 // A conviction later annulled must be representable as such, not omitted and
 // not published as if it were still active.
@@ -395,7 +395,7 @@ test('validateResearch: rejects a non-string titulo on a source', () => {
 })
 
 // ─── 2026-08-23 schema additions: plataforma_partidaria, biografia, ressalva_evidencias ─
-// Added to source_tipo / alert_type on the live database (docs/sp0-schema-additions.md)
+// Added to source_tipo / alert_type on the live database (docs/referencia/schema-adicoes-sp0.md)
 // and to candidate-research-procedure.md's E1 section, but never to this validator —
 // any research JSON citing them was silently rejected until now.
 
