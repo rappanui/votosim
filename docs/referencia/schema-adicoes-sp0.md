@@ -1,6 +1,6 @@
 # Adições de schema do SP-0
 
-> **Status:** válido · **Atualizado em:** 2026-08-24
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
 > **Contexto:** as tabelas, colunas e enums que `docs/migracoes/11_sp0_foundation.sql`
 > adicionou para dar suporte ao enriquecimento por candidato, mais as
 > decisões de modelagem por trás delas. Leia antes de escrever qualquer coisa
@@ -108,7 +108,7 @@ ALTER TYPE source_tipo ADD VALUE IF NOT EXISTS 'desempenho_mandato';
 ```
 
 Um alerta `ressalva_evidencias` é auto-validado na ingestão (ver
-`isAutoValidated()` em export/scripts/ingest-research.ts) e renderiza
+`isAutoValidated()` em modules/ingest-candidates/src/comandos/ingest-research.ts) e renderiza
 `badge_cor = 'amarelo'`.
 
 ## Por que `candidate_sources` carrega duas chaves

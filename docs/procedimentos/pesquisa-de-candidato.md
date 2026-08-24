@@ -1,10 +1,10 @@
 # VotoSim — Procedimento de pesquisa de candidato
 
-> **Status:** válido · **Atualizado em:** 2026-08-24
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
 > **Contexto:** este é o procedimento que um agente de pesquisa segue para
-> transformar o brief de um candidato (produzido por `scripts/build-brief.ts`)
+> transformar o brief de um candidato (produzido por `modules/ingest-candidates/src/comandos/build-brief.ts`)
 > em um documento JSON de pesquisa validado (o formato definido por
-> `scripts/lib/research-contract.ts`). Todo documento que o agente produz é
+> `modules/ingest-candidates/src/lib/research-contract.ts`). Todo documento que o agente produz é
 > verificado por `validateResearch()` antes de qualquer gravação no banco —
 > um documento que falha na validação é rejeitado por completo, e nada é
 > persistido. Leitor: um agente de pesquisa (Claude Code). Leia isto antes de
@@ -486,7 +486,7 @@ contradição.
 ### 6.1 Referência de enums
 
 Todo valor permitido para todo campo de enum, batendo exatamente com
-`scripts/lib/research-contract.ts`. O exemplo trabalhado abaixo não usa todo
+`modules/ingest-candidates/src/lib/research-contract.ts`. O exemplo trabalhado abaixo não usa todo
 valor — não pode, sem ficar ilegível — então esta tabela é a autoridade, não
 o exemplo.
 
@@ -541,7 +541,7 @@ sobre se uma afirmação chega a um eleitor sem revisão.
 ### 6.2 Exemplo trabalhado
 
 Um exemplo completo e preenchido, batendo exatamente com
-`scripts/lib/research-contract.ts`. Todo campo abaixo está preenchido com
+`modules/ingest-candidates/src/lib/research-contract.ts`. Todo campo abaixo está preenchido com
 valores realistas, e os 14 temas estão cobertos — uma submissão real carrega
 todos os 14, e copiar um formato parcial é um erro comum. As justificativas
 nos temas menos ilustrativos são mantidas a uma frase; o ponto dessas

@@ -1,6 +1,6 @@
 # Cálculo do match
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 18:10
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
 > **Contexto:** a fórmula que a Edge Function usa para comparar respostas do
 > eleitor às posições de um candidato, os dois níveis de cobertura, e como o
 > fallback de partido funciona. Verificado linha a linha contra
@@ -96,7 +96,7 @@ confiança do agente de pesquisa naquela classificação específica).
 | `ambivalente` | contraditório ou explicitamente condicional | 0,5 |
 
 **NULL é lido como `nao_encontrado`.** Todo registro anterior a 2026-08-24
-está NULL; não houve reclassificação retroativa. `scripts/ingest-research.ts`
+está NULL; não houve reclassificação retroativa. `modules/ingest-candidates/src/comandos/ingest-research.ts`
 grava o campo desde então, então o dado se corrige à frente, conforme
 candidatos são pesquisados de novo.
 

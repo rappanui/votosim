@@ -1,6 +1,6 @@
 # VotoSim — Runbook de pesquisa de candidato
 
-> **Status:** válido · **Atualizado em:** 2026-08-24
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
 > **Contexto:** este é o passo a passo do operador para rodar o pipeline de
 > pesquisa por candidato de ponta a ponta — de escolher o próximo candidato
 > da fila até uma gravação confirmada no banco. Leitor: uma pessoa (o
@@ -61,7 +61,7 @@ data/research/<tse_sequencial>.json
 ```
 
 O documento precisa bater exatamente com o formato definido em
-`scripts/lib/research-contract.ts`: os 14 temas, toda posição e todo alerta
+`modules/ingest-candidates/src/lib/research-contract.ts`: os 14 temas, toda posição e todo alerta
 com fonte, `tseSequencial` definido para o candidato para o qual você acabou
 de montar o brief.
 

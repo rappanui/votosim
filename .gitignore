@@ -53,5 +53,10 @@ docs/superpowers/
 # must never enter git history. Globbed, not a literal name: this file gets
 # renamed by hand when reshared (e.g. -v2, -v3), and an exact-name pattern
 # stops matching the moment that happens.
-/export/
+#
+# The package's source, modules/ingest-candidates/, protects its own .env and
+# data/ through its own nested .gitignore (confirmed with `git check-ignore
+# -v` before removing the old /export/ rule below, which stopped matching
+# anything once that directory was renamed from export/ during the M1 phase
+# of docs/superpowers/plans/2026-08-24-modularizar-ingestao-de-candidatos.md).
 /votosim-pesquisa-candidatos*.zip
