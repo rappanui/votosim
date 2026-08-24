@@ -49,8 +49,8 @@ const CAMPOS_OBRIGATORIOS = [
 
 const CAMPOS_DETALHE_TEMA = ['temaNome', 'evidencia', 'neutroMotivo', 'justificativa'] as const
 
-const P_NAO_INFORMADO_PCT = 10
-const ROUNDING_TOLERANCE = 1
+export const P_NAO_INFORMADO_PCT = 10
+export const ROUNDING_TOLERANCE = 1
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null
@@ -159,7 +159,7 @@ function assertShape(candidatos: Array<Record<string, unknown>>): void {
  * docs/superpowers/specs/2026-08-23-match-v3-scoring-design.md §4:
  *   alinhamento == round(confianca * apurado * 100 + (1 - confianca) * 10)
  * within ±1 for rounding. Exact per the spec — no looser tolerance allowed. */
-function assertAuditIdentity(candidatos: Array<Record<string, unknown>>): void {
+export function checkAuditIdentity(candidatos: Array<Record<string, unknown>>): void {
   for (const c of candidatos) {
     const alinhamento = c.alinhamento
     const alinhamentoApurado = c.alinhamentoApurado
@@ -194,13 +194,13 @@ function assertAuditIdentity(candidatos: Array<Record<string, unknown>>): void {
 /** Assertion 3: the penalty is actually applied. A candidate with
  * cobertura < 100 whose alinhamento equals alinhamentoApurado unpenalized is
  * the signature of the pre-v3 scorer — exactly what shipped on 2026-08-24. */
-function assertPenaltyApplied(candidatos: Array<Record<string, unknown>>): void {
+export function checkPenaltyApplied(candidatos: Array<Record<string, unknown>>): void {
   for (const c of candidatos) {
     const cobertura = c.cobertura
     const alinhamento = c.alinhamento
     const alinhamentoApurado = c.alinhamentoApurado
     if (typeof cobertura !== 'number' || typeof alinhamento !== 'number' || typeof alinhamentoApurado !== 'number') {
-      continue // already reported by assertAuditIdentity
+      continue // already reported by checkAuditIdentity
     }
     if (cobertura < 100 && alinhamento === alinhamentoApurado) {
       throw new Error(
@@ -230,17 +230,22 @@ async function main(): Promise<void> {
   assertShape(candidatos)
   console.log('✓ Shape: all required fields present on the first candidate and its first theme detail.')
 
-  assertAuditIdentity(candidatos)
+  checkAuditIdentity(candidatos)
   console.log(`✓ Audit identity: alinhamento matches confianca·apurado + (1-confianca)·10 within ±${ROUNDING_TOLERANCE} for every candidate.`)
 
-  assertPenaltyApplied(candidatos)
+  checkPenaltyApplied(candidatos)
   console.log('✓ Penalty applied: no under-covered candidate has alinhamento === alinhamentoApurado.')
 
   console.log('\nDeployed contract matches this build.')
 }
 
-main().catch(err => {
-  console.error('\n✗ CONTRACT VERIFICATION FAILED')
-  console.error((err as Error).message)
-  process.exitCode = 1
-})
+// Only run when executed directly (`tsx verify-contract.ts`), not when
+// imported — verify-contract.test.ts imports checkAuditIdentity and
+// checkPenaltyApplied for offline testing and must not trigger a live call.
+if (fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch(err => {
+    console.error('\n✗ CONTRACT VERIFICATION FAILED')
+    console.error((err as Error).message)
+    process.exitCode = 1
+  })
+}
