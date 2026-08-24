@@ -592,7 +592,22 @@ export function deriveObservacoes(
     }
   }
 
-  return [...contradicoes, ...ressalvas]
+  // The enrichment pipeline that writes coerencia_tema = 'incoerente' on a theme
+  // is the same one that emits the incoerencia alert about it, so the two
+  // describe one finding. An alert carries no temaSlug — only a titulo — and
+  // the theme-derived entry's titulo is the theme's own name, so keying on
+  // titulo is what collapses them. An alert titled after a different theme
+  // does not match and survives as its own observation: we cannot prove it is
+  // the same finding, and inventing a match would hide a real one.
+  const vistos = new Set<string>()
+  const semRepeticao = (o: Observacao) => {
+    const chave = `${o.categoria}|${o.titulo}`
+    if (vistos.has(chave)) return false
+    vistos.add(chave)
+    return true
+  }
+
+  return [...contradicoes, ...ressalvas].filter(semRepeticao)
 }
 
 export function attachAlerts(result: MatchResult, alerts: AlertRow[]): MatchResult {
