@@ -53,6 +53,13 @@ describe('FontesBloco', () => {
     expect(screen.getByText(/Consultadas em 22\/08\/2026/)).toBeInTheDocument()
   })
 
+  it('omits the "Consultadas em" line when acessadoEm is malformed', () => {
+    render(<FontesBloco fontes={[{ ...oficial, acessadoEm: 'não é uma data' }]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Fontes/ }))
+    expect(screen.queryByText(/Consultadas em/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/NaN/)).not.toBeInTheDocument()
+  })
+
   it('falls back to "outra" when camada is outside the known range', () => {
     // `camada` is DB-constrained to 1–3 (docs/base/11_sp0_foundation.sql), but the
     // TS union can't enforce that across the JSON boundary from the Edge Function.

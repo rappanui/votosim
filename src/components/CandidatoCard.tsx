@@ -61,7 +61,7 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
             <span
               className={`inline-flex items-center gap-1 ${
-                nAlertas > 0 ? 'font-semibold text-danger' : 'text-gray-400'
+                nAlertas > 0 ? 'font-semibold text-danger' : 'text-gray-500'
               }`}
             >
               <span aria-hidden="true">⚠</span>

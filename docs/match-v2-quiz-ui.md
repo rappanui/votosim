@@ -106,7 +106,7 @@ renders, reading "Nenhum alerta" in gray.
 
 | Side | Component | Renders when |
 |------|-----------|--------------|
-| left | `TemasPanel` | always |
+| left | `TemasPanel` | `visibleTemas.length > 0` |
 | right | `CandidatoResumo` | `dossie !== null` |
 | right | `AlertasBloco` | `alertas.length > 0` |
 | right | `ObservacoesBloco` | `observacoes.length > 0` |

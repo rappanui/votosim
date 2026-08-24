@@ -50,10 +50,23 @@ export function assertMatchResult(data: unknown): MatchResult {
   if (!isRecord(data)) throw new ContractMismatchError('(resposta não é um objeto)')
   if (!Array.isArray(data.cargos)) throw new ContractMismatchError('cargos')
 
-  const primeiroGrupo = data.cargos.find(g => isRecord(g) && Array.isArray(g.candidatos) && g.candidatos.length > 0)
+  // A group that isn't a record, or whose candidatos key is missing/renamed,
+  // is a contract mismatch — exactly "the deployed function isn't the one
+  // this build expects" — and must throw rather than be treated as empty.
+  // A group whose candidatos array is legitimately empty is skipped.
+  let primeiroGrupo: Record<string, unknown> | undefined
+  for (const g of data.cargos) {
+    if (!isRecord(g) || !Array.isArray(g.candidatos)) {
+      throw new ContractMismatchError('cargos[].candidatos')
+    }
+    if (g.candidatos.length > 0) {
+      primeiroGrupo = g
+      break
+    }
+  }
   if (primeiroGrupo === undefined) return data as unknown as MatchResult
 
-  const candidatos = (primeiroGrupo as Record<string, unknown>).candidatos as unknown[]
+  const candidatos = primeiroGrupo.candidatos as unknown[]
   const primeiro = candidatos[0]
   if (!isRecord(primeiro)) throw new ContractMismatchError('(candidato não é um objeto)')
 

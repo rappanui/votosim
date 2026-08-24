@@ -52,6 +52,16 @@ describe('assertMatchResult', () => {
     expect(() => assertMatchResult({ totalCandidatosAnalisados: 0, estado: 'SP' })).toThrow(ContractMismatchError)
   })
 
+  it('rejects a cargo group whose candidatos key is missing or renamed', () => {
+    const grupoSemCandidatos = { cargos: [{ cargo: 'presidente', candidatosNovoNome: [] }], totalCandidatosAnalisados: 0, estado: 'SP' }
+    expect(() => assertMatchResult(grupoSemCandidatos)).toThrow(ContractMismatchError)
+  })
+
+  it('accepts a cargo group whose candidatos array is legitimately empty', () => {
+    const grupoVazio = { cargos: [{ cargo: 'presidente', candidatos: [] }], totalCandidatosAnalisados: 0, estado: 'SP' }
+    expect(() => assertMatchResult(grupoVazio)).not.toThrow()
+  })
+
   // The exact shape the stale deployment produced on 2026-08-24.
   it('rejects the pre-v3 response shape', () => {
     const preV3 = {
