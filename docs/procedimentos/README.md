@@ -1,8 +1,11 @@
 # Procedimentos
 
-**Context:** Documentos que se lê do início ao fim para executar alguma coisa —
-por um agente de IA ou por uma pessoa. Diferente de `docs/referencia/`, que se
-consulta pulando pra dentro.
+> **Status:** válido · **Atualizado em:** 2026-08-24
+> **Contexto:** índice desta pasta. Leitor: um agente de IA ou uma pessoa,
+> dependendo do procedimento — cada documento diz qual dos dois no próprio
+> bloco de Contexto. Documentos que se lê do início ao fim para executar
+> alguma coisa. Diferente de `docs/referencia/`, que se consulta pulando pra
+> dentro.
 
 ---
 

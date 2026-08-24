@@ -1,8 +1,12 @@
 # Documentação legada — não descreve o sistema atual
 
-**Context:** Versões anteriores do VotoSim, preservadas como histórico de
-decisões. **Nenhum destes documentos é confiável como referência do sistema em
-produção.** Para o estado atual, veja `docs/README.md`.
+> **Status:** válido · **Atualizado em:** 2026-08-24
+> **Contexto:** índice de `docs/legado/`. Leitor: uma pessoa (ou agente de
+> IA) tentando entender por que uma decisão antiga foi tomada, nunca alguém
+> buscando o comportamento atual do sistema. Versões anteriores do VotoSim,
+> preservadas como histórico de decisões. **Nenhum destes documentos é
+> confiável como referência do sistema em produção.** Para o estado atual,
+> veja `docs/README.md`.
 
 ---
 
