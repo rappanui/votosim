@@ -51,3 +51,40 @@ test('is not fooled by a negation that is part of a real stance', () => {
     + "sobre patrimônio, não a simplificação pedida pela afirmação."
   assert.equal(classifyNeutroMotivo(j), null)
 })
+
+// Regression tests: a review found ABSENCE_PATTERNS overfiring on stance
+// descriptions that merely contain a negated verb. Each text below asserts a
+// REAL candidate position via a negation or idiom — none of them is a claim
+// that a search came up empty.
+
+test('is not fooled by the "não há dúvida" idiom', () => {
+  // "não há dúvida" asserts certainty about a stance, not an absent search.
+  const j = "não há dúvida de que o candidato apoia a reforma"
+  assert.equal(classifyNeutroMotivo(j), null)
+})
+
+test('is not fooled by "não existe consenso" describing a personal stance', () => {
+  // The party lacks consensus; the candidate's own position is documented.
+  const j = "não existe consenso no partido, mas o candidato pessoalmente "
+    + "defende a legalização"
+  assert.equal(classifyNeutroMotivo(j), null)
+})
+
+test('is not fooled by "não menciona X" when X is not an absence object', () => {
+  // A stance description: he negates one policy detail while affirming another.
+  const j = "o candidato não menciona compensação aos proprietários, "
+    + "preferindo desapropriação direta"
+  assert.equal(classifyNeutroMotivo(j), null)
+})
+
+test('is not fooled by "não aborda diretamente" when a stance follows', () => {
+  // Narrows scope ("diretamente"), then states the actual priority.
+  const j = "o plano não aborda diretamente a questão X, mas prioriza Y"
+  assert.equal(classifyNeutroMotivo(j), null)
+})
+
+test('is not fooled by "não trata... de forma ampla" when a stance follows', () => {
+  // Qualifies the scope of treatment, then states what the plan does focus on.
+  const j = "o plano não trata da reforma de forma ampla, focando apenas em Y"
+  assert.equal(classifyNeutroMotivo(j), null)
+})
