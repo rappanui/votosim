@@ -140,6 +140,15 @@ The card shows the penalised `alinhamento` as its headline, `cobertura` and
 Each row also renders its stored `justificativa`, so a blank theme states what was
 searched and what was found rather than showing a bare dash.
 
+> **`justificativa` is display-only, and is fetched in the wrong place.**
+> `fetchPositions` selects it for every candidate in the state, while at most 23
+> survive `sortAndLimitCargos` — roughly 95% of the text is fetched and discarded on
+> every quiz submission. Nothing in the scoring path computes on it: it is a pure
+> pass-through at `ai-providers.ts:312`, and there is no runtime classifier in the
+> Edge Function. Moving it to a post-ranking fetch is owned by the candidate-detail
+> work; the removal and the replacement must land together, or theme rows silently
+> lose their explanation. See `docs/superpowers/notes/2026-08-24-reply-justificativa-in-the-prefilter-query.md`.
+
 `/sobre` documents the formula, both metrics, and — required, not optional — the fact
 that penalising silence is a deliberate editorial choice that favours candidates who
 publish explicit platforms over deliberately vague ones. Coverage measures how
