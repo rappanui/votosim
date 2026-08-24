@@ -599,6 +599,14 @@ export function deriveObservacoes(
   // titulo is what collapses them. An alert titled after a different theme
   // does not match and survives as its own observation: we cannot prove it is
   // the same finding, and inventing a match would hide a real one.
+  //
+  // Scoped to contradicoes only: that "same pipeline, same finding" guarantee
+  // was established for the incoerencia alert / incoerente theme pair alone.
+  // On the ressalva side a freeform ressalva_evidencias alert can legitimately
+  // share a theme's display name with a structured partido/baixaConfianca
+  // ressalva while describing a different caveat — collapsing those would
+  // drop the structured entry (the more useful one, since it carries
+  // temaSlug) for no evidence they are the same finding.
   const vistos = new Set<string>()
   const semRepeticao = (o: Observacao) => {
     const chave = `${o.categoria}|${o.titulo}`
@@ -607,7 +615,7 @@ export function deriveObservacoes(
     return true
   }
 
-  return [...contradicoes, ...ressalvas].filter(semRepeticao)
+  return [...contradicoes.filter(semRepeticao), ...ressalvas]
 }
 
 export function attachAlerts(result: MatchResult, alerts: AlertRow[]): MatchResult {
