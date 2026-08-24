@@ -16,8 +16,10 @@ export interface MatchRequest {
 
 export interface CandidatoRow {
   politician_id: string
+  candidacy_id: string
   nome_urna: string
   partido_atual: string
+  numero_urna: string | null
   cargo: string
 }
 
@@ -59,10 +61,60 @@ export interface TemaCandidatoDetalhe {
   baixaConfianca: boolean              // true when a real AI-written stance has confiancaIa < LOW_CONFIDENCE_THRESHOLD
 }
 
+/** Same vocabulary as parties.espectro and candidate_dossiers.espectro_*. */
+export type Espectro =
+  | 'esquerda' | 'centro_esquerda' | 'centro'
+  | 'centro_direita' | 'direita' | 'sem_classificacao'
+
+/** Whether conduct on a theme matched the declared platform.
+ *  Distinct from v3's NivelEvidencia: that measures how well a theme is
+ *  documented, this measures whether the documentation agrees with itself. */
+export type CoerenciaTema = 'coerente' | 'incoerente' | 'sem_historico'
+
+/** Generated candidate profile — newest version of candidate_dossiers. */
+export interface Dossie {
+  resumoPerfil: string
+  espectroDeclarado: Espectro | null
+  espectroInferido: Espectro | null
+  /** null means no track record to measure — never zero, which would mean
+   *  measured and completely incoherent. */
+  coerenciaIndice: number | null
+  coerenciaBase: string | null
+  geradoEm: string
+}
+
+/** One catalogued source. camada: 1 official · 2 press · 3 fact-checking. */
+export interface Fonte {
+  id: string
+  tipo: string
+  camada: 1 | 2 | 3
+  titulo: string | null
+  veiculo: string | null
+  url: string
+  dataPublicacao: string | null
+  acessadoEm: string
+}
+
+/** A caveat about how this candidate was read — never an accusation.
+ *  Named `ressalva`, not `evidencia`: v3 already owns `evidencia` as the name
+ *  of a theme's documentation level, and two meanings for one word in the same
+ *  contract is a bug waiting to happen. Populated by deriveObservacoes (Task 3). */
+export type ObservacaoCategoria = 'contradicao' | 'ressalva'
+
+export interface Observacao {
+  categoria: ObservacaoCategoria
+  titulo: string
+  descricao: string
+  temaSlug: string | null
+  fonteUrl: string | null
+}
+
 export interface CandidatoResultado {
   politicianId: string
   nomeUrna: string
   partido: string
+  cargo: string
+  numeroUrna: string | null
   alinhamento: number          // 0–100
   alinhamentoApurado: number   // 0–100, audited themes only
   cobertura: number            // 0–100
@@ -70,6 +122,10 @@ export interface CandidatoResultado {
   detalhesTemas: TemaCandidatoDetalhe[]
   temAlertas: boolean
   alertas: unknown[]
+  dossie: Dossie | null
+  fontes: Fonte[]
+  observacoes: Observacao[]
+  coerenciaPorTema: Record<string, CoerenciaTema>
   isParty?: boolean
 }
 
@@ -389,6 +445,8 @@ export function scoreWithoutAI(data: FallbackData): MatchResult {
       politicianId: c.politician_id,
       nomeUrna: c.nome_urna,
       partido: c.partido_atual,
+      cargo: c.cargo,
+      numeroUrna: c.numero_urna,
       alinhamento,
       alinhamentoApurado,
       cobertura,
@@ -396,6 +454,10 @@ export function scoreWithoutAI(data: FallbackData): MatchResult {
       detalhesTemas,
       temAlertas: false,
       alertas: [],
+      dossie: null,
+      fontes: [],
+      observacoes: [],
+      coerenciaPorTema: {},
     }
     const list = byCargo.get(c.cargo) ?? []
     list.push(resultado)

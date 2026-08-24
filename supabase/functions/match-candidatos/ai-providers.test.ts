@@ -229,8 +229,8 @@ Deno.test('scoreWithoutAI: returns valid MatchResult structure with alinhamento 
       { temaSlug: 'sus', posicao: 'favoravel', importancia: 3 },
     ],
     candidates: [
-      { politician_id: 'p1', nome_urna: 'CANDIDATO A', partido_atual: 'PT', cargo: 'senador' },
-      { politician_id: 'p2', nome_urna: 'CANDIDATO B', partido_atual: 'PL', cargo: 'senador' },
+      { politician_id: 'p1', candidacy_id: 'c1', nome_urna: 'CANDIDATO A', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
+      { politician_id: 'p2', candidacy_id: 'c2', nome_urna: 'CANDIDATO B', partido_atual: 'PL', numero_urna: null, cargo: 'senador' },
     ],
     positions: [
       { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
@@ -253,8 +253,8 @@ Deno.test('scoreWithoutAI: groups candidates by cargo', () => {
     estado: 'SP',
     respostas: [],
     candidates: [
-      { politician_id: 'p1', nome_urna: 'A', partido_atual: 'PT', cargo: 'senador' },
-      { politician_id: 'p2', nome_urna: 'B', partido_atual: 'PL', cargo: 'deputado_federal' },
+      { politician_id: 'p1', candidacy_id: 'c1', nome_urna: 'A', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
+      { politician_id: 'p2', candidacy_id: 'c2', nome_urna: 'B', partido_atual: 'PL', numero_urna: null, cargo: 'deputado_federal' },
     ],
     positions: [],
   }

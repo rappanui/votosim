@@ -4,7 +4,11 @@ import {
   callAI,
   type CandidatoResultado,
   type CandidatoRow,
+  type CoerenciaTema,
+  type Dossie,
+  type Espectro,
   type FallbackData,
+  type Fonte,
   type MatchRequest,
   type MatchResult,
   type NeutroMotivo,
@@ -61,7 +65,7 @@ async function fetchCandidates(
 ): Promise<CandidatoRow[]> {
   const year = Deno.env.get('ELECTION_YEAR') ?? '2026'
   const view = `v_candidates_${year}`
-  const cols = 'politician_id, nome_urna, partido_atual, cargo'
+  const cols = 'candidacy_id, politician_id, nome_urna, partido_atual, numero_urna, cargo'
 
   // Fetch state candidates + national (president runs with estado='BR')
   const [stateRes, nationalRes] = await Promise.all([
@@ -143,6 +147,150 @@ async function fetchAlerts(
   return (data ?? []) as AlertRow[]
 }
 
+// ─── Enrichment: dossiers, sources, theme coherence ──────────────────────────
+
+export interface DossierRow {
+  candidacy_id: string
+  resumo_perfil: string
+  espectro_declarado: string | null
+  espectro_inferido: string | null
+  coerencia_indice: number | null
+  coerencia_base: string | null
+  versao: number
+  gerado_em: string
+}
+
+export interface SourceRow {
+  id: string
+  politician_id: string
+  tipo: string
+  camada: number
+  titulo: string | null
+  veiculo: string | null
+  url: string
+  data_publicacao: string | null
+  acessado_em: string
+}
+
+export interface DetalhePosicaoRow {
+  politician_id: string
+  theme_id: string
+  coerencia_tema: string | null
+  justificativa: string | null
+}
+
+/** The columns of politician_positions the card displays and the scorer ignores. */
+export interface DetalhePosicao {
+  coerenciaTema: CoerenciaTema | null
+  justificativa: string | null
+}
+
+// candidate_dossiers is versioned so a profile can be regenerated without
+// losing the previous take. Only the newest version is voter-facing.
+export function pickLatestDossiers(rows: DossierRow[]): Map<string, Dossie> {
+  const best = new Map<string, DossierRow>()
+  for (const row of rows) {
+    const current = best.get(row.candidacy_id)
+    if (current === undefined || row.versao > current.versao) best.set(row.candidacy_id, row)
+  }
+  return new Map([...best].map(([candidacyId, r]) => [candidacyId, {
+    resumoPerfil: r.resumo_perfil,
+    espectroDeclarado: r.espectro_declarado as Espectro | null,
+    espectroInferido: r.espectro_inferido as Espectro | null,
+    coerenciaIndice: r.coerencia_indice,
+    coerenciaBase: r.coerencia_base,
+    geradoEm: r.gerado_em,
+  }]))
+}
+
+// Official sources first: a court or TSE record outranks press coverage.
+export function groupSources(rows: SourceRow[]): Map<string, Fonte[]> {
+  const byPolitician = new Map<string, Fonte[]>()
+  for (const r of rows) {
+    const list = byPolitician.get(r.politician_id) ?? []
+    list.push({
+      id: r.id,
+      tipo: r.tipo,
+      camada: r.camada as 1 | 2 | 3,
+      titulo: r.titulo,
+      veiculo: r.veiculo,
+      url: r.url,
+      dataPublicacao: r.data_publicacao,
+      acessadoEm: r.acessado_em,
+    })
+    byPolitician.set(r.politician_id, list)
+  }
+  for (const list of byPolitician.values()) list.sort((a, b) => a.camada - b.camada)
+  return byPolitician
+}
+
+// A null coerencia_tema means "not assessed", which is not a finding — it stays
+// null rather than becoming a third displayed meaning. The row is still kept,
+// because most rows carry a justificativa and no coherence assessment.
+export function groupDetalhePosicoes(
+  rows: DetalhePosicaoRow[],
+  slugById: Map<string, string>,
+): Map<string, Map<string, DetalhePosicao>> {
+  const byPolitician = new Map<string, Map<string, DetalhePosicao>>()
+  for (const r of rows) {
+    const slug = slugById.get(r.theme_id)
+    if (slug === undefined) continue
+    const byTheme = byPolitician.get(r.politician_id) ?? new Map<string, DetalhePosicao>()
+    byTheme.set(slug, {
+      coerenciaTema: (r.coerencia_tema ?? null) as CoerenciaTema | null,
+      justificativa: r.justificativa,
+    })
+    byPolitician.set(r.politician_id, byTheme)
+  }
+  return byPolitician
+}
+
+async function fetchDossiers(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  candidacyIds: string[],
+): Promise<Map<string, Dossie>> {
+  if (candidacyIds.length === 0) return new Map()
+  const { data, error } = await supabase
+    .from('candidate_dossiers')
+    .select('candidacy_id, resumo_perfil, espectro_declarado, espectro_inferido, coerencia_indice, coerencia_base, versao, gerado_em')
+    .in('candidacy_id', candidacyIds)
+  if (error) throw new Error(`Failed to fetch dossiers: ${error.message}`)
+  return pickLatestDossiers((data ?? []) as DossierRow[])
+}
+
+async function fetchSources(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  politicianIds: string[],
+): Promise<Map<string, Fonte[]>> {
+  if (politicianIds.length === 0) return new Map()
+  // destino_exibicao 'interno' is pipeline bookkeeping, never shown to a voter.
+  const { data, error } = await supabase
+    .from('candidate_sources')
+    .select('id, politician_id, tipo, camada, titulo, veiculo, url, data_publicacao, acessado_em')
+    .in('politician_id', politicianIds)
+    .neq('destino_exibicao', 'interno')
+  if (error) throw new Error(`Failed to fetch sources: ${error.message}`)
+  return groupSources((data ?? []) as SourceRow[])
+}
+
+// Deliberately a separate query from v3's fetchPositions: that one runs over
+// every candidate in the state before the pre-filter, purely to rank and
+// discard, while this one runs over the ≤23 finalists that reach the screen.
+// Neither column here is read by the arithmetic.
+async function fetchDetalhePosicoes(
+  supabase: ReturnType<typeof createSupabaseClient>,
+  politicianIds: string[],
+  slugById: Map<string, string>,
+): Promise<Map<string, Map<string, DetalhePosicao>>> {
+  if (politicianIds.length === 0) return new Map()
+  const { data, error } = await supabase
+    .from('politician_positions')
+    .select('politician_id, theme_id, coerencia_tema, justificativa')
+    .in('politician_id', politicianIds)
+  if (error) throw new Error(`Failed to fetch position details: ${error.message}`)
+  return groupDetalhePosicoes((data ?? []) as DetalhePosicaoRow[], slugById)
+}
+
 async function fetchPartyPositions(
   supabase: ReturnType<typeof createSupabaseClient>,
   partySiglas: string[],
@@ -203,6 +351,8 @@ export function buildPartyResults(
           politicianId: `party:${sigla}`,
           nomeUrna: sigla,
           partido: sigla,
+          cargo,
+          numeroUrna: null,
           alinhamento,
           alinhamentoApurado,
           cobertura,
@@ -210,6 +360,10 @@ export function buildPartyResults(
           detalhesTemas,
           temAlertas: false,
           alertas: [],
+          dossie: null,
+          fontes: [],
+          observacoes: [],
+          coerenciaPorTema: {},
           isParty: true,
         },
       })
