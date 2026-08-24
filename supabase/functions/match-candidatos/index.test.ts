@@ -3,7 +3,6 @@ import { assertEquals } from 'https://deno.land/std@0.208.0/assert/mod.ts'
 import {
   attachAlerts,
   buildPartyResults,
-  buildPrompt,
   countSimpleMatches,
   deriveObservacoes,
   enrichResult,
@@ -390,23 +389,6 @@ Deno.test('injectPartyResults: creates new cargo group when cargo has no individ
   assertEquals(output.cargos.length, 1)
   assertEquals(output.cargos[0].cargo, 'senador')
   assertEquals(output.cargos[0].candidatos.length, 1)
-})
-
-// ─── buildPrompt ──────────────────────────────────────────────────────────────
-
-Deno.test('buildPrompt: returns valid JSON string', () => {
-  const candidates: CandidatoRow[] = [
-    { politician_id: 'p1', candidacy_id: 'c1', nome_urna: 'CANDIDATO A', partido_atual: 'PT', numero_urna: null, cargo: 'senador' },
-  ]
-  const positions: PositionWithSlug[] = [
-    { politician_id: 'p1', themeSlug: 'sus', posicao: 'favoravel', intensidade: 5 },
-  ]
-  const prompt = buildPrompt(candidates, groupBy(positions, p => p.politician_id), [makeR('sus', 'favoravel')])
-  // Must be parseable JSON
-  const parsed = JSON.parse(prompt)
-  assertEquals(typeof parsed.tarefa, 'string')
-  assertEquals(parsed.candidatos.length, 1)
-  assertEquals(parsed.candidatos[0].nomeUrna, 'CANDIDATO A')
 })
 
 // ─── Enrichment mappers ──────────────────────────────────────────────────────
