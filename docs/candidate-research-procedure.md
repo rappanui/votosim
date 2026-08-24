@@ -193,13 +193,41 @@ separate pass would mean re-reading everything.
 ### E5 — Synthesis
 
 **Produces:** The profile dossier plus positions on the 14 questionnaire themes,
-each with justification, intensity, sources, and confidence.
+each with justification, intensity, sources, and confidence. **Every position
+whose `posicao` is `neutro` also sets `neutroMotivo`.** The contract still
+accepts a document that omits it — for backward compatibility with payloads
+written before this field existed — but an omission from this procedure is
+never correct: a missing value is read downstream as `nao_encontrado`, which
+is right only when that is actually what happened, and silently wrong
+otherwise.
+
+**Choosing the motivo — the distinction that is easiest to get wrong:**
+- `nao_encontrado` — the search came up empty. No stance on this theme was
+  found anywhere in E1–E4b.
+- `nao_responde` — the candidate DID take a documented position on the theme,
+  but it does not answer the specific affirmation asked. This is not "no
+  evidence"; it is evidence that misses the mark. Worked example: the
+  affirmation asks about **expanding** a programme, and the candidate's own
+  material promises only to **maintain** it — that is `nao_responde`, not
+  `nao_encontrado`, because a stance was found and read; it simply does not
+  settle the affirmation as worded (the same discipline as section 4, the
+  framing trap, applied to the neutral case).
+- `ambivalente` — the candidate's position is contradictory across sources, or
+  explicitly conditional ("depends on the scenario/context").
+
+Confusing `nao_encontrado` with `nao_responde` costs a real candidate 0.40 of
+alignment on that theme. "Found a stance that misses the affirmation" and
+"found nothing" are never interchangeable — if a source is cited describing
+what the candidate actually said or did on the theme, it is `nao_responde` or
+`ambivalente`, never `nao_encontrado`.
 
 **Must not:** invent a position for a theme with no evidence — that theme gets
-`neutro` with low `confiancaIa` and a justification stating evidence was not
-found (see section 8). Must not write any claim that does not trace back to the
-source catalogue — every position and every alert is checked against the sources
-declared in the same document.
+`neutro` with `neutroMotivo: "nao_encontrado"`, a low `confiancaIa`, and a
+justification stating evidence was not found (see section 7). Must not write a
+`neutro` position without a `neutroMotivo` — every `neutro` verdict states
+which of the three it is. Must not write any claim that does not trace back to
+the source catalogue — every position and every alert is checked against the
+sources declared in the same document.
 
 **`ressalva_evidencias` — when the evidence base itself needs a caveat.** Emit
 this alert type when the positions rest on evidence weaker than the candidate's
@@ -345,6 +373,7 @@ without becoming unreadable — so this table is the authority, not the example.
 | `fontes[].camada` | `1` (primary/official — see the domain requirement below), `2` (reference press), `3` (fact-checking) |
 | `fontes[].destinoExibicao` | `card_candidato`, `pagina_sobre`, `interno` |
 | `posicoes[].posicao` | `favoravel`, `contrario`, `neutro` |
+| `posicoes[].neutroMotivo` | `nao_encontrado`, `nao_responde`, `ambivalente`, or `null`/omitted when `posicao` is not `neutro` — required whenever `posicao` is `neutro` (see E5 above for how to choose) |
 | `posicoes[].coerenciaTema` | `coerente`, `incoerente`, `sem_historico`, or `null` (no track record to compare — see section 5) |
 | `alertas[].tipo` | `ficha_suja`, `investigacao`, `polemica`, `incoerencia`, `divergencia_espectro`, `ressalva_evidencias` |
 | `alertas[].severidade` | `critica`, `alta`, `media`, `baixa` |
@@ -570,6 +599,7 @@ shape, not a real dossier.
     {
       "temaSlug": "autonomia_individual",
       "posicao": "neutro",
+      "neutroMotivo": "nao_encontrado",
       "intensidade": 2,
       "justificativa": "O plano não assume posição clara sobre autonomia individual diante da intervenção do Estado nas escolhas pessoais e, em particular, não menciona o acesso a armas de fogo para uso pessoal — a cláusula que decide esta afirmação, já que o tema foi renomeado de porte_armas justamente para não se resumir à autonomia em geral. Sem declaração nem conduta documentada especificamente sobre armas, a posição permanece neutra.",
       "confiancaIa": 0.4,
@@ -588,6 +618,7 @@ shape, not a real dossier.
     {
       "temaSlug": "corrupcao_transparencia",
       "posicao": "neutro",
+      "neutroMotivo": "nao_encontrado",
       "intensidade": 1,
       "justificativa": "Não foi encontrada declaração clara nem conduta documentada sobre o fortalecimento de órgãos de controle, nem no plano nem na cobertura jornalística disponível no momento da pesquisa. Registrado como neutro até que surjam mais evidências, sem inferência a partir de alinhamento ideológico.",
       "confiancaIa": 0.25,
@@ -677,9 +708,10 @@ investigated and cleared, not that it is a live disqualification.
 
 ## 7. Honesty rules
 
-- A theme with no evidence gets `neutro` with a low `confiancaIa` and a
-  justification that says evidence was not found. Never invent a position to
-  fill a gap.
+- A theme with no evidence gets `neutro` with `neutroMotivo: "nao_encontrado"`,
+  a low `confiancaIa`, and a justification that says evidence was not found.
+  Never invent a position to fill a gap. See E5 above for how to tell this
+  apart from `nao_responde` and `ambivalente`.
 - The validator requires `fonteRefs` to be non-empty on **every** position,
   including a `neutro` one recording that no evidence was found — an empty
   array is a rejection, not an honest silence. A `neutro` position with no
