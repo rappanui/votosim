@@ -4,9 +4,15 @@ export type VoterPosicao = 'favoravel' | 'contrario' | 'neutro'
 /** Voter's declared importance weight for a theme (1=low, 2=medium, 3=high). */
 export type Importancia = 1 | 2 | 3
 
-export type AlertType = 'ficha_suja' | 'investigacao' | 'polemica'
+export type AlertType =
+  | 'ficha_suja'
+  | 'investigacao'
+  | 'polemica'
+  | 'incoerencia'
+  | 'divergencia_espectro'
+  | 'ressalva_evidencias'
 export type AlertSeverity = 'critica' | 'alta' | 'media' | 'baixa'
-export type BadgeCor = 'vermelho' | 'laranja' | 'cinza'
+export type BadgeCor = 'vermelho' | 'laranja' | 'cinza' | 'roxo' | 'azul' | 'amarelo'
 
 /** A single voter answer for one quiz theme.
  * Only themes the voter actively answered are stored and sent (unanswered = null, excluded). */
