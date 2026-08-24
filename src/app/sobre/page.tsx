@@ -39,7 +39,7 @@ const SECTIONS = [
   {
     title: 'Cobertura e confiança',
     content:
-      'Cobertura é quantos dos 14 temas conseguimos apurar sobre aquele candidato. Confiança ' +
+      'Cobertura é, entre os temas em que você tomou partido, quantos conseguimos apurar sobre aquele candidato. Confiança ' +
       'é quanto desses temas são os que VOCÊ marcou como importantes. Quando a cobertura é ' +
       'alta e a confiança é baixa, quer dizer que sabemos bastante sobre o candidato — só que ' +
       'não sobre o que te interessa. É a confiança que entra no cálculo do percentual.',
