@@ -1,0 +1,26 @@
+{
+  "name": "votosim-candidate-research",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "download-tse": "tsx download-tse.ts",
+    "bootstrap-ledger": "tsx bootstrap-ledger.ts",
+    "next-candidates": "tsx next-candidates.ts",
+    "claim-candidate": "tsx claim-candidate.ts",
+    "build-brief": "tsx build-brief.ts",
+    "ingest-research": "tsx ingest-research.ts",
+    "test": "tsx --test *.test.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "csv-parse": "^5.5.6",
+    "dotenv": "^16.4.5",
+    "pdf2json": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
