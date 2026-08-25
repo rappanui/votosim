@@ -24,7 +24,7 @@ const ITENS: { icone: string; rotulo: string; descricao: string }[] = [
   {
     icone: '◐',
     rotulo: 'Sem lado',
-    descricao: 'O candidato tem posição documentada sobre o tema, mas ela não responde à afirmação — não concorda nem discorda dela.',
+    descricao: 'O candidato tem posição documentada sobre o tema, mas ela não responde à afirmação. Não concorda nem discorda dela.',
   },
   {
     icone: '○',
@@ -34,7 +34,7 @@ const ITENS: { icone: string; rotulo: string; descricao: string }[] = [
   {
     icone: '●',
     rotulo: 'Você marcou como importante',
-    descricao: 'Você respondeu neutro nesse tema, mas disse que ele importa — por isso ele aparece aqui, mesmo sem entrar na conta do alinhamento.',
+    descricao: 'Você respondeu neutro nesse tema, mas disse que ele importa. Por isso ele aparece aqui, mesmo sem entrar na conta do alinhamento.',
   },
 ]
 
