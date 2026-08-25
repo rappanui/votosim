@@ -175,7 +175,7 @@ describe('CandidatoCard', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
     const tip = screen.getByTitle(/curadoria humana/i)
     expect(tip).toBeInTheDocument()
-    expect(tip).toHaveTextContent('Nenhum alerta')
+    expect(tip).toHaveTextContent('Alertas: 0 detectados')
   })
 
   it('explains observações via a hover tooltip on the counter itself', () => {
@@ -188,7 +188,7 @@ describe('CandidatoCard', () => {
     render(<CandidatoCard candidato={candidato} />)
     const tip = screen.getByTitle(/nunca são acusações/i)
     expect(tip).toBeInTheDocument()
-    expect(tip).toHaveTextContent('1 baixo detectado')
+    expect(tip).toHaveTextContent('Observações: 1 leve detectada')
   })
 
   it('flags low cobertura visually instead of treating it the same as high cobertura', () => {
@@ -288,7 +288,7 @@ describe('CandidatoCard', () => {
       }],
     })
     render(<CandidatoCard candidato={candidato} />)
-    expect(screen.getByText('1 crítico detectado')).toBeInTheDocument()
+    expect(screen.getByText('Alertas: 1 crítico detectado')).toBeInTheDocument()
   })
 
   it('pluralizes the alert counter', () => {
@@ -297,17 +297,17 @@ describe('CandidatoCard', () => {
       fonteUrl: 'https://x.example', badgeCor: 'vermelho' as const, ativo: true, resolucao: null,
     }
     render(<CandidatoCard candidato={makeCandidate({ temAlertas: true, alertas: [alerta, alerta] })} />)
-    expect(screen.getByText('2 críticos detectados')).toBeInTheDocument()
+    expect(screen.getByText('Alertas: 2 críticos detectados')).toBeInTheDocument()
   })
 
   it('says there is no alert when the list is empty', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
-    expect(screen.getByText('Nenhum alerta')).toBeInTheDocument()
+    expect(screen.getByText('Alertas: 0 detectados')).toBeInTheDocument()
   })
 
   it('colors the zero-alert counter green', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
-    expect(screen.getByText('Nenhum alerta').closest('[title]')?.className).toContain('text-success')
+    expect(screen.getByText('Alertas: 0 detectados').closest('[title]')?.className).toContain('text-success')
   })
 
   it('colors the alert counter red when the most severe alert present is critica', () => {
@@ -319,14 +319,14 @@ describe('CandidatoCard', () => {
       ],
     })
     render(<CandidatoCard candidato={candidato} />)
-    const label = screen.getByText('1 crítico e 1 baixo detectados')
+    const label = screen.getByText('Alertas: 1 crítico e 1 leve detectados')
     expect(label.closest('[title]')?.className).toContain('text-danger')
   })
 
   it('colors the alert counter amber when the most severe alert present is media', () => {
     const media = { tipo: 'polemica' as const, severidade: 'media' as const, titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza' as const, ativo: true, resolucao: null }
     render(<CandidatoCard candidato={makeCandidate({ temAlertas: true, alertas: [media, media] })} />)
-    const label = screen.getByText('2 médios detectados')
+    const label = screen.getByText('Alertas: 2 moderados detectados')
     expect(label.closest('[title]')?.className).toContain('text-amber-700')
   })
 
@@ -336,7 +336,7 @@ describe('CandidatoCard', () => {
       alertas: [{ tipo: 'polemica', severidade: 'baixa', titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza', ativo: true, resolucao: null }],
     })
     render(<CandidatoCard candidato={candidato} />)
-    const label = screen.getByText('1 baixo detectado')
+    const label = screen.getByText('Alertas: 1 leve detectado')
     expect(label.closest('[title]')?.className).toContain('text-gray-500')
   })
 
@@ -348,7 +348,7 @@ describe('CandidatoCard', () => {
       }],
     })
     render(<CandidatoCard candidato={candidato} />)
-    expect(screen.getByText('1 baixo detectado')).toBeInTheDocument()
+    expect(screen.getByText('Observações: 1 leve detectada')).toBeInTheDocument()
   })
 
   it('colors the observation counter following its own most severe item, independent of alertas', () => {
@@ -359,13 +359,13 @@ describe('CandidatoCard', () => {
       }],
     })
     render(<CandidatoCard candidato={candidato} />)
-    const label = screen.getByText('1 alto detectado')
+    const label = screen.getByText('Observações: 1 grave detectada')
     expect(label.closest('[title]')?.className).toContain('text-warning')
   })
 
   it('omits the observation counter when there are none', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
-    expect(screen.queryByText(/detectad/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Observações:/)).not.toBeInTheDocument()
   })
 
   it('does not render the panel until expanded', () => {
@@ -419,11 +419,11 @@ describe('CandidatoCard', () => {
     expect(audit.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  // A card with 14 themes open runs well past a screen, and the only collapse
-  // control used to sit at the very top — you had to scroll back up to close
-  // what you had just finished reading. The sticky bar also keeps the candidate's
-  // identity on screen, which a long theme list otherwise scrolls away.
-  describe('sticky bar while expanded', () => {
+  // An expanded card runs well past a screen, so the header that identifies it
+  // and the control that closes it both scroll away. Rather than copying them
+  // into a second bar — which duplicated name, party and score on screen — the
+  // card's own header sticks while the panel is open.
+  describe('sticky header while expanded', () => {
     beforeAll(() => {
       // jsdom does not implement scrollIntoView.
       window.HTMLElement.prototype.scrollIntoView = jest.fn()
@@ -433,48 +433,50 @@ describe('CandidatoCard', () => {
       ;(window.HTMLElement.prototype.scrollIntoView as jest.Mock).mockClear()
     })
 
-    it('is absent while the card is collapsed', () => {
+    it('does not stick while the card is collapsed', () => {
       render(<CandidatoCard candidato={makeCandidate()} />)
-      expect(screen.queryByTestId('barra-fixa')).not.toBeInTheDocument()
+      expect(screen.getByTestId('card-cabecalho').className).not.toContain('sticky')
     })
 
-    it('carries the candidate identity and score once expanded', () => {
-      render(<CandidatoCard candidato={makeCandidate({ nomeUrna: 'FULANA', partido: 'PSOL', alinhamento: 64 })} />)
-      fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
-
-      const barra = screen.getByTestId('barra-fixa')
-      expect(barra).toHaveTextContent('FULANA')
-      expect(barra).toHaveTextContent('PSOL')
-      expect(barra).toHaveTextContent('64%')
-    })
-
-    it('collapses the panel from its own control', () => {
+    it('sticks once the card is expanded', () => {
       render(<CandidatoCard candidato={makeCandidate()} />)
       fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
-      expect(screen.getByTestId('detalhe-colunas')).toBeInTheDocument()
+      expect(screen.getByTestId('card-cabecalho').className).toContain('sticky')
+    })
 
-      fireEvent.click(within(screen.getByTestId('barra-fixa')).getByRole('button'))
+    // The bar this replaced showed the candidate a second time, so an expanded
+    // card carried "LULA · PT · 70%" twice on screen at once.
+    it('shows the candidate identity exactly once when expanded', () => {
+      render(<CandidatoCard candidato={makeCandidate({ nomeUrna: 'FULANA' })} />)
+      fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+      expect(screen.getAllByText('FULANA')).toHaveLength(1)
+    })
+
+    it('keeps the identity and score inside the sticky region', () => {
+      render(<CandidatoCard candidato={makeCandidate({ nomeUrna: 'FULANA', alinhamento: 64 })} />)
+      fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+
+      const cabecalho = screen.getByTestId('card-cabecalho')
+      expect(cabecalho).toHaveTextContent('FULANA')
+      expect(cabecalho).toHaveTextContent('64%')
+      expect(within(cabecalho).getByRole('button', { name: /Ocultar detalhes/ })).toBeInTheDocument()
+    })
+
+    // Without this the viewport lands wherever the removed content left it,
+    // usually inside the next candidate.
+    it('brings the card back into view when collapsed', () => {
+      render(<CandidatoCard candidato={makeCandidate()} />)
+      fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+      fireEvent.click(screen.getByRole('button', { name: /Ocultar detalhes/ }))
 
       expect(screen.queryByTestId('detalhe-colunas')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('barra-fixa')).not.toBeInTheDocument()
-    })
-
-    // Without this the viewport lands wherever the collapsed content left it —
-    // usually inside the next candidate, or past it.
-    it('brings the card back into view when collapsed from the bar', () => {
-      render(<CandidatoCard candidato={makeCandidate()} />)
-      fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
-      fireEvent.click(within(screen.getByTestId('barra-fixa')).getByRole('button'))
-
       expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
     })
 
-    it('leaves the top toggle working as before', () => {
+    it('does not scroll when merely expanding', () => {
       render(<CandidatoCard candidato={makeCandidate()} />)
-      const toggle = screen.getByRole('button', { name: /Ver detalhes/ })
-      fireEvent.click(toggle)
-      fireEvent.click(screen.getByRole('button', { name: /Ocultar detalhes/ }))
-      expect(screen.queryByTestId('detalhe-colunas')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+      expect(window.HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled()
     })
   })
 })

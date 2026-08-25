@@ -21,7 +21,7 @@ function getBarColor(alinhamento: number): string {
 }
 
 // Below this, most of what the card knows about the candidate is absence,
-// not moderation — nao_encontrado positions score P_NAO_INFORMADO but read
+// not moderation. nao_encontrado positions score P_NAO_INFORMADO but read
 // to a voter as "took no side." Flagging low cobertura the same way alerts
 // and observations are already flagged (color, not just a number) makes that
 // gap visible instead of leaving it the same passive gray at every value.
@@ -33,11 +33,12 @@ const CONFIANCA_TITLE =
   'Quanto da cobertura é sobre os temas que você marcou como importantes. É isso que entra no ' +
   'cálculo do percentual de afinidade.'
 const ALERTAS_TITLE =
-  '"Ficha suja" é gerado automaticamente a partir de certidões do TSE. Os demais alertas passam ' +
+  'Alertas são acusações documentadas sobre conduta: ficha suja, investigações ou controvérsias ' +
+  'curadas. "Ficha suja" é gerado automaticamente a partir de certidões do TSE; os demais passam ' +
   'por curadoria humana antes de aparecer aqui. Nenhum alerta exclui o candidato do resultado.'
 const OBSERVACOES_TITLE =
-  'Ressalvas sobre como avaliamos o candidato — contradições entre discurso e conduta, ou avisos ' +
-  'sobre a qualidade da evidência usada. Nunca são acusações.'
+  'Observações são ressalvas sobre como avaliamos o candidato: contradições entre discurso e ' +
+  'conduta, ou avisos sobre a qualidade da evidência usada. Nunca são acusações.'
 
 interface CandidatoCardProps {
   candidato: CandidatoResultado
@@ -53,7 +54,7 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
   const barColor = getBarColor(candidato.alinhamento)
 
   /** Collapsing from the sticky bar leaves the viewport wherever the removed
-   *  content left it — usually inside the next candidate. Bring this card's top
+   *  content left it, usually inside the next candidate. Bring this card's top
    *  back so the reader resumes where they were. `scroll-mt-20` on the root
    *  keeps it clear of the fixed site header. */
   function recolher() {
@@ -68,22 +69,37 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
   const nObservacoes = candidato.observacoes.length
   const cargoLabel = CARGO_LABELS[candidato.cargo] ?? candidato.cargo
 
-  // The alert counter always shows — "Nenhum alerta" is itself information,
-  // colored green like a clean record. Non-zero counts break down by
-  // severity (corPorSeveridade/rotuloPorSeveridade in src/lib/severidade.ts),
-  // so the color and wording reflect the worst finding, not just a count.
-  // The observation counter is omitted at zero: nothing to caveat is the
-  // default state, not a finding.
+  // The alert counter always shows, even at zero: "Alertas: 0 detectados" is
+  // itself information, colored green like a clean record. Counts break
+  // down by severity (corPorSeveridade/rotuloPorSeveridade in
+  // src/lib/severidade.ts), so the color and wording reflect the worst
+  // finding, not just a count. Alertas takes masculine agreement (alerta),
+  // observações takes feminine (observação). The observation counter is
+  // omitted entirely at zero: nothing to caveat is the default state, not a
+  // finding, unlike alertas.
   const alertaCor = corPorSeveridade(candidato.alertas)
-  const alertaLabel = nAlertas === 0 ? 'Nenhum alerta' : rotuloPorSeveridade(candidato.alertas)
+  const alertaLabel = `Alertas: ${rotuloPorSeveridade(candidato.alertas, 'masc')}`
   const observacaoCor = corPorSeveridade(candidato.observacoes)
-  const observacaoLabel = nObservacoes > 0 ? rotuloPorSeveridade(candidato.observacoes) : ''
+  const observacaoLabel = `Observações: ${rotuloPorSeveridade(candidato.observacoes, 'fem')}`
 
   return (
     <div
       ref={cardRef}
       className="scroll-mt-20 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:p-5"
     >
+      {/* The card's own header sticks while the panel is open, rather than a
+          second bar repeating it: an expanded card runs well past a screen, so
+          both the identity and the control that closes it would otherwise
+          scroll away. Negative margins let it span the card's padding; the
+          opaque background keeps panel content from showing through. */}
+      <div
+        data-testid="card-cabecalho"
+        className={
+          expanded
+            ? 'sticky top-16 z-10 -mx-4 -mt-4 border-b border-gray-200 bg-white px-4 pb-3 pt-4 md:-mx-5 md:-mt-5 md:px-5 md:pt-5'
+            : ''
+        }
+      >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="font-bold text-primary">{candidato.nomeUrna}</p>
@@ -143,44 +159,22 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
         />
       </div>
 
-      <button
-        type="button"
-        onClick={() => setExpanded(v => !v)}
-        aria-expanded={expanded}
-        className="flex items-center gap-1 text-sm text-highlight underline"
-      >
-        {expanded ? '▲ Ocultar detalhes' : '▼ Ver detalhes'}
-      </button>
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => (expanded ? recolher() : setExpanded(true))}
+            aria-expanded={expanded}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            {expanded ? '▲ Ocultar detalhes' : '▼ Ver detalhes'}
+          </button>
+        </div>
+      </div>
 
       {expanded && (
-        <div className="mt-4 border-t border-gray-100 pt-4">
-          {/* An expanded card runs well past a screen, and the only collapse
-              control used to be at the very top. This bar sticks below the fixed
-              site header for as long as this card is on screen, so the panel can
-              be closed from anywhere in it — and it keeps whose card this is
-              visible, which a long theme list otherwise scrolls away. */}
-          <div
-            data-testid="barra-fixa"
-            className="sticky top-16 z-10 -mx-4 mb-4 flex items-center justify-between gap-3 border-b border-gray-200 bg-white/95 px-4 py-2 backdrop-blur md:-mx-5 md:px-5"
-          >
-            <p className="min-w-0 truncate text-sm">
-              <span className="font-bold text-primary">{candidato.nomeUrna}</span>
-              <span className="text-gray-500"> · {candidato.partido}</span>
-            </p>
-            <div className="flex shrink-0 items-center gap-3">
-              <span className="text-sm font-bold text-primary">{candidato.alinhamento}%</span>
-              <button
-                type="button"
-                onClick={recolher}
-                className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
-              >
-                ▲ Ocultar
-              </button>
-            </div>
-          </div>
-
+        <div className="mt-4">
           {/* The audit line explains the headline percentage, which exists
-              whether or not any theme row survives the filter — so it renders
+              whether or not any theme row survives the filter, so it renders
               on every expand, and above the split rather than inside a column. */}
           <p
             data-testid="audit-line"
@@ -197,7 +191,7 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
           >
             {/* TemasPanel draws its own border-t but no box, so the card keeps
                 supplying the frame it was extracted from. Omitted entirely when
-                no theme survives the filter, to avoid an empty bordered box —
+                no theme survives the filter, to avoid an empty bordered box;
                 the column split collapses with it. */}
             {temTemas && (
               <div className="rounded-lg border border-gray-100">
