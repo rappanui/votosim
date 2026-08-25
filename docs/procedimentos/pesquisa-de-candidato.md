@@ -272,20 +272,67 @@ assunto de cada voto é de graça aqui (diferente da Câmara).
 **`Votou` é um voto de sessão secreta** — o senador votou mas a direção não é
 publicada. Conte como presença, nunca como posição sobre o tema.
 
-**Um senador licenciado servindo como ministro é um caso especial.**
-Verificado em 2026-08-23: Marina Silva e Simone Tebet ocupam cadeiras no
-Senado mas estão ausentes de `lista/atual.json` porque estão licenciadas
-para servir como ministras. As cifras de presença delas seriam lidas como
-absenteísmo quando a causa é um cargo público diferente. Se um candidato não
-está na lista atual mas é sabido que ocupa uma cadeira, declare isso em
-`resumoPerfil` e **omita a cifra de presença** em vez de publicar um número
-que significa o oposto do que parece significar.
+**Um senador licenciado servindo como ministro é um caso especial — mas
+confirme a licença, não assuma.** Verificado em 2026-08-23: Marina Silva
+ocupa cadeira no Senado (mandato pelo Acre) mas está ausente de
+`lista/atual.json` porque está licenciada para servir como ministra. A
+cifra de presença dela seria lida como absenteísmo quando a causa é um
+cargo público diferente. Se um candidato não está na lista atual mas é
+sabido que ocupa uma cadeira, declare isso em `resumoPerfil` e **omita a
+cifra de presença** em vez de publicar um número que significa o oposto do
+que parece significar.
+
+> **Correção (2026-08-25):** esta seção originalmente incluía Simone Tebet
+> no mesmo caso de Marina Silva. Está errado. Verificado via
+> `legis.senado.leg.br/dadosabertos/senador/5527/mandatos`: o mandato de
+> Tebet foi 2015-2023, **encerrado em 31/01/2023, sem reeleição** — em 2022
+> ela concorreu à Presidência em vez de disputar o Senado de novo, e a
+> cadeira foi vencida por Tereza Cristina (mandato 2023-2031). Tebet não
+> está licenciada de nada: é ex-senadora que hoje é ministra, com mandato
+> genuinamente encerrado. Toda a assiduidade/votos/projetos dela no Senado
+> são **histórico anterior ao mandato atual** (ver a subseção logo abaixo),
+> não um mandato em curso sendo omitido por licença. Confirme sempre via
+> `/senador/{cod}/mandatos` antes de aplicar qualquer um dos dois
+> tratamentos — não presuma que um ministro ex-parlamentar está licenciado
+> só porque ocupou o cargo antes.
 
 #### Assembleias estaduais e câmaras municipais
 
 Sem regra geral — cada casa publica de forma diferente, e a maioria publica
 muito menos. Aplique a mesma regra rígida: uma chamada ou nada. Não construa
 um raspador.
+
+#### Recorrendo a histórico anterior ao mandato atual (2026-08-25)
+
+A regra padrão de E4a/E4b é usar apenas conduta do mandato 2023-2026 —
+assim `coerenciaBase` sempre nomeia um mandato real e verificável, e um voto
+de 2015 nunca é apresentado como se fosse posição de hoje. Mas essa regra
+não pode virar desculpa para forçar `neutro` num candidato com posição
+pública conhecida e consistente há décadas só porque o mandato atual está
+vazio ou o candidato está licenciado (ex.: servindo como ministro).
+
+**Quando E1 a E4b não produzirem evidência do período 2023-2026 para um
+tema, é permitido recorrer a mandato/declaração anterior** (um voto de
+mandato passado, uma plataforma de candidatura anterior, uma decisão
+enquanto ocupava outro cargo público), sempre com as três condições juntas:
+
+1. **`confiancaIa` reduzida** — nunca no mesmo patamar de uma evidência do
+   mandato atual.
+2. **`justificativa` nomeia o ano e o mandato/cargo de origem** — nunca
+   apresentado como se fosse do período avaliado. Ex.: *"única evidência
+   localizada é do mandato de senadora pelo Acre (2011-2019), não do
+   mandato atual"*.
+3. **Um alerta `ressalva_evidencias` dedicado**, avisando que a posição se
+   apoia em fonte anterior ao período avaliado — para que a fonte apareça
+   destacada para o eleitor, não só embutida na `justificativa`.
+
+**Isto não é o mesmo que atuação atual em outro cargo público.** Um
+candidato licenciado do mandato legislativo para servir como ministro (ex.:
+Marina Silva no MMA, Sônia Guajajara no MPI) tem **conduta corrente** nesse
+cargo — declarações, políticas efetivamente implementadas — que é evidência
+de primeira linha do período 2023-2026 via E1/E3, não histórico antigo.
+Não rebaixe a confiança dessa conduta corrente só porque ela não veio de um
+voto nominal; ela é atual, mesmo não sendo E4a no sentido estrito.
 
 ### E4 — Coerência e espectro
 

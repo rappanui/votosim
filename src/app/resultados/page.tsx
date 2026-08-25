@@ -107,7 +107,7 @@ export default function ResultadosPage() {
         {resultado.totalCandidatosAnalisados} candidato
         {resultado.totalCandidatosAnalisados !== 1 ? 's' : ''} analisado
         {resultado.totalCandidatosAnalisados !== 1 ? 's' : ''} em {resultado.estado}.
-        Alinhamento e cobertura temática — não é uma recomendação de voto.
+        Alinhamento e cobertura temática. Não é uma recomendação de voto.
       </p>
 
       <LegendaIcones />
