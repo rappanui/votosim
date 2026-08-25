@@ -296,6 +296,16 @@ CREATE POLICY "leitura_publica_candidate_dossiers"
 -- except for added branches in the badge_cor CASE. Without them, an alert of
 -- type incoerencia, divergencia_espectro or ressalva_evidencias renders
 -- badge_cor = NULL, because the original CASE has no ELSE.
+-- 2026-08-25: stopped excluding ativo=false outright. Rule D says a resolved
+-- alert "não é deletado — apenas ativo = false e resolução preenchida" so it
+-- stays on record for transparency; the old WHERE pa.ativo = true silently
+-- defeated that by making every resolved alert permanently invisible to the
+-- voter, no matter how well-sourced. validado stays the only trust gate —
+-- it is orthogonal to whether the matter is still open. See
+-- docs/referencia/alertas.md and isAutoValidated() in ingest-research.ts,
+-- which was corrected in the same pass to stop treating "resolved" as a
+-- reason to withhold auto-validation for an otherwise layer-1-sourced
+-- ficha_suja/investigacao.
 CREATE OR REPLACE VIEW v_candidate_alerts AS
 SELECT
   pa.politician_id,
@@ -307,26 +317,34 @@ SELECT
   pa.fonte_url,
   pa.fonte_nome,
   pa.data_ocorrencia,
-  -- Badge para a UI.
+  pa.ativo,
+  pa.resolucao,
+  pa.data_resolucao,
+  -- Badge para a UI. A resolved alert always renders gray regardless of
+  -- tipo — the point is that the tipo-specific colour (vermelho/laranja/...)
+  -- reads as "current," and a resolved matter is explicitly not current.
   -- Switches on pa.tipo::text, not pa.tipo: the two new enum values are added
   -- by this same file, and PostgreSQL forbids using a pending enum value in
   -- the transaction that adds it. Casting to text sidesteps that entirely.
-  CASE pa.tipo::text
-    WHEN 'ficha_suja'   THEN 'vermelho'
-    WHEN 'investigacao' THEN 'laranja'
-    WHEN 'polemica'     THEN 'cinza'
-    -- incoerencia: conduct contradicted the platform declared on a theme.
-    -- A distinct concern from the legal/media-sourced badges above, so it
-    -- gets its own colour instead of reusing one of theirs.
-    WHEN 'incoerencia'          THEN 'roxo'
-    -- divergencia_espectro: declared vs. inferred political spectrum
-    -- disagree. Informational, not a conduct or legal flag, so it takes the
-    -- calmest colour in the set rather than a warning colour.
-    WHEN 'divergencia_espectro' THEN 'azul'
-    -- ressalva_evidencias: caveat about the evidence base (degraded
-    -- extraction, party-inferred positions). Informational, not a conduct or
-    -- legal flag, so it takes a neutral note colour rather than a warning one.
-    WHEN 'ressalva_evidencias'  THEN 'amarelo'
+  CASE
+    WHEN NOT pa.ativo THEN 'cinza'
+    ELSE (CASE pa.tipo::text
+      WHEN 'ficha_suja'   THEN 'vermelho'
+      WHEN 'investigacao' THEN 'laranja'
+      WHEN 'polemica'     THEN 'cinza'
+      -- incoerencia: conduct contradicted the platform declared on a theme.
+      -- A distinct concern from the legal/media-sourced badges above, so it
+      -- gets its own colour instead of reusing one of theirs.
+      WHEN 'incoerencia'          THEN 'roxo'
+      -- divergencia_espectro: declared vs. inferred political spectrum
+      -- disagree. Informational, not a conduct or legal flag, so it takes the
+      -- calmest colour in the set rather than a warning colour.
+      WHEN 'divergencia_espectro' THEN 'azul'
+      -- ressalva_evidencias: caveat about the evidence base (degraded
+      -- extraction, party-inferred positions). Informational, not a conduct or
+      -- legal flag, so it takes a neutral note colour rather than a warning one.
+      WHEN 'ressalva_evidencias'  THEN 'amarelo'
+    END)
   END AS badge_cor,
   CASE pa.severidade
     WHEN 'critica' THEN 1
@@ -336,9 +354,8 @@ SELECT
   END AS ordem_exibicao
 FROM politician_alerts pa
 JOIN politicians p ON p.id = pa.politician_id
-WHERE pa.ativo = true
-  AND pa.validado = true
+WHERE pa.validado = true
 ORDER BY pa.politician_id, ordem_exibicao;
 
 COMMENT ON VIEW v_candidate_alerts IS
-  'Alertas ativos e validados prontos para exibição na UI. Ordenados por severidade. Extended by base/11_sp0_foundation.sql with badge_cor branches for incoerencia (roxo), divergencia_espectro (azul) and ressalva_evidencias (amarelo).';
+  'Alertas validados prontos para exibição na UI, ativos ou resolvidos (ver ativo/resolucao). Ordenados por severidade. Extended by base/11_sp0_foundation.sql with badge_cor branches for incoerencia (roxo), divergencia_espectro (azul) and ressalva_evidencias (amarelo); extended again 2026-08-25 to stop hiding resolved alerts and to render them with a neutral gray badge instead.';

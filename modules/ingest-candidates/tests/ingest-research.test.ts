@@ -217,17 +217,49 @@ test('buildAlertRows: a resolved alert maps to ativo=false and carries the resol
   assert.equal(rows[0].data_resolucao, '2021-03-08')
 })
 
-test('buildAlertRows: a resolved matter is never auto-validated, regardless of source layer', () => {
-  // A resolved ficha_suja is exactly the case Rule B does not cover — the
-  // point of the badge is that it is CURRENT. Publishing a resolved matter
-  // unreviewed would imply an active disqualification that no longer exists.
+test('buildAlertRows: a resolved ficha_suja/investigacao on a layer-1 source auto-validates, same as unresolved', () => {
+  // Corrected 2026-08-25: the original rule ("resolved never auto-publishes,
+  // regardless of layer") was a stopgap from 2026-08-22, written before the
+  // view could render a resolved alert any differently from an active one —
+  // so the only way to avoid a stale "Ficha suja" red badge on an annulled
+  // conviction was to block it at the gate entirely. v_candidate_alerts now
+  // renders ativo=false alerts with a distinct "— resolvido" gray badge and
+  // the resolucao text surfaced, so the original risk (a resolved matter
+  // reading as a current disqualification) no longer applies. The trust bar
+  // stays exactly what it already is for an unresolved ficha_suja/investigacao:
+  // layer-1 source, nothing more.
   const r = research()
   r.alertas[0].tipo = 'ficha_suja'
-  r.alertas[0].fonteRefs = ['s1'] // s1 is camada 1 — would auto-validate if unresolved
+  r.alertas[0].fonteRefs = ['s1'] // s1 is camada 1
   r.alertas[0].resolucao = 'Condenação anulada pelo STF em 2021.'
   r.alertas[0].dataResolucao = '2021-03-08'
   const rows = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1']]))
-  assert.equal(rows[0].validado, false, 'a resolved matter always waits for curation, even on a layer-1 source')
+  assert.equal(rows[0].validado, true)
+  assert.equal(rows[0].ativo, false)
+})
+
+test('buildAlertRows: a resolved ficha_suja/investigacao on a layer-2/3 source still waits for curation', () => {
+  const r = research()
+  r.alertas[0].tipo = 'ficha_suja'
+  r.alertas[0].fonteRefs = ['s2'] // s2 is camada 2 in the fixture below
+  r.alertas[0].resolucao = 'Condenação anulada pelo STF em 2021.'
+  r.alertas[0].dataResolucao = '2021-03-08'
+  const rows = buildAlertRows(r, 'pol-1', new Map([['s2', 'src-2']]))
+  assert.equal(rows[0].validado, false)
+  assert.equal(rows[0].ativo, false)
+})
+
+test('buildAlertRows: a resolved polemica still waits for curation even on a layer-1 source', () => {
+  // The loosened rule is scoped to ficha_suja/investigacao only — polemica's
+  // subjectivity is what Rule B requires human curation for, independent of
+  // resolved status or source layer.
+  const r = research()
+  r.alertas[0].tipo = 'polemica'
+  r.alertas[0].fonteRefs = ['s1']
+  r.alertas[0].resolucao = 'Encerrado sem apuração de irregularidade.'
+  r.alertas[0].dataResolucao = '2021-03-08'
+  const rows = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1']]))
+  assert.equal(rows[0].validado, false)
   assert.equal(rows[0].ativo, false)
 })
 

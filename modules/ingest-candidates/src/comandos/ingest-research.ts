@@ -81,21 +81,27 @@ function chooseAlertSource(fonteRefs: string[], byRef: Map<string, ResearchSourc
 }
 
 /**
- * Rule B of docs/legado/base/04_schema_alerts.md authorises auto-publishing only
+ * Rule B of docs/referencia/alertas.md authorises auto-publishing only
  * ficha_suja and investigacao, and only "com fonte do TSE/STF" — a layer-1
  * source. polemica is explicitly the subjective type needing curation, and
  * incoerencia / divergencia_espectro are AI inferences about a real person
  * that Rule B never covers, so both stay unvalidated regardless of source.
+ *
+ * Resolved status does not lower the bar below what an unresolved case of
+ * the same type/source already clears. It used to (a 2026-08-22 stopgap,
+ * before v_candidate_alerts could render ativo=false any differently from
+ * an active one — see git blame): a resolved layer-1 ficha_suja was blocked
+ * outright, because showing it with the same red "current disqualification"
+ * badge as an active one would misrepresent it. That risk is gone now that
+ * the view renders ativo=false with a distinct "— resolvido" badge and
+ * surfaces the resolucao text, so this function no longer treats resolved
+ * as a reason to withhold — same trust bar as unresolved, nothing more.
  */
-function isAutoValidated(tipo: string, source: ResearchSource | undefined, resolved: boolean): boolean {
-  // A resolved matter is never auto-published: Rule B's badge means the
-  // disqualification is CURRENT. Publishing a resolved one unreviewed would
-  // imply an active status that no longer exists.
+function isAutoValidated(tipo: string, source: ResearchSource | undefined, _resolved: boolean): boolean {
   // A factual note about the evidence base itself, never a disqualification
   // claim — it does not need a TSE/STF-grade source to back it, and hiding it
   // pending curation would defeat the point of warning the reader.
   if (tipo === 'ressalva_evidencias') return true
-  if (resolved) return false
   if (tipo !== 'ficha_suja' && tipo !== 'investigacao') return false
   return source?.camada === 1
 }
