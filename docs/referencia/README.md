@@ -15,7 +15,7 @@
 | `questionario.md` | Os 14 temas do quiz, o modelo de resposta e como cada resposta vira peso. |
 | `alertas.md` | Os seis `alert_type`, e por que alertas e observações nunca aparecem no mesmo lugar. |
 | `pipeline-de-pesquisa.md` | O fluxo `next-candidates → build-brief → agente → ingest-research`, e por que uma re-ingestão apaga classificações manuais anteriores. |
-| `frontend.md` | As páginas, o quiz, o card de candidato recomposto e os seis componentes, e a fronteira de contrato (`assertMatchResult`). |
+| `frontend.md` | As páginas, a navegação global, o quiz, o card de candidato recomposto e os seis componentes, e a fronteira de contrato (`assertMatchResult`). |
 | `variaveis-de-ambiente.md` | Quais variáveis de ambiente o código lê hoje, e em qual arquivo `.env` cada uma vive. |
 | `schema-adicoes-sp0.md` | As tabelas e colunas que a migração SP-0 (`docs/migracoes/11_sp0_foundation.sql`) adicionou. |
 | `fontes-de-dados-tse.md` | Onde obter dados oficiais do TSE 2026 e as armadilhas de fontes mortas/incompletas. |
