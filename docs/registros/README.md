@@ -1,9 +1,9 @@
 # Registros
 
-> **Status:** válido · **Atualizado em:** 2026-08-24
+> **Status:** válido · **Atualizado em:** 2026-08-25 17:52
 > **Contexto:** o que foi descoberto ao operar o sistema, com data. Leia quando
 > precisar saber se uma anomalia já apareceu antes, ou por que uma decisão foi
-> tomada. Não descreve como o sistema funciona — para isso, `docs/referencia/`.
+> tomada. Não descreve como o sistema funciona; para isso, `docs/referencia/`.
 
 ---
 
@@ -22,7 +22,8 @@ linhas porque lá o problema oposto é o real: um documento de consulta longo n�
 
 | Arquivo | Conteúdo |
 |---|---|
-| `achados-sp0.md` | Anomalias encontradas ao rodar o pipeline de pesquisa de candidatos (fase SP-0 em diante) — dados inconsistentes do TSE, casos que quebram premissas, decisões tomadas diante deles. |
+| `achados-sp0.md` | Anomalias encontradas ao rodar o pipeline de pesquisa de candidatos (fase SP-0 em diante): dados inconsistentes do TSE, casos que quebram premissas, decisões tomadas diante deles. |
+| `ingestao-dos-senadores-do-rj.md` | O que a ingestão dos 16 candidatos ao Senado pelo RJ (2026-08-25) ensinou: teto de busca compartilhado entre agentes, fonte oficial que só abre com cabeçalho ou cadeia de certificado completos, o bug que apagou dois dossiês, e cinco erros de terceiros pegos na leitura da fonte primária. |
 
 ## O que **não** mora aqui
 
@@ -32,5 +33,5 @@ linhas porque lá o problema oposto é o real: um documento de consulta longo n�
 
 Um registro descreve o mundo; um documento de referência descreve o código.
 Quando um achado vira comportamento permanente do sistema, ele é **promovido**
-para a referência — e a entrada no registro fica, com a data, contando quando
+para a referência, e a entrada no registro fica, com a data, contando quando
 aquilo foi aprendido.
