@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSourceRows, buildPositionRows, buildAlertRows, hasConfirmFlag, parseResearchJson, nextDossierVersion } from '../src/comandos/ingest-research.ts'
+import { buildSourceRows, buildPositionRows, buildAlertRows, hasConfirmFlag, parseResearchJson, nextDossierVersion, isMissingFunctionError, buildSourceIdByRef } from '../src/comandos/ingest-research.ts'
 import type { CandidateResearch } from '../src/lib/research-contract.ts'
 
 function research(): CandidateResearch {
@@ -198,7 +198,7 @@ test('buildAlertRows: an alert citing an interno source first still writes the v
   assert.equal(row.fonte_nome, 'TSE')
 })
 
-// ─── Resolved alerts — Rule D of docs/legado/base/04_schema_alerts.md ──────────────
+// ─── Resolved alerts. Rule D of docs/legado/base/04_schema_alerts.md ──────────────
 
 test('buildAlertRows: an unresolved alert maps to ativo=true with no resolucao', () => {
   const rows = buildAlertRows(research(), 'pol-1', new Map([['s2', 'src-2']]))
@@ -215,6 +215,23 @@ test('buildAlertRows: a resolved alert maps to ativo=false and carries the resol
   assert.equal(rows[0].ativo, false)
   assert.equal(rows[0].resolucao, 'Condenação anulada pelo STF por incompetência de foro em 2021.')
   assert.equal(rows[0].data_resolucao, '2021-03-08')
+})
+
+test('buildAlertRows: severidade_atual and its motivo default to null when the research never reassessed', () => {
+  const rows = buildAlertRows(research(), 'pol-1', new Map([['s2', 'src-2']]))
+  assert.equal(rows[0].severidade_atual, null)
+  assert.equal(rows[0].severidade_atual_motivo, null)
+})
+
+test('buildAlertRows: a reassessed resolved alert carries severidade_atual and its motivo through', () => {
+  const r = research()
+  r.alertas[0].resolucao = 'Anulado por incompetência de foro.'
+  r.alertas[0].dataResolucao = '2021-03-08'
+  r.alertas[0].severidadeAtual = 'alta'
+  r.alertas[0].severidadeAtualMotivo = 'O mérito nunca foi rejulgado, apenas a competência do foro.'
+  const rows = buildAlertRows(r, 'pol-1', new Map([['s2', 'src-2']]))
+  assert.equal(rows[0].severidade_atual, 'alta')
+  assert.equal(rows[0].severidade_atual_motivo, 'O mérito nunca foi rejulgado, apenas a competência do foro.')
 })
 
 test('buildAlertRows: a resolved ficha_suja/investigacao on a layer-1 source auto-validates, same as unresolved', () => {
@@ -274,4 +291,47 @@ test('buildAlertRows: ressalva_evidencias is auto-validated even on a layer-2 so
   r.alertas[0].fonteRefs = ['s2'] // s2 is camada 2 — would NOT auto-validate a ficha_suja/investigacao
   const [row] = buildAlertRows(r, 'pol-1', new Map([['s1', 'src-1'], ['s2', 'src-2']]))
   assert.equal(row.validado, true)
+})
+
+// ─── Gravação atômica: a decisão de cair no caminho antigo ───────────────────
+// docs/migracoes/13_ingest_research_atomico.sql. O caminho antigo não tem
+// transação e destrói o dossiê quando falha no meio, então só a ausência da
+// função no banco pode liberá-lo. Confundir isso com um erro qualquer devolve
+// exatamente o bug que a migração existe para fechar.
+
+test('isMissingFunctionError: reconhece a função ausente no PostgREST e no Postgres', () => {
+  assert.equal(isMissingFunctionError('PGRST202'), true)
+  assert.equal(isMissingFunctionError('42883'), true)
+})
+
+test('isMissingFunctionError: qualquer outro erro NÃO libera o caminho sem transação', () => {
+  // 23505 é violação de unicidade, que foi justamente o erro que apagou dois
+  // dossiês em produção. Cair no caminho antigo diante dele repetiria o dano.
+  assert.equal(isMissingFunctionError('23505'), false)
+  assert.equal(isMissingFunctionError('PGRST301'), false)
+  assert.equal(isMissingFunctionError(undefined), false)
+  assert.equal(isMissingFunctionError(null), false)
+  assert.equal(isMissingFunctionError(''), false)
+})
+
+test('buildSourceIdByRef: liga cada ref ao id da linha de mesma url', () => {
+  const fontes = [
+    { ref: 's1', url: 'https://a.jus.br/x' },
+    { ref: 's2', url: 'https://b.com.br/y' },
+  ]
+  const rows = [
+    { url: 'https://b.com.br/y', id: 'id-b' },
+    { url: 'https://a.jus.br/x', id: 'id-a' },
+  ]
+  const map = buildSourceIdByRef(fontes, rows)
+  // Cruzar por url, não por posição: a ordem das linhas não é contrato, e
+  // um alerta apontando para a fonte errada é uma acusação atribuída à
+  // fonte de outra afirmação.
+  assert.equal(map.get('s1'), 'id-a')
+  assert.equal(map.get('s2'), 'id-b')
+})
+
+test('buildSourceIdByRef: ref cuja url não foi gerada fica sem id, para o chamador falhar alto', () => {
+  const map = buildSourceIdByRef([{ ref: 's9', url: 'https://ausente.br' }], [])
+  assert.equal(map.get('s9'), undefined)
 })
