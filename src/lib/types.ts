@@ -37,6 +37,11 @@ export interface Alerta {
   descricao: string
   fonteUrl: string
   badgeCor: BadgeCor
+  // ativo=false means resolved (absolved, conviction annulled, case
+  // archived) — the matter is still on record for transparency, just no
+  // longer current. resolucao is only non-null when ativo is false.
+  ativo: boolean
+  resolucao: string | null
 }
 
 /** How much evidence backs a candidate's position on one theme. */
@@ -108,6 +113,13 @@ export interface Observacao {
   descricao: string
   temaSlug: string | null
   fonteUrl: string | null
+  // Alert-sourced observações (incoerencia, divergencia_espectro,
+  // ressalva_evidencias) carry the real severidade a curator/pipeline
+  // assigned. The three observações deriveObservacoes computes on the fly
+  // from dossie/positions data (no politician_alerts row to read a severity
+  // from) get a fixed default instead — see deriveObservacoes in
+  // supabase/functions/match-candidatos/index.ts for which gets which.
+  severidade: AlertSeverity
 }
 
 /** Per-theme breakdown enabling the transparency panel in results. */

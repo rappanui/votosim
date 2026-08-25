@@ -162,6 +162,8 @@ Deno.test('attachAlerts: attaches alerts to matching candidates', () => {
     descricao: 'Sob investigação',
     fonte_url: 'http://example.com',
     badge_cor: 'red',
+    ativo: true,
+    resolucao: null,
   }]
   const output = attachAlerts(result, alerts)
   const candidato = output.cargos[0].candidatos[0]
@@ -472,11 +474,13 @@ function makeDetalhe(overrides: Partial<TemaCandidatoDetalhe> = {}): TemaCandida
   }
 }
 
-function makeAlertRow(tipo: string, badgeCor: string): AlertRow {
+function makeAlertRow(tipo: string, badgeCor: string, overrides: Partial<AlertRow> = {}): AlertRow {
   return {
     politician_id: 'p1', tipo, severidade: 'baixa',
     titulo: `Título ${tipo}`, descricao: `Descrição ${tipo}`,
     fonte_url: 'https://fonte.example', badge_cor: badgeCor,
+    ativo: true, resolucao: null,
+    ...overrides,
   }
 }
 
@@ -487,13 +491,20 @@ Deno.test('deriveObservacoes: an incoerencia alert is a contradiction', () => {
   assertEquals(out[0].fonteUrl, 'https://fonte.example')
 })
 
+Deno.test('deriveObservacoes: an alert-sourced observação carries the real severidade through', () => {
+  const out = deriveObservacoes(
+    [makeAlertRow('incoerencia', 'roxo', { severidade: 'alta' })], [], null, new Map(),
+  )
+  assertEquals(out[0].severidade, 'alta')
+})
+
 Deno.test('deriveObservacoes: a ressalva_evidencias alert is a ressalva', () => {
   const out = deriveObservacoes([makeAlertRow('ressalva_evidencias', 'amarelo')], [], null, new Map())
   assertEquals(out.length, 1)
   assertEquals(out[0].categoria, 'ressalva')
 })
 
-Deno.test('deriveObservacoes: an incoerente theme becomes a contradiction naming the theme', () => {
+Deno.test('deriveObservacoes: an incoerente theme becomes a contradiction naming the theme, defaulting to alta', () => {
   const coerencia = new Map<string, CoerenciaTema>([['saude_sus', 'incoerente']])
   const out = deriveObservacoes([], [makeDetalhe({ justificativa: 'Votou contra em 2023.' })], null, coerencia)
   assertEquals(out.length, 1)
@@ -501,6 +512,11 @@ Deno.test('deriveObservacoes: an incoerente theme becomes a contradiction naming
   assertEquals(out[0].titulo, 'Saúde pública')
   assertEquals(out[0].descricao, 'Votou contra em 2023.')
   assertEquals(out[0].temaSlug, 'saude_sus')
+  // Default chosen 2026-08-25: real incoerencia alerts (the closest analogue
+  // with a human-assigned severity) split 4 media / 1 alta / 1 baixa — not
+  // consistent enough to infer a value with confidence, so this was a product
+  // call, not a data-derived default like the other two below.
+  assertEquals(out[0].severidade, 'alta')
 })
 
 Deno.test('deriveObservacoes: a coerente theme produces nothing', () => {
@@ -515,12 +531,14 @@ Deno.test('deriveObservacoes: a party-sourced theme is a ressalva', () => {
   assertEquals(out.length, 1)
   assertEquals(out[0].categoria, 'ressalva')
   assertEquals(out[0].temaSlug, 'saude_sus')
+  assertEquals(out[0].severidade, 'baixa')
 })
 
 Deno.test('deriveObservacoes: a low-confidence direct stance is a ressalva', () => {
   const out = deriveObservacoes([], [makeDetalhe({ baixaConfianca: true })], null, new Map())
   assertEquals(out.length, 1)
   assertEquals(out[0].categoria, 'ressalva')
+  assertEquals(out[0].severidade, 'baixa')
 })
 
 // D5: v3 already renders `○ não encontrado` per theme and already prices it into
@@ -558,6 +576,7 @@ Deno.test('deriveObservacoes: diverging declared and inferred spectrum is a cont
   const out = deriveObservacoes([], [], dossie, new Map())
   assertEquals(out.length, 1)
   assertEquals(out[0].categoria, 'contradicao')
+  assertEquals(out[0].severidade, 'baixa')
 })
 
 Deno.test('deriveObservacoes: matching spectra produce nothing', () => {
@@ -636,6 +655,40 @@ Deno.test('attachAlerts: only observational alerts leaves temAlertas false', () 
   }
   const out = attachAlerts(result, [makeAlertRow('ressalva_evidencias', 'amarelo')])
   assertEquals(out.cargos[0].candidatos[0].temAlertas, false)
+})
+
+// ─── resolved alerts carry ativo/resolucao through, unhidden ─────────────────
+// 2026-08-25: v_candidate_alerts stopped excluding ativo=false, so a resolved
+// alert (e.g. a conviction later annulled) now reaches attachAlerts same as
+// an active one — badge_cor is already 'cinza' by the time it gets here (the
+// view computes that), so alertRowToAlerta's job is just to carry ativo and
+// resolucao through unmutated for the frontend to render.
+
+Deno.test('attachAlerts: a resolved alert still counts toward alertas, carrying ativo and resolucao', () => {
+  const result: MatchResult = {
+    cargos: [{ cargo: 'presidente', candidatos: [makeCandidato('p1', 80)] }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const out = attachAlerts(result, [
+    makeAlertRow('ficha_suja', 'cinza', {
+      ativo: false,
+      resolucao: 'Condenação anulada pelo STF por incompetência de foro em 2021.',
+    }),
+  ])
+  const alerta = out.cargos[0].candidatos[0].alertas[0] as { ativo: boolean; resolucao: string | null }
+  assertEquals(alerta.ativo, false)
+  assertEquals(alerta.resolucao, 'Condenação anulada pelo STF por incompetência de foro em 2021.')
+})
+
+Deno.test('attachAlerts: an active alert carries ativo=true and resolucao=null', () => {
+  const result: MatchResult = {
+    cargos: [{ cargo: 'presidente', candidatos: [makeCandidato('p1', 80)] }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const out = attachAlerts(result, [makeAlertRow('ficha_suja', 'vermelho')])
+  const alerta = out.cargos[0].candidatos[0].alertas[0] as { ativo: boolean; resolucao: string | null }
+  assertEquals(alerta.ativo, true)
+  assertEquals(alerta.resolucao, null)
 })
 
 // ─── enrichResult ────────────────────────────────────────────────────────────

@@ -165,10 +165,30 @@ describe('CandidatoCard', () => {
     expect(screen.getByText(/confiança 36%/)).toBeInTheDocument()
   })
 
-  it('explains cobertura and confiança via a hover tooltip on each (?)', () => {
+  it('explains cobertura and confiança via a hover tooltip on each element', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
     expect(screen.getByTitle(/quantos conseguimos apurar/i)).toBeInTheDocument()
     expect(screen.getByTitle(/você marcou como importantes/i)).toBeInTheDocument()
+  })
+
+  it('explains alertas via a hover tooltip on the counter itself', () => {
+    render(<CandidatoCard candidato={makeCandidate()} />)
+    const tip = screen.getByTitle(/curadoria humana/i)
+    expect(tip).toBeInTheDocument()
+    expect(tip).toHaveTextContent('Nenhum alerta')
+  })
+
+  it('explains observações via a hover tooltip on the counter itself', () => {
+    const candidato = makeCandidate({
+      observacoes: [{
+        categoria: 'ressalva', titulo: 'Saúde', descricao: 'Via partido.',
+        temaSlug: 'saude_sus', fonteUrl: null, severidade: 'baixa',
+      }],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    const tip = screen.getByTitle(/nunca são acusações/i)
+    expect(tip).toBeInTheDocument()
+    expect(tip).toHaveTextContent('1 baixo detectado')
   })
 
   it('flags low cobertura visually instead of treating it the same as high cobertura', () => {
@@ -259,25 +279,25 @@ describe('CandidatoCard', () => {
     expect(screen.queryByText(/nº/)).not.toBeInTheDocument()
   })
 
-  it('shows the alert counter in the collapsed card', () => {
+  it('shows the alert counter in the collapsed card, severity-labeled', () => {
     const candidato = makeCandidate({
       temAlertas: true,
       alertas: [{
         tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D',
-        fonteUrl: 'https://x.example', badgeCor: 'vermelho',
+        fonteUrl: 'https://x.example', badgeCor: 'vermelho', ativo: true, resolucao: null,
       }],
     })
     render(<CandidatoCard candidato={candidato} />)
-    expect(screen.getByText('1 alerta encontrado')).toBeInTheDocument()
+    expect(screen.getByText('1 crítico detectado')).toBeInTheDocument()
   })
 
   it('pluralizes the alert counter', () => {
     const alerta = {
       tipo: 'ficha_suja' as const, severidade: 'critica' as const, titulo: 'T', descricao: 'D',
-      fonteUrl: 'https://x.example', badgeCor: 'vermelho' as const,
+      fonteUrl: 'https://x.example', badgeCor: 'vermelho' as const, ativo: true, resolucao: null,
     }
     render(<CandidatoCard candidato={makeCandidate({ temAlertas: true, alertas: [alerta, alerta] })} />)
-    expect(screen.getByText('2 alertas encontrados')).toBeInTheDocument()
+    expect(screen.getByText('2 críticos detectados')).toBeInTheDocument()
   })
 
   it('says there is no alert when the list is empty', () => {
@@ -285,20 +305,67 @@ describe('CandidatoCard', () => {
     expect(screen.getByText('Nenhum alerta')).toBeInTheDocument()
   })
 
-  it('shows the observation counter in the collapsed card', () => {
+  it('colors the zero-alert counter green', () => {
+    render(<CandidatoCard candidato={makeCandidate()} />)
+    expect(screen.getByText('Nenhum alerta').closest('[title]')?.className).toContain('text-success')
+  })
+
+  it('colors the alert counter red when the most severe alert present is critica', () => {
+    const candidato = makeCandidate({
+      temAlertas: true,
+      alertas: [
+        { tipo: 'ficha_suja', severidade: 'critica', titulo: 'T1', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'vermelho', ativo: true, resolucao: null },
+        { tipo: 'polemica', severidade: 'baixa', titulo: 'T2', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza', ativo: true, resolucao: null },
+      ],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    const label = screen.getByText('1 crítico e 1 baixo detectados')
+    expect(label.closest('[title]')?.className).toContain('text-danger')
+  })
+
+  it('colors the alert counter amber when the most severe alert present is media', () => {
+    const media = { tipo: 'polemica' as const, severidade: 'media' as const, titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza' as const, ativo: true, resolucao: null }
+    render(<CandidatoCard candidato={makeCandidate({ temAlertas: true, alertas: [media, media] })} />)
+    const label = screen.getByText('2 médios detectados')
+    expect(label.closest('[title]')?.className).toContain('text-amber-700')
+  })
+
+  it('colors the alert counter gray when the most severe alert present is baixa', () => {
+    const candidato = makeCandidate({
+      temAlertas: true,
+      alertas: [{ tipo: 'polemica', severidade: 'baixa', titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza', ativo: true, resolucao: null }],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    const label = screen.getByText('1 baixo detectado')
+    expect(label.closest('[title]')?.className).toContain('text-gray-500')
+  })
+
+  it('shows the observation counter in the collapsed card, severity-labeled', () => {
     const candidato = makeCandidate({
       observacoes: [{
         categoria: 'ressalva', titulo: 'Saúde', descricao: 'Via partido.',
-        temaSlug: 'saude_sus', fonteUrl: null,
+        temaSlug: 'saude_sus', fonteUrl: null, severidade: 'baixa',
       }],
     })
     render(<CandidatoCard candidato={candidato} />)
-    expect(screen.getByText('1 observação encontrada')).toBeInTheDocument()
+    expect(screen.getByText('1 baixo detectado')).toBeInTheDocument()
+  })
+
+  it('colors the observation counter following its own most severe item, independent of alertas', () => {
+    const candidato = makeCandidate({
+      observacoes: [{
+        categoria: 'contradicao', titulo: 'Tema', descricao: 'D',
+        temaSlug: 'tema_x', fonteUrl: null, severidade: 'alta',
+      }],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    const label = screen.getByText('1 alto detectado')
+    expect(label.closest('[title]')?.className).toContain('text-warning')
   })
 
   it('omits the observation counter when there are none', () => {
     render(<CandidatoCard candidato={makeCandidate()} />)
-    expect(screen.queryByText(/observaç/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/detectad/)).not.toBeInTheDocument()
   })
 
   it('does not render the panel until expanded', () => {

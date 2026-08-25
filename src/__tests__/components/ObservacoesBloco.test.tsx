@@ -8,6 +8,7 @@ const contradicao: Observacao = {
   descricao: 'Defendeu no plano, votou contra em 2023.',
   temaSlug: 'saude_sus',
   fonteUrl: null,
+  severidade: 'alta',
 }
 
 const ressalva: Observacao = {
@@ -16,6 +17,7 @@ const ressalva: Observacao = {
   descricao: 'Posição lida no programa do partido.',
   temaSlug: 'seguranca_publica_estadual',
   fonteUrl: null,
+  severidade: 'baixa',
 }
 
 describe('ObservacoesBloco', () => {

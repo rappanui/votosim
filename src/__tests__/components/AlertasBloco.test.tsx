@@ -9,6 +9,8 @@ const alerta: Alerta = {
   descricao: 'Condenado por uso indevido dos meios de comunicação em 2024.',
   fonteUrl: 'https://tre-sp.example',
   badgeCor: 'vermelho',
+  ativo: true,
+  resolucao: null,
 }
 
 describe('AlertasBloco', () => {
@@ -29,5 +31,22 @@ describe('AlertasBloco', () => {
     expect(screen.getByText(/Inelegível até 2032/)).toBeInTheDocument()
     expect(screen.getByText(/uso indevido dos meios/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /fonte/i })).toHaveAttribute('href', 'https://tre-sp.example')
+  })
+
+  it('shows the resolucao text for a resolved alert', () => {
+    const resolvido: Alerta = {
+      ...alerta,
+      ativo: false,
+      resolucao: 'Condenação anulada pelo STF por incompetência de foro em 2021.',
+    }
+    render(<AlertasBloco alertas={[resolvido]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Alertas/ }))
+    expect(screen.getByText(/Condenação anulada pelo STF/)).toBeInTheDocument()
+  })
+
+  it('does not show a resolucao block for an active alert', () => {
+    render(<AlertasBloco alertas={[alerta]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Alertas/ }))
+    expect(screen.queryByText(/^Resolvido:/)).not.toBeInTheDocument()
   })
 })

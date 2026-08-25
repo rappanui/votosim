@@ -2,13 +2,18 @@ import { render, screen } from '@testing-library/react'
 import { AlertaBadge } from '@/components/AlertaBadge'
 import type { Alerta } from '@/lib/types'
 
-const makeAlerta = (tipo: Alerta['tipo'], badgeCor: Alerta['badgeCor']): Alerta => ({
+const makeAlerta = (
+  tipo: Alerta['tipo'], badgeCor: Alerta['badgeCor'], overrides: Partial<Alerta> = {},
+): Alerta => ({
   tipo,
   severidade: 'alta',
   titulo: `Título ${tipo}`,
   descricao: `Descrição do alerta ${tipo}`,
   fonteUrl: 'https://example.com',
   badgeCor,
+  ativo: true,
+  resolucao: null,
+  ...overrides,
 })
 
 describe('AlertaBadge', () => {
@@ -70,5 +75,36 @@ describe('AlertaBadge', () => {
   it('applies amber styling for badgeCor amarelo', () => {
     const { container } = render(<AlertaBadge alerta={makeAlerta('ressalva_evidencias', 'amarelo')} />)
     expect((container.firstChild as HTMLElement).className).toContain('bg-amber-100')
+  })
+
+  it('suffixes the label with "— resolvido" when the alert is no longer active', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'cinza', { ativo: false })} />)
+    expect(screen.getByText('Ficha suja — resolvido')).toBeInTheDocument()
+  })
+
+  it('does not suffix the label for an active alert', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho')} />)
+    expect(screen.getByText('Ficha suja')).toBeInTheDocument()
+    expect(screen.queryByText(/resolvido/)).not.toBeInTheDocument()
+  })
+
+  it('shows the severidade in Portuguese alongside the badge', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho', { severidade: 'critica' })} />)
+    expect(screen.getByText(/Crítica/)).toBeInTheDocument()
+  })
+
+  it('colors the severidade text red for critica', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho', { severidade: 'critica' })} />)
+    expect(screen.getByText(/Crítica/).className).toContain('text-danger')
+  })
+
+  it('colors the severidade text gray for baixa', () => {
+    render(<AlertaBadge alerta={makeAlerta('polemica', 'cinza', { severidade: 'baixa' })} />)
+    expect(screen.getByText(/Baixa/).className).toContain('text-gray-500')
+  })
+
+  it('keeps the pill itself as the first rendered element, unaffected by the severidade text', () => {
+    const { container } = render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho')} />)
+    expect((container.firstChild as HTMLElement).className).toContain('bg-danger')
   })
 })

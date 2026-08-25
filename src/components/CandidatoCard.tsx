@@ -8,6 +8,7 @@ import { ObservacoesBloco } from './ObservacoesBloco'
 import { TemasPanel, selectVisibleTemas } from './TemasPanel'
 import { P_NAO_INFORMADO_PCT, CARGO_LABELS } from '@/lib/types'
 import type { CandidatoResultado } from '@/lib/types'
+import { corPorSeveridade, rotuloPorSeveridade } from '@/lib/severidade'
 
 // Penalised scores concentrate in the 20–60% range, so the thresholds are
 // recalibrated relative to the pre-v3 bar (which used 75/50/25) to avoid
@@ -31,6 +32,12 @@ const COBERTURA_TITLE =
 const CONFIANCA_TITLE =
   'Quanto da cobertura é sobre os temas que você marcou como importantes. É isso que entra no ' +
   'cálculo do percentual de afinidade.'
+const ALERTAS_TITLE =
+  '"Ficha suja" é gerado automaticamente a partir de certidões do TSE. Os demais alertas passam ' +
+  'por curadoria humana antes de aparecer aqui. Nenhum alerta exclui o candidato do resultado.'
+const OBSERVACOES_TITLE =
+  'Ressalvas sobre como avaliamos o candidato — contradições entre discurso e conduta, ou avisos ' +
+  'sobre a qualidade da evidência usada. Nunca são acusações.'
 
 interface CandidatoCardProps {
   candidato: CandidatoResultado
@@ -51,14 +58,16 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
   const nObservacoes = candidato.observacoes.length
   const cargoLabel = CARGO_LABELS[candidato.cargo] ?? candidato.cargo
 
-  // The alert counter always shows — "Nenhum alerta" is itself information.
+  // The alert counter always shows — "Nenhum alerta" is itself information,
+  // colored green like a clean record. Non-zero counts break down by
+  // severity (corPorSeveridade/rotuloPorSeveridade in src/lib/severidade.ts),
+  // so the color and wording reflect the worst finding, not just a count.
   // The observation counter is omitted at zero: nothing to caveat is the
   // default state, not a finding.
-  const alertaLabel = nAlertas === 0
-    ? 'Nenhum alerta'
-    : `${nAlertas} ${nAlertas === 1 ? 'alerta encontrado' : 'alertas encontrados'}`
-  const observacaoLabel =
-    `${nObservacoes} ${nObservacoes === 1 ? 'observação encontrada' : 'observações encontradas'}`
+  const alertaCor = corPorSeveridade(candidato.alertas)
+  const alertaLabel = nAlertas === 0 ? 'Nenhum alerta' : rotuloPorSeveridade(candidato.alertas)
+  const observacaoCor = corPorSeveridade(candidato.observacoes)
+  const observacaoLabel = nObservacoes > 0 ? rotuloPorSeveridade(candidato.observacoes) : ''
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:p-5">
@@ -73,14 +82,20 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
 
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
             <span
-              className={`inline-flex items-center gap-1 ${nAlertas > 0 ? 'font-semibold text-danger' : 'text-gray-500'
+              title={ALERTAS_TITLE}
+              aria-label="O que são alertas"
+              className={`inline-flex cursor-help items-center gap-1 ${nAlertas > 0 ? `font-semibold ${alertaCor}` : alertaCor
                 }`}
             >
               <span aria-hidden="true">⚠</span>
               <span>{alertaLabel}</span>
             </span>
             {nObservacoes > 0 && (
-              <span className="inline-flex items-center gap-1 font-semibold text-warning">
+              <span
+                title={OBSERVACOES_TITLE}
+                aria-label="O que são observações"
+                className={`inline-flex cursor-help items-center gap-1 font-semibold ${observacaoCor}`}
+              >
                 <span aria-hidden="true">ⓘ</span>
                 <span>{observacaoLabel}</span>
               </span>

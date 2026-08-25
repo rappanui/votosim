@@ -107,6 +107,10 @@ export interface Observacao {
   descricao: string
   temaSlug: string | null
   fonteUrl: string | null
+  // Alert-sourced observações carry the real severidade off politician_alerts.
+  // The three deriveObservacoes computes on the fly (no alert row to read
+  // from) get a fixed default — see deriveObservacoes in index.ts.
+  severidade: string
 }
 
 export interface CandidatoResultado {

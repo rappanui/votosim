@@ -19,6 +19,12 @@ export function AlertasBloco({ alertas }: AlertasBlocoProps) {
           <AlertaBadge alerta={alerta} />
           <p className="mt-2 text-sm font-semibold text-gray-700">{alerta.titulo}</p>
           <p className="mt-1 text-[13px] leading-relaxed text-gray-600">{alerta.descricao}</p>
+          {!alerta.ativo && alerta.resolucao && (
+            <p className="mt-1 rounded bg-gray-50 px-2 py-1 text-[13px] leading-relaxed text-gray-600">
+              <span className="font-semibold text-gray-700">Resolvido: </span>
+              {alerta.resolucao}
+            </p>
+          )}
           <a
             href={alerta.fonteUrl}
             target="_blank"

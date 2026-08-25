@@ -116,6 +116,7 @@ describe('enriched candidate contract on match v3', () => {
       descricao: 'Posição lida no programa do partido.',
       temaSlug: 'saude_sus',
       fonteUrl: null,
+      severidade: 'baixa',
     }
     const candidato: CandidatoResultado = {
       politicianId: 'uuid-1', nomeUrna: 'CLARIANA BARÃO', partido: 'DC',

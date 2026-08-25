@@ -29,6 +29,11 @@ export interface AlertRow {
   descricao: string
   fonte_url: string
   badge_cor: string
+  // badge_cor is already 'cinza' when !ativo — v_candidate_alerts computes
+  // that. These two exist so the frontend can render the "— resolvido"
+  // label and show what actually happened, not just a neutral color.
+  ativo: boolean
+  resolucao: string | null
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -144,7 +149,7 @@ async function fetchAlerts(
   if (politicianIds.length === 0) return []
   const { data, error } = await supabase
     .from('v_candidate_alerts')
-    .select('politician_id, tipo, severidade, titulo, descricao, fonte_url, badge_cor')
+    .select('politician_id, tipo, severidade, titulo, descricao, fonte_url, badge_cor, ativo, resolucao')
     .in('politician_id', politicianIds)
 
   if (error) throw new Error(`Failed to fetch alerts: ${error.message}`)
@@ -445,6 +450,8 @@ function alertRowToAlerta(a: AlertRow) {
     descricao: a.descricao,
     fonteUrl: a.fonte_url,
     badgeCor: a.badge_cor,
+    ativo: a.ativo,
+    resolucao: a.resolucao,
   }
 }
 
@@ -492,6 +499,7 @@ export function deriveObservacoes(
       descricao: a.descricao,
       temaSlug: null,
       fonteUrl: a.fonte_url,
+      severidade: a.severidade,
     })
   }
 
@@ -505,6 +513,7 @@ export function deriveObservacoes(
       descricao: `O candidato se apresenta como ${declarado}, mas a análise das posições documentadas aponta ${inferido}.`,
       temaSlug: null,
       fonteUrl: null,
+      severidade: 'baixa',
     })
   }
 
@@ -516,6 +525,11 @@ export function deriveObservacoes(
         descricao: d.justificativa ?? 'A conduta registrada contradiz a plataforma declarada neste tema.',
         temaSlug: d.temaSlug,
         fonteUrl: null,
+        // Default chosen 2026-08-25: real incoerencia alerts (the closest
+        // analogue with a human-assigned severity) split across media/alta/
+        // baixa with no clear majority, so this couldn't be inferred from
+        // data — alta was a deliberate product call, not a derived value.
+        severidade: 'alta',
       })
     }
     if (d.evidencia === 'partido') {
@@ -525,6 +539,7 @@ export function deriveObservacoes(
         descricao: 'Posição lida no programa do partido — não há declaração do próprio candidato sobre este tema.',
         temaSlug: d.temaSlug,
         fonteUrl: null,
+        severidade: 'baixa',
       })
     }
     // Only where credibility was actually applied: v3 scores a `direta` theme at
@@ -537,6 +552,7 @@ export function deriveObservacoes(
         descricao: 'Posição classificada por IA com confiança abaixo do limiar de revisão, mas contada integralmente no cálculo.',
         temaSlug: d.temaSlug,
         fonteUrl: null,
+        severidade: 'baixa',
       })
     }
   }
