@@ -19,6 +19,19 @@ function getBarColor(alinhamento: number): string {
   return 'bg-danger'
 }
 
+// Below this, most of what the card knows about the candidate is absence,
+// not moderation — nao_encontrado positions score P_NAO_INFORMADO but read
+// to a voter as "took no side." Flagging low cobertura the same way alerts
+// and observations are already flagged (color, not just a number) makes that
+// gap visible instead of leaving it the same passive gray at every value.
+const COBERTURA_BAIXA = 40
+
+const COBERTURA_TITLE =
+  'Entre os temas em que você tomou posição, quantos conseguimos apurar sobre este candidato.'
+const CONFIANCA_TITLE =
+  'Quanto da cobertura é sobre os temas que você marcou como importantes. É isso que entra no ' +
+  'cálculo do percentual de afinidade.'
+
 interface CandidatoCardProps {
   candidato: CandidatoResultado
 }
@@ -60,9 +73,8 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
 
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
             <span
-              className={`inline-flex items-center gap-1 ${
-                nAlertas > 0 ? 'font-semibold text-danger' : 'text-gray-500'
-              }`}
+              className={`inline-flex items-center gap-1 ${nAlertas > 0 ? 'font-semibold text-danger' : 'text-gray-500'
+                }`}
             >
               <span aria-hidden="true">⚠</span>
               <span>{alertaLabel}</span>
@@ -79,7 +91,18 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
         <div className="shrink-0 text-right">
           <p className="text-xl font-bold leading-tight text-primary">{candidato.alinhamento}%</p>
           <p className="text-xs text-gray-400">
-            cobertura {candidato.cobertura}% · confiança {candidato.confiancaResultado}%
+            <span
+              title={COBERTURA_TITLE}
+              aria-label="O que é cobertura"
+              className={`cursor-help ${candidato.cobertura < COBERTURA_BAIXA ? 'font-semibold text-warning' : ''
+                }`}
+            >
+              cobertura {candidato.cobertura}%
+            </span>
+            {' · '}
+            <span title={CONFIANCA_TITLE} aria-label="O que é confiança" className="cursor-help">
+              confiança {candidato.confiancaResultado}%
+            </span>
           </p>
         </div>
       </div>

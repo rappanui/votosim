@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { CandidatoCard } from '@/components/CandidatoCard'
 import type { CandidatoResultado, TemaCandidatoDetalhe } from '@/lib/types'
 
@@ -163,6 +163,28 @@ describe('CandidatoCard', () => {
     render(<CandidatoCard candidato={makeCandidate({ cobertura: 36, confiancaResultado: 36 })} />)
     expect(screen.getByText(/cobertura 36%/)).toBeInTheDocument()
     expect(screen.getByText(/confiança 36%/)).toBeInTheDocument()
+  })
+
+  it('explains cobertura and confiança via a hover tooltip on each (?)', () => {
+    render(<CandidatoCard candidato={makeCandidate()} />)
+    expect(screen.getByTitle(/quantos conseguimos apurar/i)).toBeInTheDocument()
+    expect(screen.getByTitle(/você marcou como importantes/i)).toBeInTheDocument()
+  })
+
+  it('flags low cobertura visually instead of treating it the same as high cobertura', () => {
+    const { container: lowContainer } = render(
+      <CandidatoCard candidato={makeCandidate({ cobertura: 20 })} />,
+    )
+    const lowSpan = within(lowContainer).getByText(/cobertura 20%/)
+    expect(lowSpan.className).toContain('text-warning')
+  })
+
+  it('does not flag cobertura when it is high', () => {
+    const { container: highContainer } = render(
+      <CandidatoCard candidato={makeCandidate({ cobertura: 90 })} />,
+    )
+    const highSpan = within(highContainer).getByText(/cobertura 90%/)
+    expect(highSpan.className).not.toContain('text-warning')
   })
 
   it('shows the audit line when expanded', () => {
