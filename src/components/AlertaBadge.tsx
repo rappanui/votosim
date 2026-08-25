@@ -1,5 +1,5 @@
 import type { Alerta } from '@/lib/types'
-import { corPorSeveridade, rotuloSeveridade } from '@/lib/severidade'
+import { capitalizar, corPorSeveridade, rotuloSeveridade } from '@/lib/severidade'
 
 const BADGE_LABELS: Record<Alerta['tipo'], string> = {
   ficha_suja:           'Ficha suja',
@@ -8,10 +8,6 @@ const BADGE_LABELS: Record<Alerta['tipo'], string> = {
   incoerencia:          'Incoerência',
   divergencia_espectro: 'Divergência de espectro',
   ressalva_evidencias:  'Ressalva',
-}
-
-function capitalizar(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 const TIPO_TITLE = 'A categoria do alerta.'

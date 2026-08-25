@@ -50,4 +50,29 @@ describe('ObservacoesBloco', () => {
     expect(screen.getByText('Segurança pública')).toBeInTheDocument()
     expect(screen.getByText(/lida no programa do partido/)).toBeInTheDocument()
   })
+
+  it('shows a severidade badge on each observation, in the unified vocabulary', () => {
+    render(<ObservacoesBloco observacoes={[contradicao]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Observações/ }))
+    expect(screen.getByText('Severidade: Grave')).toBeInTheDocument()
+  })
+
+  it('colors the severidade badge by its own value', () => {
+    render(<ObservacoesBloco observacoes={[ressalva]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Observações/ }))
+    expect(screen.getByText('Severidade: Leve').className).toContain('text-gray-500')
+  })
+
+  it('gives each observation its own severidade badge, independent of the others', () => {
+    render(<ObservacoesBloco observacoes={[contradicao, ressalva]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Observações/ }))
+    expect(screen.getByText('Severidade: Grave')).toBeInTheDocument()
+    expect(screen.getByText('Severidade: Leve')).toBeInTheDocument()
+  })
+
+  it('explains what the severidade badge means via a hover', () => {
+    render(<ObservacoesBloco observacoes={[ressalva]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Observações/ }))
+    expect(screen.getByTitle(/relevante/i)).toHaveTextContent('Severidade: Leve')
+  })
 })

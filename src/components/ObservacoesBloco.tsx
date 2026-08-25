@@ -1,9 +1,12 @@
 import { Acordeao } from './Acordeao'
+import { capitalizar, corPorSeveridade, rotuloSeveridade } from '@/lib/severidade'
 import type { Observacao } from '@/lib/types'
 
 interface ObservacoesBlocoProps {
   observacoes: Observacao[]
 }
+
+const SEVERIDADE_TITLE = 'Quão relevante essa observação é para avaliar o candidato.'
 
 function Lista({ titulo, itens }: { titulo: string; itens: Observacao[] }) {
   if (itens.length === 0) return null
@@ -13,6 +16,9 @@ function Lista({ titulo, itens }: { titulo: string; itens: Observacao[] }) {
       {itens.map((o, i) => (
         <div key={`${o.titulo}-${i}`} className="mb-3 last:mb-0">
           <p className="text-sm font-semibold text-gray-700">{o.titulo}</p>
+          <p title={SEVERIDADE_TITLE} className={`cursor-help text-xs font-medium ${corPorSeveridade([o])}`}>
+            Severidade: {capitalizar(rotuloSeveridade(o.severidade, 'fem'))}
+          </p>
           <p className="mt-1 text-[13px] leading-relaxed text-gray-600">{o.descricao}</p>
           {o.fonteUrl && (
             <a

@@ -1,6 +1,6 @@
 # Severidade de alertas
 
-> **Status:** válido · **Atualizado em:** 2026-08-25 20:15
+> **Status:** válido · **Atualizado em:** 2026-08-25 21:05
 > **Contexto:** como `severidade` e `severidade_atual` dirigem a cor e o
 > texto dos contadores de alertas/observações no card do candidato, o
 > vocabulário de exibição, e a distinção entre fato histórico (`severidade`)
@@ -64,6 +64,15 @@ Avaliação atual usa `severidade_atual_motivo` quando existe; do contrário
 declara que o caso ainda não foi reavaliado (se resolvido) ou que o valor
 só muda com uma resolução (se ativo), nunca finge uma explicação que não
 existe.
+
+`ObservacoesBloco` ganhou o mesmo tratamento em 2026-08-25: cada
+observação individual (dentro do acordeão "Observações") agora mostra
+`Severidade: {rótulo}`, com o mesmo `corPorSeveridade`/`rotuloSeveridade`
+usados em todo o resto. Antes, `severidade` existia no dado mas só
+aparecia agregada no contador do card fechado; quem abrisse uma observação
+específica não tinha como saber sua gravidade individual. Observação não
+tem `severidade_atual` (não tem `ativo`/`resolucao` para reavaliar contra),
+então o badge é uma linha só.
 
 ## `severidade_atual`: quanto um alerta resolvido ainda deveria pesar
 

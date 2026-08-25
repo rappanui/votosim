@@ -56,6 +56,12 @@ export function rotuloSeveridade(severidade: AlertSeverity, genero: Genero): str
   return ADJETIVO[severidade][genero][0]
 }
 
+/** Shared by every severity badge (AlertaBadge, ObservacoesBloco) that
+ *  starts a sentence with rotuloSeveridade's lowercase output. */
+export function capitalizar(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 /** "1 crítico e 2 moderados detectados", or "0 detectados" for an empty
  *  list: quantity, severity level and the closing verb are three
  *  independent parts, so an empty list states the quantity and drops the
