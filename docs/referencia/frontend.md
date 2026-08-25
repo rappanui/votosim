@@ -1,6 +1,6 @@
 # Frontend
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 19:10
+> **Status:** válido · **Atualizado em:** 2026-08-25 13:50
 > **Contexto:** as páginas em `src/app/`, o fluxo do quiz, o card de
 > resultado recomposto e a fronteira de contrato com a Edge Function.
 > Substitui `docs/match-v2-quiz-ui.md` (apagado ao publicar este) — não é
@@ -15,11 +15,47 @@
 
 | Rota | Arquivo | Função |
 |---|---|---|
-| `/` | `page.tsx` | Redireciona para `/quiz` (`redirect()` do Next). |
-| `/quiz` | `quiz/page.tsx` | Página única do questionário. |
-| `/resultados` | `resultados/page.tsx` | Dispara o match e renderiza os cards. |
+| `/` | `page.tsx` | Redireciona para `/inicio` (`redirect()` do Next). |
+| `/inicio` | `inicio/page.tsx` | Tela de boas-vindas. É o destino da raiz, do logo e do item "Início" do menu. |
+| `/quiz` | `quiz/page.tsx` | Página única do questionário. No menu chama-se **Bússola**. |
+| `/resultados` | `resultados/page.tsx` | Dispara o match e renderiza os cards. Sem item próprio no menu: pertence ao fluxo da Bússola. |
+| `/wiki` | `wiki/page.tsx` | **Casca vazia.** Política brasileira explicada. |
+| `/raio-x` | `raio-x/page.tsx` | **Casca vazia.** Consulta de um candidato só — dados, fontes e links da base. |
+| `/contato` | `contato/page.tsx` | **Casca vazia.** Correções, dúvidas e contestação de dados. Rótulo no menu: "Fale conosco". |
 | `/sobre` | `sobre/page.tsx` | Metodologia, fórmula e base legal, em texto. |
-| `/inicio` | `inicio/page.tsx` | Tela de boas-vindas. **Não está no fluxo hoje**: `/` redireciona direto para `/quiz`, não para `/inicio`, e nada além de `/sobre` linka para lá. O botão "Começar agora" de `/inicio` aponta para `/perfil`, rota que não existe mais — um link morto, verificado em `src/app/inicio/page.tsx:23`. |
+
+As três cascas vazias renderizam `PaginaEmConstrucao` (`titulo`, `descricao`)
+e nada mais: H1 com o mesmo rótulo do menu, a frase do que a página vai
+fazer, o aviso de construção e um link de volta para `/quiz`. Nenhum destino
+do menu termina em beco sem saída. Cada uma exporta `metadata` própria, então
+o título da aba é o nome da página — são server components, sem `'use client'`.
+
+## Navegação global (`Header`)
+
+O `Header` (`src/components/Header.tsx`) fica no `layout.tsx`, é `fixed` com
+`h-16` — o `mt-16` do `<main>` existe por causa disso — e é `'use client'`
+porque lê `usePathname()`.
+
+Os seis destinos vivem numa constante única, `ITENS`, consumida pelo menu
+desktop e pelo painel mobile: **rótulo do menu e rota são coisas
+separadas.** "Bússola" aponta para `/quiz` e "Fale conosco" para `/contato`;
+renomear um rótulo não mexe em URL nenhuma.
+
+O item da rota atual recebe `aria-current="page"`. A comparação não é só
+igualdade: `ITENS` tem `rotasIrmas`, e é por isso que **Bússola continua
+marcada em `/resultados`** — sem isso, a página de resultados não destacaria
+item nenhum, embora seja o segundo passo daquele fluxo.
+
+Abaixo de `md` o menu vira um botão ☰ e um painel; acima, uma linha de links.
+Os dois `<nav>` se distinguem pelo `aria-label` ("Navegação principal" e
+"Navegação mobile") — é assim que os testes alcançam um sem pegar o outro,
+já que o jsdom não aplica os breakpoints do Tailwind e renderiza ambos.
+
+O painel fecha no Esc e **ao trocar de rota, ajustando o estado durante a
+renderização** (comparando `pathname` com a rota já renderizada), não num
+`useEffect`. Não é estilo: o lint do projeto barra `setState` dentro de
+efeito (`react-hooks/set-state-in-effect`), e um efeito aqui pintaria o
+painel aberto obsoleto por um quadro antes de fechá-lo.
 
 ## O fluxo do quiz e o `QuizContext`
 
