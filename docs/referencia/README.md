@@ -3,7 +3,7 @@
 > **Status:** válido · **Atualizado em:** 2026-08-24 19:10
 > **Contexto:** um documento por conceito, uma linha cada, com o gancho do
 > que ele responde. Convenção da pasta: **em torno de 200 linhas** por arquivo,
-> conteúdo consultado pulando pra dentro — não é para ler em sequência.
+> conteúdo consultado pulando pra dentro, não para ler em sequência.
 
 ---
 
@@ -16,14 +16,15 @@
 | `alertas.md` | Os seis `alert_type`, e por que alertas e observações nunca aparecem no mesmo lugar. |
 | `pipeline-de-pesquisa.md` | O fluxo `next-candidates → build-brief → agente → ingest-research`, e por que uma re-ingestão apaga classificações manuais anteriores. |
 | `frontend.md` | As páginas, a navegação global, o quiz, o card de candidato recomposto e os seis componentes, e a fronteira de contrato (`assertMatchResult`). |
+| `pagina-sobre.md` | Como `/sobre` está estruturada: o registro que serve de índice e de tabela de rotas ao mesmo tempo, a regra de linguagem por grupo, e como acrescentar uma seção. |
 | `variaveis-de-ambiente.md` | Quais variáveis de ambiente o código lê hoje, e em qual arquivo `.env` cada uma vive. |
 | `schema-adicoes-sp0.md` | As tabelas e colunas que a migração SP-0 (`docs/migracoes/11_sp0_foundation.sql`) adicionou. |
 | `fontes-de-dados-tse.md` | Onde obter dados oficiais do TSE 2026 e as armadilhas de fontes mortas/incompletas. |
 
 ## O que não mora aqui
 
-Achados datados de operação — anomalias do TSE, casos que quebram premissas —
-vão para `docs/registros/`. Referência descreve o código; registro descreve o
+Achados datados de operação, como anomalias do TSE e casos que quebram
+premissas, vão para `docs/registros/`. Referência descreve o código; registro descreve o
 que aconteceu ao rodá-lo.
 
 As 200 linhas são **sinal, não regra**. Um arquivo que passa disso está pedindo

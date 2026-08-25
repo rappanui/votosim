@@ -1,6 +1,6 @@
 # Frontend
 
-> **Status:** válido · **Atualizado em:** 2026-08-25 15:40
+> **Status:** válido · **Atualizado em:** 2026-08-25 19:25
 > **Contexto:** as páginas em `src/app/`, o fluxo do quiz, o card de
 > resultado recomposto e a fronteira de contrato com a Edge Function.
 > Substitui `docs/match-v2-quiz-ui.md` (apagado ao publicar este) — não é
@@ -22,7 +22,8 @@
 | `/wiki` | `wiki/page.tsx` | **Casca vazia.** Política brasileira explicada. |
 | `/raio-x` | `raio-x/page.tsx` | **Casca vazia.** Consulta de um candidato só — dados, fontes e links da base. |
 | `/contato` | `contato/page.tsx` | **Casca vazia.** Correções, dúvidas e contestação de dados. Rótulo no menu: "Fale conosco". |
-| `/sobre` | `sobre/page.tsx` | Metodologia, fórmula e base legal, em texto. |
+| `/sobre` | `sobre/page.tsx` | Porta da seção Sobre. Ainda é a lista plana antiga, hoje renderizada dentro do layout com índice lateral. |
+| `/sobre/[secao]` | `sobre/[secao]/page.tsx` | Uma rota por seção do Sobre, 22 delas, pré-renderizadas a partir do registro. Detalhes em `docs/referencia/pagina-sobre.md`. |
 
 As três cascas vazias renderizam `PaginaEmConstrucao` (`titulo`, `descricao`)
 e nada mais: H1 com o mesmo rótulo do menu, a frase do que a página vai
