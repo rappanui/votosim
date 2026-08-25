@@ -418,4 +418,63 @@ describe('CandidatoCard', () => {
     const panel = screen.getByTestId('detalhe-colunas')
     expect(audit.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
+
+  // A card with 14 themes open runs well past a screen, and the only collapse
+  // control used to sit at the very top — you had to scroll back up to close
+  // what you had just finished reading. The sticky bar also keeps the candidate's
+  // identity on screen, which a long theme list otherwise scrolls away.
+  describe('sticky bar while expanded', () => {
+    beforeAll(() => {
+      // jsdom does not implement scrollIntoView.
+      window.HTMLElement.prototype.scrollIntoView = jest.fn()
+    })
+
+    beforeEach(() => {
+      ;(window.HTMLElement.prototype.scrollIntoView as jest.Mock).mockClear()
+    })
+
+    it('is absent while the card is collapsed', () => {
+      render(<CandidatoCard candidato={makeCandidate()} />)
+      expect(screen.queryByTestId('barra-fixa')).not.toBeInTheDocument()
+    })
+
+    it('carries the candidate identity and score once expanded', () => {
+      render(<CandidatoCard candidato={makeCandidate({ nomeUrna: 'FULANA', partido: 'PSOL', alinhamento: 64 })} />)
+      fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+
+      const barra = screen.getByTestId('barra-fixa')
+      expect(barra).toHaveTextContent('FULANA')
+      expect(barra).toHaveTextContent('PSOL')
+      expect(barra).toHaveTextContent('64%')
+    })
+
+    it('collapses the panel from its own control', () => {
+      render(<CandidatoCard candidato={makeCandidate()} />)
+      fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+      expect(screen.getByTestId('detalhe-colunas')).toBeInTheDocument()
+
+      fireEvent.click(within(screen.getByTestId('barra-fixa')).getByRole('button'))
+
+      expect(screen.queryByTestId('detalhe-colunas')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('barra-fixa')).not.toBeInTheDocument()
+    })
+
+    // Without this the viewport lands wherever the collapsed content left it —
+    // usually inside the next candidate, or past it.
+    it('brings the card back into view when collapsed from the bar', () => {
+      render(<CandidatoCard candidato={makeCandidate()} />)
+      fireEvent.click(screen.getByRole('button', { name: /Ver detalhes/ }))
+      fireEvent.click(within(screen.getByTestId('barra-fixa')).getByRole('button'))
+
+      expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
+    })
+
+    it('leaves the top toggle working as before', () => {
+      render(<CandidatoCard candidato={makeCandidate()} />)
+      const toggle = screen.getByRole('button', { name: /Ver detalhes/ })
+      fireEvent.click(toggle)
+      fireEvent.click(screen.getByRole('button', { name: /Ocultar detalhes/ }))
+      expect(screen.queryByTestId('detalhe-colunas')).not.toBeInTheDocument()
+    })
+  })
 })

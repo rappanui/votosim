@@ -1,6 +1,6 @@
 # Frontend
 
-> **Status:** válido · **Atualizado em:** 2026-08-25 13:50
+> **Status:** válido · **Atualizado em:** 2026-08-25 15:40
 > **Contexto:** as páginas em `src/app/`, o fluxo do quiz, o card de
 > resultado recomposto e a fronteira de contrato com a Edge Function.
 > Substitui `docs/match-v2-quiz-ui.md` (apagado ao publicar este) — não é
@@ -87,13 +87,18 @@ então o card expandido não faz requisição própria.
 auditoria e o toggle de expansão; o resto é componente filho.
 
 **Colapsado:** nome de urna, `partido · nº numeroUrna · cargo`, dois
-contadores — `⚠ N alertas encontrados` (vermelho quando > 0; sempre
-renderiza, "Nenhum alerta" em cinza quando zero) e `ⓘ N observações
-encontradas` (laranja; **omitido inteiramente em zero** — nada a ressalvar é
-o estado padrão, não um achado) — o `alinhamento%` já penalizado, e as duas
-métricas de cobertura (`cobertura X% · confiança Y%`). A cor da barra usa os
-limiares do v3, recalibrados para baixo porque scores penalizados
-concentram-se em 20–60%: verde ≥55, âmbar 35–54, laranja 20–34, vermelho <20.
+contadores por severidade — `⚠` alertas e `ⓘ` observações, cor e texto vindos
+de `corPorSeveridade`/`rotuloPorSeveridade` (`src/lib/severidade.ts`, ver
+`docs/referencia/alertas.md`): a cor segue o item mais grave presente (verde
+sem nada, cinza baixa, âmbar média, laranja alta, vermelho crítica) e o texto
+agrupa por severidade, ex. `"1 crítico e 2 baixos detectados"`. O contador de
+alertas **sempre renderiza** — `"Nenhum alerta"` em verde quando vazio é ele
+próprio uma informação; o de observações continua **omitido inteiramente em
+zero** — nada a ressalvar é o estado padrão, não um achado — o `alinhamento%`
+já penalizado, e as duas métricas de cobertura (`cobertura X% · confiança
+Y%`). A cor da barra usa os limiares do v3, recalibrados para baixo porque
+scores penalizados concentram-se em 20–60%: verde ≥55, âmbar 35–54, laranja
+20–34, vermelho <20.
 
 **Expandido:** a linha de auditoria ocupa a largura toda — ela explica a
 manchete e existe independente de sobrar algum tema no painel, então fica
@@ -137,8 +142,11 @@ volta a uma única coluna — não fica um vazio com borda.
   retornam `null` em lista vazia: o bloco se protege, não o pai.**
   `CandidatoCard` não checa `alertas.length` antes de renderizar
   `<AlertasBloco alertas={...}/>`; cada bloco decide sozinho se tem algo a
-  mostrar. `ObservacoesBloco` divide em duas listas internas — Contradições e
-  Ressalvas — e cada uma delas também some se vazia. `FontesBloco` ordena por
+  mostrar. Dentro de `AlertasBloco`, cada `AlertaBadge` mostra
+  `Severidade: {Alta|Média|...}` ao lado do próprio selo, na mesma escala de
+  cor do contador colapsado. `ObservacoesBloco` divide em duas listas
+  internas — Contradições e Ressalvas — e cada uma delas também some se
+  vazia. `FontesBloco` ordena por
   `camada` (1 oficial · 2 imprensa · 3 checagem) e mostra a data da fonte mais
   recente; uma data ISO malformada faz `formatarData` devolver `''` e a linha
   de data some, em vez de mostrar "NaN/NaN/NaN".

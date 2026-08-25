@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { AlertasBloco } from './AlertasBloco'
 import { CandidatoResumo } from './CandidatoResumo'
 import { FontesBloco } from './FontesBloco'
@@ -49,7 +49,17 @@ interface CandidatoCardProps {
  *  justifications on the left, profile and evidence on the right. */
 export function CandidatoCard({ candidato }: CandidatoCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
   const barColor = getBarColor(candidato.alinhamento)
+
+  /** Collapsing from the sticky bar leaves the viewport wherever the removed
+   *  content left it — usually inside the next candidate. Bring this card's top
+   *  back so the reader resumes where they were. `scroll-mt-20` on the root
+   *  keeps it clear of the fixed site header. */
+  function recolher() {
+    setExpanded(false)
+    cardRef.current?.scrollIntoView({ block: 'start' })
+  }
 
   const visibleTemas = selectVisibleTemas(candidato.detalhesTemas)
   const temTemas = visibleTemas.length > 0
@@ -70,7 +80,10 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
   const observacaoLabel = nObservacoes > 0 ? rotuloPorSeveridade(candidato.observacoes) : ''
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:p-5">
+    <div
+      ref={cardRef}
+      className="scroll-mt-20 rounded-xl border border-gray-200 bg-white p-4 shadow-sm md:p-5"
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="font-bold text-primary">{candidato.nomeUrna}</p>
@@ -141,6 +154,31 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
 
       {expanded && (
         <div className="mt-4 border-t border-gray-100 pt-4">
+          {/* An expanded card runs well past a screen, and the only collapse
+              control used to be at the very top. This bar sticks below the fixed
+              site header for as long as this card is on screen, so the panel can
+              be closed from anywhere in it — and it keeps whose card this is
+              visible, which a long theme list otherwise scrolls away. */}
+          <div
+            data-testid="barra-fixa"
+            className="sticky top-16 z-10 -mx-4 mb-4 flex items-center justify-between gap-3 border-b border-gray-200 bg-white/95 px-4 py-2 backdrop-blur md:-mx-5 md:px-5"
+          >
+            <p className="min-w-0 truncate text-sm">
+              <span className="font-bold text-primary">{candidato.nomeUrna}</span>
+              <span className="text-gray-500"> · {candidato.partido}</span>
+            </p>
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="text-sm font-bold text-primary">{candidato.alinhamento}%</span>
+              <button
+                type="button"
+                onClick={recolher}
+                className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                ▲ Ocultar
+              </button>
+            </div>
+          </div>
+
           {/* The audit line explains the headline percentage, which exists
               whether or not any theme row survives the filter — so it renders
               on every expand, and above the split rather than inside a column. */}

@@ -1,6 +1,6 @@
 # VotoSim — Procedimento de pesquisa de candidato
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
+> **Status:** válido · **Atualizado em:** 2026-08-25 15:55
 > **Contexto:** este é o procedimento que um agente de pesquisa segue para
 > transformar o brief de um candidato (produzido por `modules/ingest-candidates/src/comandos/build-brief.ts`)
 > em um documento JSON de pesquisa validado (o formato definido por
@@ -84,9 +84,13 @@ resolução preenchida." Busque por eles, cite-os e preencha `resolucao` (o que
 aconteceu) e `dataResolucao` (quando, se conhecido) no alerta. Não represente
 um caso resolvido como se nunca tivesse ocorrido, e não o represente como uma
 desqualificação ativa tampouco — as duas coisas são falsas. Ver seção 6.1 para
-o formato do campo; um alerta resolvido nunca é publicado automaticamente
-independentemente da camada da fonte, já que o selo "sem necessidade de
-revisão" da Regra B significa que a desqualificação é atual.
+o formato do campo. Estar resolvido **não muda a barra de publicação**: o
+alerta segue exatamente o mesmo critério de tipo e camada de fonte que valeria
+para o caso em aberto — não publica automaticamente algo que um caso ativo
+equivalente não publicaria, e também não retém o que ele publicaria. Quem
+carrega a distinção é a UI: a view `v_candidate_alerts` renderiza
+`ativo = false` com badge `cinza` e o texto da `resolucao` ao lado, então o
+eleitor lê "houve, e terminou assim" em vez de uma desqualificação atual.
 
 > **Incidente registrado (2026-08-22):** uma primeira passada sobre LULA
 > (280002542548) produziu um dossiê que não declarava nem que ele havia
@@ -173,6 +177,35 @@ forte de prioridade do que um voto que deu acompanhando sua bancada.
 Obtenha `{id}` em `GET /deputados?siglaUf={UF}` (uma chamada retorna toda a
 bancada do estado).
 
+**Para uma votação marcante específica, o voto individual do deputado É
+recuperável — em três chamadas, sem virar caçada.** Verificado em 2026-08-25
+contra CARLOS JORDY e a PEC 45/2019 (reforma tributária). O caminho:
+
+```
+1. GET /proposicoes?siglaTipo=PEC&numero=45&ano=2019        → {proposicaoId}
+2. GET /proposicoes/{proposicaoId}/votacoes                 → {votacaoId} de cada turno
+3. GET /votacoes/{votacaoId}/votos                          → o voto de cada deputado, nominal
+```
+
+Isso **não** contradiz a regra acima: continua não existindo endpoint de voto
+por deputado, e reconstruir o histórico inteiro exigiria enumerar toda sessão.
+O que esta técnica resolve é o caso oposto e delimitado — você já sabe **qual**
+votação decide um dos 14 temas (a reforma tributária, o marco temporal, o
+licenciamento ambiental) e quer o voto nominal daquele deputado nela. Use para
+um punhado de votações decisivas por candidato, nunca para varrer o mandato.
+Uma chave opaca `proposicaoId-votacaoId` vinda do Radar (E4b) é o atalho para
+o passo 1 quando você já a tem em mãos.
+
+**O erro que essa técnica convida é escolher a votação errada.** Uma proposição
+grande tem dezenas de votações — a PEC 45/2019 tem 111 — e a maioria não é
+sobre aprovar a proposta: são destaques e emendas, com descrições como
+"Suprimido o texto" ou "Mantido o texto". Um `Sim` ali pode significar o
+oposto do apoio à proposta. Leia a `descricao` de cada votação e use as de
+turno ("Aprovado, em primeiro turno…", "Aprovada, em segundo turno…"). Exemplo
+verificado em 2026-08-25: na PEC 45/2019, CARLOS JORDY votou `Não` nos dois
+turnos (votações `2196833-326` e `2196833-373`) e `Sim` num destaque
+supressivo (`2196833-395`) — citar o destaque teria invertido a leitura.
+
 `.leg.br` e `.gov.br` já estão na lista de domínios de camada 1 que o
 validador aplica, então uma citação de votação nominal se qualifica como
 `camada: 1` — cite com `fontes[].tipo: "votacao"`.
@@ -247,6 +280,16 @@ o julgamento é do eleitor.
 `{idVoz}` vem de `radar.congressoemfoco.com.br/api/parlamentares` (uma
 chamada, os 513 deputados, inclui **CPF** para um cruzamento confiável).
 `{id}` é o id da Câmara em `dadosabertos.camara.leg.br/api/v2/deputados?siglaUf={UF}`.
+
+**Nunca traduza o código numérico de voto do Radar.** O endpoint `/votos`
+devolve `{proposicaoId-votacaoId: <int>}`, e os inteiros observados nesta base
+já foram `1`, `-1`, `2`, `3` e `4` — a documentação não existe, e três desses
+valores nunca foram explicados. Reporte **totais brutos** e pare aí. Quando o
+sentido de um voto importa para um tema, pegue-o na fonte oficial, que devolve
+palavra em vez de código: `dadosabertos.camara.leg.br/api/v2/votacoes/{id}/votos`
+retorna `tipoVoto` como `Sim`, `Não`, `Abstenção` ou `Obstrução` (verificado em
+2026-08-25). Adivinhar o significado de `3` seria inventar o voto de uma pessoa
+real.
 
 **O Radar é camada 2, não camada 1.** `congressoemfoco.com.br` é imprensa,
 não um domínio `.leg.br`/`.gov.br`, então o validador vai tipá-lo `camada: 2`
@@ -417,7 +460,36 @@ automaticamente na ingestão (seção 6.1) e renderiza com o selo `amarelo`.
 | 3 — Checagem de fatos | Agência Lupa, Aos Fatos, Projeto Comprova, Estadão Verifica |
 
 Excluídos: blogs partidários, sites sem expediente editorial, agregadores, e
-redes sociais como fonte primária de fato.
+redes sociais **de terceiros** como fonte primária de fato.
+
+**A conta oficial declarada pelo próprio candidato é exceção — com limite.** As
+contas que aparecem no brief não são um perfil qualquer achado na busca: são as
+que o candidato declarou ao TSE (dataset `rede_social_candidato`), então a
+identidade da conta é oficialmente verificada. Ela pode ser lida e citada
+**para decidir os 14 temas** — é a voz do próprio candidato sobre a própria
+plataforma, e para candidatos sem plano de governo, sem mandato e sem cobertura
+de imprensa ela é muitas vezes a única voz que existe. Cite como
+`fontes[].tipo: "biografia"`, `camada: 2`, `destinoExibicao: "card_candidato"`.
+
+**O que ela nunca pode fazer: sustentar, contestar ou atenuar um alerta.** Não
+entre em `alertas[].fonteRefs`, em nenhum tipo. A negativa de um candidato no
+próprio perfil não desfaz uma condenação, não fecha uma investigação e não
+rebate uma polêmica — a D9 e a exigência de camada 1 da E2 continuam valendo
+inteiras, e o único efeito de aceitar autodefesa publicada como fonte de alerta
+seria deixar o acusado editar a própria ficha. Se a única coisa encontrada
+sobre um caso é o que o candidato diz dele, o caso não atravessa a barra de
+admissão — não vira alerta atenuado, simplesmente não vira alerta.
+
+**Resumo de busca não é leitura de fonte.** O texto que um buscador (ou a
+ferramenta de busca do agente) sintetiza sobre os resultados **não** conta como
+fonte pesquisada: ele mistura pessoas e matérias distintas com fluência e
+confiança. Dois casos reais desta base, ambos pegos por leitura direta da
+página: um escândalo de outro candidato do RJ foi atribuído pelo resumo a
+PEDRO PAULO, e uma fala sobre o Estatuto do Nascituro foi atribuída a MONICA
+BENICIO por uma matéria que não a menciona uma única vez. Antes de escrever
+qualquer `justificativa`, alerta ou número apoiado num resultado de busca,
+**abra a URL e confirme que a página fala deste candidato** — homônimo e
+mistura de sujeitos na mesma matéria são o modo de falha, não a exceção.
 
 **Toda posição e todo alerta precisam citar ao menos uma fonte visível ao
 eleitor** — uma fonte cujo `destinoExibicao` é `card_candidato` ou
@@ -429,6 +501,80 @@ só em uma fonte `interno` sai não rastreável, exatamente o que a D8 proíbe.
 Fontes `interno` ainda podem ser citadas ao lado de uma fonte visível — só
 não podem sustentar uma afirmação sozinhas. O validador aplica isso em todo
 array `fonteRefs`, tanto em posições quanto em alertas.
+
+---
+
+## 2.1 Fonte oficial que "não abre" — quase sempre é o seu cliente, não o site
+
+Verificado em 2026-08-25 nesta base. Duas causas distintas, cada uma com uma
+correção, e **nenhuma das duas justifica desistir de uma fonte camada 1** ou
+recorrer a um proxy de leitura de terceiros.
+
+### Causa 1 — cabeçalho de navegador incompleto (TSE, TRE): HTTP 403
+
+Todo o domínio do TSE está atrás de um WAF Akamai que responde `403 Access
+Denied` a requisição com cabeçalho pobre — inclusive `curl -A "Mozilla/..."`,
+que engana ninguém. Não é bloqueio de IP: o **mesmo IP** recebe `200` assim que
+o conjunto de cabeçalhos fica completo. Medido, na mesma máquina e no mesmo
+minuto:
+
+| Requisição | `www.tse.jus.br` |
+|---|---|
+| `curl` sem cabeçalho | 403 |
+| `curl -A "Mozilla/5.0 …"` | 403 |
+| `curl -A … -H 'Accept-Language: …'` | 403 |
+| `curl -A … -H 'Sec-Fetch-*'` | 403 |
+| **conjunto completo abaixo** | **200** |
+
+```bash
+UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+curl -s -H "User-Agent: $UA" \
+  -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8' \
+  -H 'Accept-Language: pt-BR,pt;q=0.9,en-US;q=0.8' \
+  -H 'sec-ch-ua: "Chromium";v="126", "Not.A/Brand";v="24"' \
+  -H 'sec-ch-ua-mobile: ?0' -H 'sec-ch-ua-platform: "Windows"' \
+  -H 'Sec-Fetch-Dest: document' -H 'Sec-Fetch-Mode: navigate' \
+  -H 'Sec-Fetch-Site: none' -H 'Sec-Fetch-User: ?1' \
+  -H 'Upgrade-Insecure-Requests: 1' \
+  "$URL"
+```
+
+Com esse conjunto, voltaram `200`: `www.tse.jus.br`, `cdn.tse.jus.br`
+(os pacotes de dados abertos), `dadosabertos.tse.jus.br` e `www.tre-rj.jus.br`.
+`divulgacandcontas.tse.jus.br` passou a responder `404` em vez de `403` — ou
+seja, a requisição chegou à aplicação; o que faltava era o id correto, não
+permissão.
+
+**Consequência prática:** a ferramenta de fetch do agente não manda esses
+cabeçalhos. Para domínio do TSE/TRE, use `curl` com o bloco acima e leia o HTML
+resultante — não conclua "fonte oficial inacessível", e não cite um proxy de
+leitura no lugar da fonte.
+
+### Causa 2 — cadeia de certificado incompleta (STF, TJRJ): erro de TLS
+
+`portal.stf.jus.br` e `www.tjrj.jus.br` servem **apenas o certificado folha**,
+sem a intermediária. O navegador esconde o defeito buscando a intermediária
+sozinho (AIA fetching); `curl` e Node não fazem isso e falham com
+`unable to get local issuer certificate`. `-k` "resolve" desligando a
+verificação — **não use**: numa pesquisa que decide o que o eleitor lê sobre a
+ficha criminal de uma pessoa, desligar autenticação de servidor é a última
+coisa a fazer. Busque a intermediária que o próprio certificado indica:
+
+```bash
+# 1. pegue a URL da intermediária declarada no certificado (campo AIA)
+echo | openssl s_client -connect www.tjrj.jus.br:443 -servername www.tjrj.jus.br 2>/dev/null \
+  | openssl x509 -noout -text | grep -A1 'Authority Information Access'
+# 2. baixe, converta e anexe ao bundle do sistema
+curl -s -o inter.crt http://secure.globalsign.com/cacert/gsrsaovsslca2018.crt
+openssl x509 -inform DER -in inter.crt -out inter.pem
+cat /etc/ssl/certs/ca-certificates.crt inter.pem > bundle.pem
+# 3. use o bundle — verificação COMPLETA, sem -k
+curl -s --cacert bundle.pem "https://www.tjrj.jus.br/..."
+```
+
+Verificado: `www.tjrj.jus.br` sai de erro de TLS para `200` com verificação
+íntegra. STF e TJRJ usam intermediárias GlobalSign diferentes — leia o AIA de
+cada um, não reaproveite a URL.
 
 ---
 
@@ -550,15 +696,17 @@ o exemplo.
 | `alertas[].resolucao` | `null` (ainda em aberto) ou uma string descrevendo o que aconteceu e como foi resolvido |
 | `alertas[].dataResolucao` | data ISO em que a resolução se tornou final, ou `null` se resolvido mas a data é desconhecida — nunca definido sem `resolucao` também definido |
 
-**Um alerta resolvido continua sendo um alerta, e nunca é publicado
-automaticamente.** `resolucao` mapeia para `politician_alerts.ativo = false`
-e o próprio texto; uma `resolucao` `null` significa que o caso ainda está
-aberto (`ativo = true`). Pela Regra B de `docs/legado/base/04_schema_alerts.md`,
-um `ficha_suja` ou `investigacao` sobre fonte de camada 1 normalmente é
-publicado sem nenhuma revisão humana — mas um resolvido nunca é, independente
-da camada da fonte, porque o propósito daquele selo é que a desqualificação é
-*atual*. Publicar um caso resolvido sem revisão diria ao eleitor algo
-verdadeiro que não é.
+**Um alerta resolvido continua sendo um alerta, e é publicado sob o mesmo
+critério de um ativo.** `resolucao` mapeia para `politician_alerts.ativo =
+false` e o próprio texto; uma `resolucao` `null` significa que o caso ainda
+está aberto (`ativo = true`). Pela Regra B de
+`docs/legado/base/04_schema_alerts.md`, um `ficha_suja` ou `investigacao` sobre
+fonte de camada 1 é publicado sem revisão humana — e estar resolvido **não
+baixa nem levanta essa barra**. A distinção que antes justificava reter um
+resolvido hoje é feita na exibição: `v_candidate_alerts` já não filtra por
+`ativo`, renderiza o caso resolvido com badge `cinza` e mostra o texto da
+`resolucao`, de modo que ele nunca é lido como desqualificação atual. Reter o
+resolvido é que diria ao eleitor algo falso — que não houve nada.
 
 **Camada 1 exige um domínio oficial.** `camada` não é uma autoavaliação — o
 validador confere. Uma fonte só é aceita como `camada: 1` quando o hostname

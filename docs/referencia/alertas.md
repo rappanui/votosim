@@ -1,13 +1,15 @@
 # Alertas e observações
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 18:10
+> **Status:** válido · **Atualizado em:** 2026-08-25 15:55
 > **Contexto:** o schema de `politician_alerts`, e como a Edge Function
 > separa esses registros em dois grupos — `alertas` e `observações` — antes
 > de chegar ao card do candidato. Schema verificado contra
 > `docs/04_schema_alerts.md` (fonte original, ainda correta neste ponto); a
 > divisão alertas/observações verificada linha a linha contra
 > `ALERT_TIPOS_ACUSATORIOS`, `ALERT_TIPOS_OBSERVACAO` e `deriveObservacoes`
-> em `supabase/functions/match-candidatos/index.ts`.
+> em `supabase/functions/match-candidatos/index.ts`. Seção de severidade
+> verificada contra `src/lib/severidade.ts` e os pontos de atribuição em
+> `deriveObservacoes`.
 
 ---
 
@@ -109,12 +111,61 @@ carregar o slug do tema).
 | `validado` | booleano | `false` = pendente de curadoria; a chave anônima nunca vê alerta não validado. |
 | `validado_por`, `gerado_por_ia` | | |
 
-**Regra de RLS:** a chave anônima só enxerga `ativo = true AND validado =
-true`. A view `v_candidate_alerts` já aplica esse filtro e acrescenta
+**Regra de RLS:** a chave anônima só enxerga `validado = true` — `ativo` não
+entra no filtro. Um alerta resolvido (`ativo = false`) é exibido, com o badge
+`cinza` e o texto da `resolucao` ao lado, precisamente para que a resolução
+apareça em vez de o caso sumir. A view `v_candidate_alerts` já aplica esse
+filtro e acrescenta
 `badge_cor` (`vermelho` ficha_suja · `laranja` investigacao · `cinza`
 polemica · `roxo` incoerencia · `azul` divergencia_espectro · `amarelo`
 ressalva_evidencias) e `ordem_exibicao` (1 crítica → 4 baixa). O frontend e a
 Edge Function devem ler sempre a view, nunca a tabela base.
+
+## Severidade — como ela dirige a exibição
+
+`severidade` (`critica` · `alta` · `media` · `baixa`) não é só uma coluna do
+schema: desde 2026-08-25 ela dirige a cor e o texto dos contadores de
+alertas/observações no card colapsado, e aparece por extenso ao lado do
+badge no card expandido. A lógica é toda client-side, em
+`src/lib/severidade.ts` — a Edge Function só decide *qual* severidade cada
+observação carrega, nunca como ela é exibida:
+
+- **`severidadeMaisAlta`** — a mais grave entre uma lista de itens (`critica`
+  \> `alta` \> `media` \> `baixa`); `null` para lista vazia.
+- **`corPorSeveridade`** — verde (`text-success`) quando não há nada;
+  cinza/âmbar/laranja/vermelho seguindo a mais grave presente, do mesmo jeito
+  que `badge_cor` já colore o badge individual.
+- **`rotuloPorSeveridade`** — agrupa por severidade, mais grave primeiro,
+  concordando singular/plural no adjetivo e no verbo: `"1 crítico e 2 baixos
+  detectados"`. Não decide o texto de lista vazia — quem chama escreve o
+  próprio "Nenhum alerta".
+
+`CandidatoCard` aplica as três a `candidato.alertas` e a
+`candidato.observacoes` separadamente — cada contador reage só à própria
+lista, então um alerta crítico não pinta o contador de observações de
+vermelho. O contador de alertas continua sempre renderizando ("Nenhum
+alerta" agora em verde, não mais cinza neutro — ficha limpa é notícia boa,
+não ausência de notícia); o de observações continua **omitido inteiramente
+em zero**, sem mudança nessa regra. `AlertaBadge` (dentro de
+`AlertasBloco`, ver `docs/referencia/frontend.md`) mostra
+`Severidade: {Alta|Média|...}` ao lado do selo, colorido pela mesma escala.
+
+### De onde vem a severidade de cada observação
+
+As três observações que vêm direto de um alerta (`incoerencia`,
+`divergencia_espectro`, `ressalva_evidencias`) carregam a severidade que o
+próprio alerta tem em `politician_alerts` — a mesma que um curador ou o
+pipeline já atribuiu na criação. As três que `deriveObservacoes` sintetiza
+sem nenhuma linha de `politician_alerts` por trás (divergência de espectro
+do dossiê, tema incoerente, posição via partido/baixa confiança) não têm de
+onde herdar uma severidade real, então recebem um valor fixo:
+
+| Observação sintética | Severidade padrão | Por quê |
+|---|---|---|
+| Divergência de espectro do dossiê | `baixa` | Inferência sobre discurso, não sobre conduta. |
+| Tema incoerente (`coerencia_tema`) | `alta` | Escolha de produto, não derivada de dado: alertas `incoerencia` reais hoje se dividem entre `media`/`alta`/`baixa` sem maioria clara. |
+| Posição via partido | `baixa` | Ressalva sobre a fonte da posição, não sobre o candidato. |
+| Posição direta com baixa confiança de IA | `baixa` | Ressalva sobre a extração, não sobre o candidato. |
 
 ## Regras editoriais de curadoria
 
