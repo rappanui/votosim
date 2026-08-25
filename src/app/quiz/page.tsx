@@ -13,6 +13,9 @@ const ESTADOS = [
   'RJ','RN','RS','RO','RR','SC','SP','SE','TO',
 ]
 
+/** Non-neutral answers required before the voter can see results. */
+const MIN_RESPOSTAS = 3
+
 const mapDbRowToTema = (row: Record<string, string>): TemaQuestionario => ({
   slug: row.slug,
   nome: row.nome,
@@ -46,7 +49,13 @@ export default function QuizPage() {
       .catch(err => { setLoadError((err as Error).message); setLoading(false) })
   }, [])
 
-  const canSubmit = Boolean(estado) && respostas.length >= 3
+  // Neutral answers are excluded on purpose. Match v3 keeps a voter-neutral
+  // theme out of both score denominators, so three neutrals would clear the
+  // gate and produce a results page where every candidate scores zero and the
+  // MIN_SCORE_THRESHOLD filter then removes all of them — an empty screen with
+  // no error to explain it.
+  const respostasQueContam = respostas.filter(r => r.posicao !== 'neutro').length
+  const canSubmit = Boolean(estado) && respostasQueContam >= MIN_RESPOSTAS
 
   function handleCardChange(slug: string, posicao: VoterPosicao, importancia: Importancia) {
     setResposta({ temaSlug: slug, posicao, importancia })
@@ -107,13 +116,32 @@ export default function QuizPage() {
       </div>
 
       <div className="sticky bottom-0 border-t border-gray-200 bg-white px-4 py-3">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-4">
-          <p className="text-xs text-gray-400">
-            {!estado && 'Selecione seu estado para continuar.'}
-            {estado && respostas.length < 3 && (
-              `Responda ao menos ${3 - respostas.length} pergunta${3 - respostas.length !== 1 ? 's' : ''} para continuar.`
-            )}
-          </p>
+        <div className="mx-auto flex max-w-4xl items-center justify-end gap-4">
+          {/* Spans the row up to the button so the two read as one control:
+              this is what is blocking, that is what it unblocks. The sentence
+              stays fixed and the counter carries the progress — a countdown
+              ("responda ao menos 1 pergunta") reads as the whole requirement
+              rather than what is left of it. */}
+          {!canSubmit && (
+            <p
+              data-testid="quiz-gate"
+              className="flex flex-1 items-baseline gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-xs text-amber-900"
+            >
+              {!estado ? (
+                'Selecione seu estado para continuar.'
+              ) : (
+                <>
+                  <span className="text-sm font-bold tabular-nums">
+                    ({respostasQueContam}/{MIN_RESPOSTAS})
+                  </span>
+                  <span>
+                    Responda ao menos {MIN_RESPOSTAS} perguntas para continuar.
+                    Respostas neutras não contam.
+                  </span>
+                </>
+              )}
+            </p>
+          )}
           <button
             onClick={() => canSubmit && router.push('/resultados')}
             disabled={!canSubmit}
