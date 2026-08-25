@@ -1,15 +1,21 @@
 # VotoSim — Procedimento de pesquisa de candidato
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
+> **Status:** válido · **Atualizado em:** 2026-08-24
 > **Contexto:** este é o procedimento que um agente de pesquisa segue para
-> transformar o brief de um candidato (produzido por `modules/ingest-candidates/src/comandos/build-brief.ts`)
+> transformar o brief de um candidato (produzido por `src/comandos/build-brief.ts`)
 > em um documento JSON de pesquisa validado (o formato definido por
-> `modules/ingest-candidates/src/lib/research-contract.ts`). Todo documento que o agente produz é
+> `src/lib/research-contract.ts`). Todo documento que o agente produz é
 > verificado por `validateResearch()` antes de qualquer gravação no banco —
 > um documento que falha na validação é rejeitado por completo, e nada é
 > persistido. Leitor: um agente de pesquisa (Claude Code). Leia isto antes de
 > rodar o agente de pesquisa por candidato, e antes de alterar o formato do
-> brief, o contrato, ou o pipeline de ingestão.
+> brief, o contrato, ou o pipeline de ingestão. Esta é a cópia deste
+> procedimento que viaja no pacote de colaboração externa
+> (`modules/ingest-candidates/`), para um desenvolvedor sem acesso ao
+> repositório principal.
+>
+> **Origem:** cópia de `docs/procedimentos/pesquisa-de-candidato.md` do
+> repositório principal.
 
 ---
 
@@ -78,15 +84,15 @@ registro de uma pessoa real nunca sejam feitas de memória.
 
 **Um caso resolvido não é um caso ausente.** Uma condenação depois anulada,
 um processo arquivado, uma absolvição — esses continuam sendo eventos reais,
-e a Regra D de `docs/legado/base/04_schema_alerts.md` exige que fiquem
-registrados, não omitidos: "o alerta não é deletado — apenas ativo = false e
-resolução preenchida." Busque por eles, cite-os e preencha `resolucao` (o que
+e a regra editorial "alertas resolvidos não se apagam" de `docs/alertas.md`
+exige que fiquem registrados, não omitidos: fecha-se com `ativo = false` e
+`resolucao` preenchida, a linha permanece. Busque por eles, cite-os e preencha `resolucao` (o que
 aconteceu) e `dataResolucao` (quando, se conhecido) no alerta. Não represente
 um caso resolvido como se nunca tivesse ocorrido, e não o represente como uma
 desqualificação ativa tampouco — as duas coisas são falsas. Ver seção 6.1 para
 o formato do campo; um alerta resolvido nunca é publicado automaticamente
 independentemente da camada da fonte, já que o selo "sem necessidade de
-revisão" da Regra B significa que a desqualificação é atual.
+revisão" da regra de auto-validação significa que a desqualificação é atual.
 
 > **Incidente registrado (2026-08-22):** uma primeira passada sobre LULA
 > (280002542548) produziu um dossiê que não declarava nem que ele havia
@@ -486,7 +492,7 @@ contradição.
 ### 6.1 Referência de enums
 
 Todo valor permitido para todo campo de enum, batendo exatamente com
-`modules/ingest-candidates/src/lib/research-contract.ts`. O exemplo trabalhado abaixo não usa todo
+`src/lib/research-contract.ts`. O exemplo trabalhado abaixo não usa todo
 valor — não pode, sem ficar ilegível — então esta tabela é a autoridade, não
 o exemplo.
 
@@ -506,7 +512,7 @@ o exemplo.
 **Um alerta resolvido continua sendo um alerta, e nunca é publicado
 automaticamente.** `resolucao` mapeia para `politician_alerts.ativo = false`
 e o próprio texto; uma `resolucao` `null` significa que o caso ainda está
-aberto (`ativo = true`). Pela Regra B de `docs/legado/base/04_schema_alerts.md`,
+aberto (`ativo = true`). Pela regra de auto-validação de `docs/alertas.md`,
 um `ficha_suja` ou `investigacao` sobre fonte de camada 1 normalmente é
 publicado sem nenhuma revisão humana — mas um resolvido nunca é, independente
 da camada da fonte, porque o propósito daquele selo é que a desqualificação é
@@ -525,8 +531,8 @@ se uma fonte `camada: 1` falhar nessa checagem.
 
 **Regra de publicação para alertas.** Um alerta `ficha_suja` ou
 `investigacao` apoiado em fonte de camada 1 (oficial) é **publicado ao
-eleitor imediatamente, sem revisão humana** — Regra B de
-`docs/legado/base/04_schema_alerts.md`. Um alerta `ressalva_evidencias` — uma
+eleitor imediatamente, sem revisão humana** — a regra de auto-validação de
+`docs/alertas.md`. Um alerta `ressalva_evidencias` — uma
 ressalva metodológica sobre a base de evidências (ex.: uma extração de PDF
 degradada, ou posições inferidas de uma plataforma partidária em vez das
 declarações próprias do candidato) — também é publicado automaticamente,
@@ -541,7 +547,7 @@ sobre se uma afirmação chega a um eleitor sem revisão.
 ### 6.2 Exemplo trabalhado
 
 Um exemplo completo e preenchido, batendo exatamente com
-`modules/ingest-candidates/src/lib/research-contract.ts`. Todo campo abaixo está preenchido com
+`src/lib/research-contract.ts`. Todo campo abaixo está preenchido com
 valores realistas, e os 14 temas estão cobertos — uma submissão real carrega
 todos os 14, e copiar um formato parcial é um erro comum. As justificativas
 nos temas menos ilustrativos são mantidas a uma frase; o ponto dessas
@@ -828,7 +834,7 @@ real do TSE. O nome e o partido do candidato também são placeholders — isto
 A segunda entrada demonstra o caminho de resolução acrescentado após o
 incidente de 2026-08-22: o inquérito está registrado — não omitido — mas
 `resolucao` está definida, então ele mapeia para `ativo = false` e **não** é
-publicado automaticamente pela Regra B, mesmo com fonte de camada 1 e o tipo
+publicado automaticamente pela regra de auto-validação, mesmo com fonte de camada 1 e o tipo
 se qualificando. Um eleitor lendo isso vê que foi investigado e arquivado,
 não que é uma desqualificação em curso.
 

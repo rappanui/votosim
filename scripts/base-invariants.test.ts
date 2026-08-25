@@ -60,22 +60,37 @@ test('politician_positions: every row has a non-empty justificativa', async () =
   )
 })
 
-// ─── 2. Every posicao='neutro' row has confianca_ia <= 0.5 ────────────────────
-// The premise of match v3 §3: `neutro` marks "found nothing", not a position.
+// ─── 2. Every high-confidence 'neutro' row names a real reason ────────────────
+// An earlier prompt regime forced `posicao=neutro` whenever confidence fell
+// below 0.70, so every neutro was necessarily low-confidence — that accident
+// used to be pinned here as "every neutro has confianca_ia <= 0.5". That
+// instruction is gone as of this session: under the current prompt, a neutro
+// backed by real evidence (an abstention on a floor vote, an explicit "no
+// stance either way") can and should carry decent confidence. Rejecting that
+// would reject the pipeline's best output, not catch a defect.
+//
+// What's still a contradiction: high confidence paired with `nao_encontrado`
+// ("searched, found nothing") or with no motive at all. If the analyst is
+// confident enough to say so, it has to be confident about *which* kind of
+// neutro this is — ambivalente or nao_responde — not "I didn't find
+// anything, but I'm sure about it." That pairing is what this test catches.
 
-test("politician_positions: every 'neutro' row has confianca_ia <= 0.5", async () => {
-  interface Row { id: string; confianca_ia: number | null }
+test("politician_positions: a high-confidence 'neutro' row has a real neutro_motivo (not null, not nao_encontrado)", async () => {
+  interface Row { id: string; confianca_ia: number | null; neutro_motivo: string | null }
   const rows = await fetchAll<Row>(
     'politician_positions',
-    'id, confianca_ia',
+    'id, confianca_ia, neutro_motivo',
     q => q.eq('posicao', 'neutro'),
   )
   const offenders = rows
-    .filter(r => r.confianca_ia === null || r.confianca_ia > 0.5)
-    .map(r => `${r.id} (confianca_ia=${r.confianca_ia})`)
+    .filter(r => r.confianca_ia !== null && r.confianca_ia > 0.5)
+    .filter(r => r.neutro_motivo === null || r.neutro_motivo === 'nao_encontrado')
+    .map(r => `${r.id} (confianca_ia=${r.confianca_ia}, neutro_motivo=${r.neutro_motivo})`)
   assert.equal(
     offenders.length, 0,
-    `${offenders.length} 'neutro' politician_positions row(s) with confianca_ia > 0.5: ${offenders.join(', ')}`,
+    `${offenders.length} 'neutro' politician_positions row(s) claim confianca_ia > 0.5 while neutro_motivo is ` +
+      `null or 'nao_encontrado': ${offenders.join(', ')}. High confidence and "found nothing" don't mix — a ` +
+      `confident neutro has to be ambivalente or nao_responde, backed by evidence the analyst actually found.`,
   )
 })
 

@@ -1,68 +1,90 @@
-# SP-0 Schema Additions
+# Adições de schema do SP-0
 
-**Context:** The tables, columns and enums added by `docs/migracoes/11_sp0_foundation.sql` to support per-candidate enrichment, plus the modelling decisions behind them. Read before writing anything that reads or writes `enrichment_ledger`, `candidate_sources`, `candidate_dossiers`, or the new columns on `candidacies`, `politician_positions` and `politician_alerts`. Design rationale lives in `docs/superpowers/specs/2026-08-20-candidate-data-pipeline-design.md`.
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
+> **Contexto:** as tabelas, colunas e enums que `docs/migracoes/11_sp0_foundation.sql`
+> adicionou para dar suporte ao enriquecimento por candidato, mais as
+> decisões de modelagem por trás delas. Leia antes de escrever qualquer coisa
+> que leia ou grave em `enrichment_ledger`, `candidate_sources`,
+> `candidate_dossiers`, ou nas novas colunas de `candidacies`,
+> `politician_positions` e `politician_alerts`. O raciocínio de design está
+> em `docs/superpowers/specs/2026-08-20-candidate-data-pipeline-design.md`.
 
 ---
 
-## New tables
+## Novas tabelas
 
 ### `enrichment_ledger`
 
-One row per candidacy × stage. Answers "who is processed and who is left", and carries the cost metrics that make the instrumented pilot possible.
+Uma linha por candidatura × estágio. Responde "quem já foi processado e quem
+falta", e carrega as métricas de custo que tornam o piloto instrumentado
+possível.
 
-| Column | Notes |
+| Coluna | Notas |
 |---|---|
 | `etapa` | `documentos_oficiais \| ficha_limpa \| noticias \| dossie \| posicoes` |
 | `status` | `pendente \| em_progresso \| concluido \| falhou \| nao_aplicavel` |
 | `metricas` | JSONB: `tokens`, `duracao_ms`, `fontes_encontradas`, `confianca_media` |
 
-`nao_aplicavel` is load-bearing. A senate candidate files no government plan with the TSE, and a first-time candidate has no coherence to measure. Without that state the ledger reports failure where there is nothing to do.
+`nao_aplicavel` é estrutural. Um candidato a senador não protocola plano de
+governo no TSE, e um candidato de primeira viagem não tem coerência para
+medir. Sem esse estado, o ledger reportaria falha onde não há nada a fazer.
 
-RLS is enabled with **no public read policy** — this is internal pipeline state, reached only by the service role key.
+RLS está habilitado **sem política de leitura pública** — este é estado
+interno do pipeline, acessado apenas pela chave de service role.
 
 ### `candidate_sources`
 
-Catalogue of every URL the pipeline touched. Positions and alerts reference it instead of repeating URLs, so a displayed fact whose source is not listed is impossible by construction.
+Catálogo de toda URL que o pipeline tocou. Posições e alertas referenciam
+esta tabela em vez de repetir URLs, então um fato exibido cuja fonte não está
+listada é impossível por construção.
 
-| Column | Notes |
+| Coluna | Notas |
 |---|---|
-| `politician_id` | `NOT NULL`, `ON DELETE CASCADE` — the durable owner |
-| `candidacy_id` | **nullable**, `ON DELETE SET NULL` — which run gathered it |
-| `camada` | 1 official · 2 reference press · 3 fact-checking |
+| `politician_id` | `NOT NULL`, `ON DELETE CASCADE` — o dono durável |
+| `candidacy_id` | **anulável**, `ON DELETE SET NULL` — qual execução coletou |
+| `camada` | 1 oficial · 2 imprensa de referência · 3 checagem de fatos |
 | `destino_exibicao` | `card_candidato \| pagina_sobre \| interno` |
-| `acessado_em`, `hash_conteudo` | Survive link rot: the card can state "accessed on…" |
+| `acessado_em`, `hash_conteudo` | Sobrevivem a link rot: o card pode declarar "acessado em…" |
 
-Unique on `(politician_id, url)`.
+Único em `(politician_id, url)`.
 
 ### `candidate_dossiers`
 
-Generated candidate profile, versioned so it can be regenerated without losing the previous take. `coerencia_indice` is `NUMERIC(5,2)`, `NULL` when the candidate has no track record — **never zero for that case**, since zero means measured and incoherent. `coerencia_base` records what was compared against what, so the UI states its basis instead of showing a bare number.
+Perfil de candidato gerado, versionado para poder ser regenerado sem perder
+a versão anterior. `coerencia_indice` é `NUMERIC(5,2)`, `NULL` quando o
+candidato não tem histórico — **nunca zero para esse caso**, já que zero
+significa medido e incoerente. `coerencia_base` registra o que foi comparado
+contra o quê, para que a UI declare sua base em vez de mostrar um número
+seco.
 
-`espectro_declarado` and `espectro_inferido` are constrained to the same vocabulary as `parties.espectro`.
+`espectro_declarado` e `espectro_inferido` são restritos ao mesmo
+vocabulário de `parties.espectro`.
 
-## Column additions
+## Colunas acrescentadas
 
-| Table | Column | Purpose |
+| Tabela | Coluna | Propósito |
 |---|---|---|
 | `candidacies` | `tier_processamento` | `total` (presidente/governador/senador) · `por_score` (deputados) · `fora_escopo` (distrital) |
-| `candidacies` | `viabilidade_score` | Only for `por_score`; computation deferred to a later plan, stays NULL |
-| `candidacies` | `federacao` | From `SG_FEDERACAO`; distinct from coalition |
-| `candidacies` | `composicao_coligacao` | From `DS_COMPOSICAO_COLIGACAO` |
-| `politician_positions` | `justificativa` | Why this position, in voter-facing language |
+| `candidacies` | `viabilidade_score` | Só para `por_score`; cálculo adiado para um plano futuro, permanece NULL |
+| `candidacies` | `federacao` | De `SG_FEDERACAO`; distinta de coligação |
+| `candidacies` | `composicao_coligacao` | De `DS_COMPOSICAO_COLIGACAO` |
+| `politician_positions` | `justificativa` | Por que esta posição, em linguagem voltada ao eleitor |
 | `politician_positions` | `coerencia_tema` | `coerente \| incoerente \| sem_historico` |
-| `politician_positions` | `source_ids` | `UUID[]` into the catalogue; supersedes `fontes` for new writes |
-| `politician_alerts` | `source_id` | Alerts trace to the catalogue like positions do |
+| `politician_positions` | `source_ids` | `UUID[]` para o catálogo; substitui `fontes` para novas gravações |
+| `politician_alerts` | `source_id` | Alertas remontam ao catálogo como as posições |
 
-`alert_type` gains `incoerencia` and `divergencia_espectro` (base/11_sp0_foundation.sql).
+`alert_type` ganha `incoerencia` e `divergencia_espectro`
+(base/11_sp0_foundation.sql).
 
-### Enum additions on 2026-08-23 (applied to the live database via ALTER, now also in base/11_sp0_foundation.sql)
+### Adições de enum em 2026-08-23 (aplicadas ao banco em produção via ALTER, agora também em base/11_sp0_foundation.sql)
 
-`source_tipo` gains `plataforma_partidaria` and `biografia` — party platform and
-biography documents, the common evidence base for legislative candidates who file
-no `plano_governo`. `alert_type` gains `ressalva_evidencias` — a methodological
-caveat about the evidence base itself (degraded extraction, positions inferred
-from a party platform rather than the candidate's own statements); a transparency
-flag, never an accusation.
+`source_tipo` ganha `plataforma_partidaria` e `biografia` — documentos de
+plataforma partidária e de biografia, a base de evidências comum para
+candidatos legislativos que não protocolam `plano_governo`. `alert_type`
+ganha `ressalva_evidencias` — uma ressalva metodológica sobre a própria base
+de evidências (extração degradada, posições inferidas de uma plataforma
+partidária em vez das declarações próprias do candidato); um sinal de
+transparência, nunca uma acusação.
 
 ```sql
 ALTER TYPE source_tipo ADD VALUE IF NOT EXISTS 'plataforma_partidaria';
@@ -70,51 +92,87 @@ ALTER TYPE source_tipo ADD VALUE IF NOT EXISTS 'biografia';
 ALTER TYPE alert_type ADD VALUE IF NOT EXISTS 'ressalva_evidencias';
 ```
 
-### Enum addition for E4b (mandate performance) — 2026-08-23
+### Adição de enum para E4b (desempenho de mandato) — 2026-08-23
 
-`source_tipo` gains `desempenho_mandato`: the evidence type behind stage E4b of
-`docs/procedimentos/pesquisa-de-candidato.md` — attendance, votes cast, authored bills
-and CEAP spending for a candidate who holds or held a legislative mandate. No
-pre-existing value fits (`bens_declarados` is declared personal assets;
-`votacao` is a single roll-call), so without it the E4b rule cannot cite the
-endpoint it read the figures from, and ingestion fails with
+`source_tipo` ganha `desempenho_mandato`: o tipo de evidência por trás do
+estágio E4b de `docs/procedimentos/pesquisa-de-candidato.md` — presença,
+votos dados, projetos apresentados e gastos de CEAP para um candidato que
+ocupa ou ocupou um mandato legislativo. Nenhum valor pré-existente serve
+(`bens_declarados` é patrimônio pessoal declarado; `votacao` é um único voto
+nominal), então sem essa adição a regra da E4b não consegue citar o endpoint
+de onde leu os números, e a ingestão falha com
 `invalid input value for enum source_tipo`.
 
 ```sql
 ALTER TYPE source_tipo ADD VALUE IF NOT EXISTS 'desempenho_mandato';
 ```
 
-A `ressalva_evidencias` alert is auto-validated on ingest (see `isAutoValidated()`
-in export/scripts/ingest-research.ts) and renders `badge_cor = 'amarelo'`.
+Um alerta `ressalva_evidencias` é auto-validado na ingestão (ver
+`isAutoValidated()` em modules/ingest-candidates/src/comandos/ingest-research.ts) e renderiza
+`badge_cor = 'amarelo'`.
 
-## Why `candidate_sources` carries two keys
+## Por que `candidate_sources` carrega duas chaves
 
-`politician_positions` is keyed by `politician_id` and is deliberately cross-election, and it reaches the catalogue through a plain `UUID[]` that PostgreSQL does not enforce.
+`politician_positions` tem `politician_id` como chave e é deliberadamente
+inter-eleições, e alcança o catálogo por meio de um `UUID[]` simples que o
+PostgreSQL não aplica.
 
-A first attempt keyed the catalogue only by `candidacy_id`, then tried to fix the resulting orphan problem by *adding* a `politician_id` FK with its own cascade. **That does not work**, and both halves were reproduced on PostgreSQL 15:
+Uma primeira tentativa deu ao catálogo apenas `candidacy_id` como chave,
+depois tentou corrigir o problema de órfãos resultante *acrescentando* uma
+FK `politician_id` com seu próprio cascade. **Isso não funciona**, e as duas
+metades do problema foram reproduzidas no PostgreSQL 15:
 
-- Adding a second foreign key does not remove the first one's cascade. Deleting a candidacy still wiped the sources and still left `politician_positions.source_ids` holding UUIDs pointing at nothing.
-- The added cascade was redundant anyway, since `candidacies.politician_id` is already `ON DELETE CASCADE`, so a politician delete already reached the sources transitively.
+- Acrescentar uma segunda chave estrangeira não remove o cascade da
+  primeira. Deletar uma candidatura ainda apagava as fontes e ainda deixava
+  `politician_positions.source_ids` apontando para UUIDs inexistentes.
+- O cascade acrescentado era redundante de qualquer forma, já que
+  `candidacies.politician_id` já é `ON DELETE CASCADE`, então deletar um
+  político já alcançava as fontes transitivamente.
 
-The working shape is `politician_id NOT NULL` cascading (durable owner) and `candidacy_id` nullable with `ON DELETE SET NULL`. Deleting a candidacy detaches the source from that run without destroying it. Regression test after a candidacy delete: `sources_left=1`, `candidacy_now=NULL`, `positions_with_dangling=0`.
+O formato que funciona é `politician_id NOT NULL` em cascata (dono durável)
+e `candidacy_id` anulável com `ON DELETE SET NULL`. Deletar uma candidatura
+desanexa a fonte daquela execução sem destruí-la. Teste de regressão depois
+de deletar uma candidatura: `sources_left=1`, `candidacy_now=NULL`,
+`positions_with_dangling=0`.
 
-## The work queue view
+## A view da fila de trabalho
 
-`v_enrichment_queue` lists candidacies with outstanding work, presidents first, then grouped by state, then by tier and viability. Three predicates matter and each closed a real bug:
+`v_enrichment_queue` lista candidaturas com trabalho pendente, presidentes
+primeiro, depois agrupado por estado, depois por tier e viabilidade. Três
+predicados importam e cada um fechou um bug real:
 
-- **`tier_processamento IS DISTINCT FROM 'fora_escopo'`**, not `<>`. The column is NULL until backfilled, and `NULL <> 'x'` is NULL, which silently emptied the entire queue on first use.
-- **`LEFT JOIN` on the ledger** plus a `count(l.id) = 0` branch, so a candidacy never seeded into the ledger is still visible. An inner join could only answer "who started and isn't finished".
-- **`em_progresso` counts as outstanding.** A crashed agent run leaves rows in that state permanently; excluding them made the candidate invisible with no recovery path.
+- **`tier_processamento IS DISTINCT FROM 'fora_escopo'`**, não `<>`. A
+  coluna é NULL até ser preenchida retroativamente, e `NULL <> 'x'` é NULL,
+  o que esvaziava silenciosamente a fila inteira no primeiro uso.
+- **`LEFT JOIN` com o ledger** mais um ramo `count(l.id) = 0`, para que uma
+  candidatura nunca semeada no ledger continue visível. Um inner join só
+  conseguiria responder "quem começou e não terminou".
+- **`em_progresso` conta como pendente.** Uma execução de agente que travou
+  deixa linhas nesse estado permanentemente; excluí-las tornava o candidato
+  invisível sem caminho de recuperação.
 
-The electorate-size ordering across states that spec decision D11 describes is **not** expressed here — no per-UF electorate data exists in the schema. It is an operator decision about which UF to process next.
+A ordenação por tamanho de eleitorado entre estados que a decisão de spec
+D11 descreve **não** está expressa aqui — não existe dado de eleitorado por
+UF no schema. É uma decisão do operador sobre qual UF processar em seguida.
 
-## Applying the file
+## Aplicando o arquivo
 
-The file is idempotent: every `CREATE` is `IF NOT EXISTS`, `OR REPLACE`, or wrapped in a `DO` block trapping `duplicate_object`; policies are dropped before creation. Re-running produces zero errors.
+O arquivo é idempotente: todo `CREATE` é `IF NOT EXISTS`, `OR REPLACE`, ou
+está envolto em um bloco `DO` que trata `duplicate_object`; políticas são
+descartadas antes da criação. Rodar de novo produz zero erros.
 
-It can be pasted into the Supabase SQL Editor **as a single batch**. Two notes on why:
+Pode ser colado no SQL Editor do Supabase **como um único lote**. Duas notas
+sobre o motivo:
 
-- `ALTER TYPE … ADD VALUE` has been transaction-safe since PostgreSQL 12, provided the new value is not *used* in the same transaction. Older comments in this repo claiming otherwise were wrong.
-- This file *does* use the new `alert_type` values, in the `v_candidate_alerts` badge `CASE`. That `CASE` therefore switches on `pa.tipo::text`, which never touches the pending enum values. Without the cast the file fails with `unsafe use of new value "incoerencia" of enum type alert_type`.
+- `ALTER TYPE … ADD VALUE` é seguro em transação desde o PostgreSQL 12,
+  desde que o novo valor não seja *usado* na mesma transação. Comentários
+  antigos neste repositório afirmando o contrário estavam errados.
+- Este arquivo *usa* os novos valores de `alert_type`, no `CASE` do selo de
+  `v_candidate_alerts`. Esse `CASE`, portanto, decide sobre `pa.tipo::text`,
+  que nunca toca os valores de enum pendentes. Sem o cast, o arquivo falha
+  com `unsafe use of new value "incoerencia" of enum type alert_type`.
 
-`v_candidate_alerts` is replaced here rather than in `04_schema_alerts.md` because the original `CASE` has no `ELSE`, so the new alert types would have rendered `badge_cor = NULL`. The badge CASE now covers `incoerencia` (roxo), `divergencia_espectro` (azul) and `ressalva_evidencias` (amarelo).
+`v_candidate_alerts` é substituída aqui em vez de em `04_schema_alerts.md`
+porque o `CASE` original não tem `ELSE`, então os novos tipos de alerta
+renderizariam `badge_cor = NULL`. O `CASE` do selo agora cobre `incoerencia`
+(roxo), `divergencia_espectro` (azul) e `ressalva_evidencias` (amarelo).
