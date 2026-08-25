@@ -20,7 +20,7 @@ export default function InicioPage() {
         <p className="mb-8 text-gray-600 leading-relaxed">{HERO_SUBTITLE}</p>
 
         <Link
-          href="/perfil"
+          href="/quiz"
           className="inline-block rounded-lg bg-highlight px-8 py-4 text-lg font-semibold text-white shadow hover:bg-primary active:scale-95 transition-all"
         >
           Começar agora
