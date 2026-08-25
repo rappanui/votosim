@@ -7,6 +7,8 @@ const makeAlerta = (
 ): Alerta => ({
   tipo,
   severidade: 'alta',
+  severidadeAtual: 'alta',
+  severidadeAtualMotivo: null,
   titulo: `Título ${tipo}`,
   descricao: `Descrição do alerta ${tipo}`,
   fonteUrl: 'https://example.com',
@@ -17,94 +19,105 @@ const makeAlerta = (
 })
 
 describe('AlertaBadge', () => {
-  it('renders Ficha suja label for ficha_suja type', () => {
+  it('shows the Tipo row with the human label for the alert type', () => {
     render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho')} />)
+    expect(screen.getByText('Tipo:')).toBeInTheDocument()
     expect(screen.getByText('Ficha suja')).toBeInTheDocument()
   })
 
-  it('renders Em investigação label for investigacao type', () => {
+  it('shows Em investigação for investigacao type', () => {
     render(<AlertaBadge alerta={makeAlerta('investigacao', 'laranja')} />)
     expect(screen.getByText('Em investigação')).toBeInTheDocument()
   })
 
-  it('renders Atenção label for polemica type', () => {
+  it('shows Atenção for polemica type', () => {
     render(<AlertaBadge alerta={makeAlerta('polemica', 'cinza')} />)
     expect(screen.getByText('Atenção')).toBeInTheDocument()
   })
 
-  it('applies red styling for badgeCor vermelho', () => {
-    const { container } = render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho')} />)
-    expect((container.firstChild as HTMLElement).className).toContain('bg-danger')
-  })
-
-  it('applies orange styling for badgeCor laranja', () => {
-    const { container } = render(<AlertaBadge alerta={makeAlerta('investigacao', 'laranja')} />)
-    expect((container.firstChild as HTMLElement).className).toContain('bg-warning')
-  })
-
-  it('applies gray styling for badgeCor cinza', () => {
-    const { container } = render(<AlertaBadge alerta={makeAlerta('polemica', 'cinza')} />)
-    expect((container.firstChild as HTMLElement).className).toContain('bg-gray-400')
-  })
-
-  it('renders Incoerência label for incoerencia type', () => {
+  it('shows Incoerência for incoerencia type', () => {
     render(<AlertaBadge alerta={makeAlerta('incoerencia', 'roxo')} />)
     expect(screen.getByText('Incoerência')).toBeInTheDocument()
   })
 
-  it('renders Divergência de espectro label for divergencia_espectro type', () => {
+  it('shows Divergência de espectro for divergencia_espectro type', () => {
     render(<AlertaBadge alerta={makeAlerta('divergencia_espectro', 'azul')} />)
     expect(screen.getByText('Divergência de espectro')).toBeInTheDocument()
   })
 
-  it('renders Ressalva label for ressalva_evidencias type', () => {
+  it('shows Ressalva for ressalva_evidencias type', () => {
     render(<AlertaBadge alerta={makeAlerta('ressalva_evidencias', 'amarelo')} />)
     expect(screen.getByText('Ressalva')).toBeInTheDocument()
   })
 
-  it('applies purple styling for badgeCor roxo', () => {
-    const { container } = render(<AlertaBadge alerta={makeAlerta('incoerencia', 'roxo')} />)
-    expect((container.firstChild as HTMLElement).className).toContain('bg-purple-600')
+  it('shows Status: Ativo for an active alert', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho', { ativo: true })} />)
+    expect(screen.getByText('Status:')).toBeInTheDocument()
+    expect(screen.getByText('Ativo')).toBeInTheDocument()
   })
 
-  it('applies blue styling for badgeCor azul', () => {
-    const { container } = render(<AlertaBadge alerta={makeAlerta('divergencia_espectro', 'azul')} />)
-    expect((container.firstChild as HTMLElement).className).toContain('bg-highlight')
-  })
-
-  it('applies amber styling for badgeCor amarelo', () => {
-    const { container } = render(<AlertaBadge alerta={makeAlerta('ressalva_evidencias', 'amarelo')} />)
-    expect((container.firstChild as HTMLElement).className).toContain('bg-amber-100')
-  })
-
-  it('suffixes the label with "— resolvido" when the alert is no longer active', () => {
+  it('shows Status: Resolvido for a resolved alert', () => {
     render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'cinza', { ativo: false })} />)
-    expect(screen.getByText('Ficha suja — resolvido')).toBeInTheDocument()
+    expect(screen.getByText('Resolvido')).toBeInTheDocument()
   })
 
-  it('does not suffix the label for an active alert', () => {
+  it('shows Severidade original using the unified vocabulary', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho', { severidade: 'critica', severidadeAtual: 'baixa' })} />)
+    expect(screen.getByText('Severidade original:')).toBeInTheDocument()
+    expect(screen.getByText('Crítica')).toBeInTheDocument()
+  })
+
+  it('shows Avaliação atual always, even when it equals the severidade original', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho', { severidade: 'critica', severidadeAtual: 'critica' })} />)
+    expect(screen.getByText('Avaliação atual:')).toBeInTheDocument()
+    const values = screen.getAllByText('Crítica')
+    expect(values).toHaveLength(2)
+  })
+
+  it('shows a different Avaliação atual value when it diverges from severidade', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'cinza', {
+      ativo: false, severidade: 'critica', severidadeAtual: 'alta',
+      severidadeAtualMotivo: 'Anulado por incompetência de foro; o mérito nunca foi rejulgado.',
+    })} />)
+    expect(screen.getByText('Crítica')).toBeInTheDocument()
+    expect(screen.getByText('Grave')).toBeInTheDocument()
+  })
+
+  it('colors Severidade original by its own value', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho', { severidade: 'critica', severidadeAtual: 'baixa' })} />)
+    expect(screen.getByText('Crítica').className).toContain('text-danger')
+  })
+
+  it('colors Avaliação atual by its own value, independent of severidade original', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'cinza', { severidade: 'critica', severidadeAtual: 'baixa' })} />)
+    expect(screen.getByText('Leve').className).toContain('text-gray-500')
+  })
+
+  it('explains Avaliação atual with severidadeAtualMotivo when a reassessment happened', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'cinza', {
+      ativo: false, severidade: 'critica', severidadeAtual: 'alta',
+      severidadeAtualMotivo: 'Anulado por incompetência de foro; o mérito nunca foi rejulgado.',
+    })} />)
+    expect(screen.getByTitle(/incompetência de foro/)).toHaveTextContent('Avaliação atual:')
+  })
+
+  it('explains Avaliação atual as not yet reassessed for a resolved alert with no motivo', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'cinza', { ativo: false, severidadeAtualMotivo: null })} />)
+    expect(screen.getByTitle(/ainda não foi reavaliado/i)).toHaveTextContent('Avaliação atual:')
+  })
+
+  it('explains Avaliação atual as the present-day weight for an active alert', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho', { ativo: true, severidadeAtualMotivo: null })} />)
+    expect(screen.getByTitle(/nunca aumenta/i)).toHaveTextContent('Avaliação atual:')
+  })
+
+  it('explains what Severidade original means via a hover', () => {
     render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho')} />)
-    expect(screen.getByText('Ficha suja')).toBeInTheDocument()
-    expect(screen.queryByText(/resolvido/)).not.toBeInTheDocument()
+    expect(screen.getByTitle(/não muda mesmo se o caso for resolvido/i)).toHaveTextContent('Severidade original:')
   })
 
-  it('shows the severidade in Portuguese alongside the badge', () => {
-    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho', { severidade: 'critica' })} />)
-    expect(screen.getByText(/Crítica/)).toBeInTheDocument()
-  })
-
-  it('colors the severidade text red for critica', () => {
-    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho', { severidade: 'critica' })} />)
-    expect(screen.getByText(/Crítica/).className).toContain('text-danger')
-  })
-
-  it('colors the severidade text gray for baixa', () => {
-    render(<AlertaBadge alerta={makeAlerta('polemica', 'cinza', { severidade: 'baixa' })} />)
-    expect(screen.getByText(/Baixa/).className).toContain('text-gray-500')
-  })
-
-  it('keeps the pill itself as the first rendered element, unaffected by the severidade text', () => {
-    const { container } = render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho')} />)
-    expect((container.firstChild as HTMLElement).className).toContain('bg-danger')
+  it('explains what Status means via a hover', () => {
+    render(<AlertaBadge alerta={makeAlerta('ficha_suja', 'vermelho')} />)
+    expect(screen.getByTitle(/em aberto/i)).toHaveTextContent('Status:')
   })
 })

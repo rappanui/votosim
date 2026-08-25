@@ -52,7 +52,12 @@ const SECTIONS = [
   {
     title: 'Alertas de candidatos',
     content:
-      'Os alertas de "Ficha suja" são gerados automaticamente com base nos dados de certidões criminais do TSE. Os demais alertas passam por curadoria humana antes de serem exibidos. Alertas não excluem candidatos do resultado — o eleitor decide o peso de cada informação.',
+      'Os alertas de "Ficha suja" são gerados automaticamente com base nos dados de certidões criminais do TSE. Os demais alertas passam por curadoria humana antes de serem exibidos. Alertas não excluem candidatos do resultado: o eleitor decide o peso de cada informação.',
+  },
+  {
+    title: 'Casos resolvidos: absolvição, anulação, prescrição',
+    content:
+      'Um alerta cujo caso foi resolvido, absolvição, condenação anulada, processo arquivado, nunca é apagado nem escondido: mostramos o que aconteceu e como terminou. Ao mesmo tempo, separamos duas perguntas diferentes: quão grave foi o fato (isso nunca muda) e quanto ele ainda deveria pesar no seu julgamento hoje, considerando como o caso foi resolvido (uma condenação anulada por um erro de procedimento pesa diferente de uma absolvição por prova de inocência). Essa segunda avaliação é feita pela mesma inteligência artificial que pesquisa e verifica cada candidato, com um padrão de confiança elevado antes de reduzir a preocupação registrada, e nunca por um curador humano decidindo caso a caso: um julgamento político sobre "quanto isso ainda importa" carrega o próprio viés de quem julga, e mantê-lo fora de decisão humana é deliberado. Toda vez que a avaliação diverge da gravidade original, mostramos o motivo específico ao lado, para que você possa concordar ou discordar da nossa leitura.',
   },
   {
     title: 'Privacidade',

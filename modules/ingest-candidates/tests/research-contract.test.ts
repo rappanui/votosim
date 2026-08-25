@@ -223,7 +223,7 @@ test('validateResearch: rejects an alert with no sources', () => {
   assert.match(validateResearch(doc).join(' '), /at least one source/i)
 })
 
-// ─── Resolved alerts — Rule D of docs/legado/base/04_schema_alerts.md: a resolved ──
+// ─── Resolved alerts. Rule D of docs/legado/base/04_schema_alerts.md: a resolved ──
 // matter is never deleted, only marked inactive with a resolution on record.
 // A conviction later annulled must be representable as such, not omitted and
 // not published as if it were still active.
@@ -262,6 +262,83 @@ test('validateResearch: rejects a non-ISO dataResolucao', () => {
   const doc = valid()
   doc.alertas.push({ tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D', dataOcorrencia: null, resolucao: 'Anulada.', dataResolucao: '08/03/2021', fonteRefs: ['s1'] })
   assert.match(validateResearch(doc).join(' '), /dataResolucao.*ISO/i)
+})
+
+// ─── severidadeAtual: present-day weight of a resolved alert, distinct from ──
+// the historical severidade. See docs/referencia/alertas.md.
+
+test('validateResearch: accepts a resolved alert reassessed calmer, with a motivo', () => {
+  const doc = valid()
+  doc.alertas.push({
+    tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D',
+    dataOcorrencia: '2018-04-07', resolucao: 'Anulada pelo STF por incompetência de foro.',
+    dataResolucao: '2021-03-08', fonteRefs: ['s1'],
+    severidadeAtual: 'alta',
+    severidadeAtualMotivo: 'Anulado por incompetência de foro; o mérito nunca foi rejulgado.',
+  })
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('validateResearch: accepts severidadeAtual equal to severidade', () => {
+  const doc = valid()
+  doc.alertas.push({
+    tipo: 'ficha_suja', severidade: 'media', titulo: 'T', descricao: 'D',
+    dataOcorrencia: null, resolucao: 'Condenação mantida, pena reduzida.',
+    dataResolucao: null, fonteRefs: ['s1'],
+    severidadeAtual: 'media',
+    severidadeAtualMotivo: 'A condenação em si permanece; só a pena mudou.',
+  })
+  assert.deepEqual(validateResearch(doc), [])
+})
+
+test('validateResearch: rejects severidadeAtual on an alert that is still open', () => {
+  const doc = valid()
+  doc.alertas.push({
+    tipo: 'investigacao', severidade: 'alta', titulo: 'T', descricao: 'D',
+    dataOcorrencia: null, resolucao: null, dataResolucao: null, fonteRefs: ['s1'],
+    severidadeAtual: 'baixa', severidadeAtualMotivo: 'Motivo qualquer.',
+  })
+  assert.match(validateResearch(doc).join(' '), /severidadeAtual.*resolvido|resolucao/i)
+})
+
+test('validateResearch: rejects severidadeAtual without a motivo', () => {
+  const doc = valid()
+  doc.alertas.push({
+    tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D',
+    dataOcorrencia: null, resolucao: 'Anulada.', dataResolucao: null, fonteRefs: ['s1'],
+    severidadeAtual: 'alta', severidadeAtualMotivo: null,
+  })
+  assert.match(validateResearch(doc).join(' '), /severidadeAtualMotivo.*required/i)
+})
+
+test('validateResearch: rejects a motivo without severidadeAtual', () => {
+  const doc = valid()
+  doc.alertas.push({
+    tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D',
+    dataOcorrencia: null, resolucao: 'Anulada.', dataResolucao: null, fonteRefs: ['s1'],
+    severidadeAtualMotivo: 'Motivo sem valor correspondente.',
+  })
+  assert.match(validateResearch(doc).join(' '), /severidadeAtualMotivo.*without/i)
+})
+
+test('validateResearch: rejects severidadeAtual graver than severidade', () => {
+  const doc = valid()
+  doc.alertas.push({
+    tipo: 'ficha_suja', severidade: 'baixa', titulo: 'T', descricao: 'D',
+    dataOcorrencia: null, resolucao: 'Anulada.', dataResolucao: null, fonteRefs: ['s1'],
+    severidadeAtual: 'critica', severidadeAtualMotivo: 'Não deveria ser possível.',
+  })
+  assert.match(validateResearch(doc).join(' '), /severidadeAtual.*graver/i)
+})
+
+test('validateResearch: rejects an invalid severidadeAtual value', () => {
+  const doc = valid()
+  ;(doc.alertas as unknown as Record<string, unknown>[]).push({
+    tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D',
+    dataOcorrencia: null, resolucao: 'Anulada.', dataResolucao: null, fonteRefs: ['s1'],
+    severidadeAtual: 'gravissima', severidadeAtualMotivo: 'M',
+  })
+  assert.match(validateResearch(doc).join(' '), /severidadeAtual: invalid/)
 })
 
 test('validateResearch: reports every problem, not just the first', () => {

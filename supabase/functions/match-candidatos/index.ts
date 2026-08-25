@@ -24,13 +24,20 @@ import {
 export interface AlertRow {
   politician_id: string
   tipo: string
+  // Historical fact: how grave the documented matter was. Never changes.
   severidade: string
+  // How much this should still weigh today. v_candidate_alerts coalesces
+  // this to severidade when the alert was never reassessed, so it is
+  // always present and always the value to color/sort/derive by, never
+  // raw severidade directly.
+  severidade_atual: string
+  severidade_atual_motivo: string | null
   titulo: string
   descricao: string
   fonte_url: string
   badge_cor: string
-  // badge_cor is already 'cinza' when !ativo — v_candidate_alerts computes
-  // that. These two exist so the frontend can render the "— resolvido"
+  // badge_cor is already 'cinza' when !ativo. v_candidate_alerts computes
+  // that. These two exist so the frontend can render the ", resolvido"
   // label and show what actually happened, not just a neutral color.
   ativo: boolean
   resolucao: string | null
@@ -149,7 +156,7 @@ async function fetchAlerts(
   if (politicianIds.length === 0) return []
   const { data, error } = await supabase
     .from('v_candidate_alerts')
-    .select('politician_id, tipo, severidade, titulo, descricao, fonte_url, badge_cor, ativo, resolucao')
+    .select('politician_id, tipo, severidade, severidade_atual, severidade_atual_motivo, titulo, descricao, fonte_url, badge_cor, ativo, resolucao')
     .in('politician_id', politicianIds)
 
   if (error) throw new Error(`Failed to fetch alerts: ${error.message}`)
@@ -446,6 +453,8 @@ function alertRowToAlerta(a: AlertRow) {
   return {
     tipo: a.tipo,
     severidade: a.severidade,
+    severidadeAtual: a.severidade_atual,
+    severidadeAtualMotivo: a.severidade_atual_motivo,
     titulo: a.titulo,
     descricao: a.descricao,
     fonteUrl: a.fonte_url,
@@ -499,7 +508,10 @@ export function deriveObservacoes(
       descricao: a.descricao,
       temaSlug: null,
       fonteUrl: a.fonte_url,
-      severidade: a.severidade,
+      // severidade_atual, not severidade: already coalesced by
+      // v_candidate_alerts, so this is the present-day weight, same value
+      // the corresponding Alerta on this candidate would show.
+      severidade: a.severidade_atual,
     })
   }
 

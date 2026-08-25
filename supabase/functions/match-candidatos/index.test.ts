@@ -158,6 +158,8 @@ Deno.test('attachAlerts: attaches alerts to matching candidates', () => {
     politician_id: 'p1',
     tipo: 'investigacao',
     severidade: 'alta',
+    severidade_atual: 'alta',
+    severidade_atual_motivo: null,
     titulo: 'Investigado',
     descricao: 'Sob investigação',
     fonte_url: 'http://example.com',
@@ -477,6 +479,7 @@ function makeDetalhe(overrides: Partial<TemaCandidatoDetalhe> = {}): TemaCandida
 function makeAlertRow(tipo: string, badgeCor: string, overrides: Partial<AlertRow> = {}): AlertRow {
   return {
     politician_id: 'p1', tipo, severidade: 'baixa',
+    severidade_atual: 'baixa', severidade_atual_motivo: null,
     titulo: `Título ${tipo}`, descricao: `Descrição ${tipo}`,
     fonte_url: 'https://fonte.example', badge_cor: badgeCor,
     ativo: true, resolucao: null,
@@ -491,9 +494,9 @@ Deno.test('deriveObservacoes: an incoerencia alert is a contradiction', () => {
   assertEquals(out[0].fonteUrl, 'https://fonte.example')
 })
 
-Deno.test('deriveObservacoes: an alert-sourced observação carries the real severidade through', () => {
+Deno.test('deriveObservacoes: an alert-sourced observação carries severidade_atual through, not severidade', () => {
   const out = deriveObservacoes(
-    [makeAlertRow('incoerencia', 'roxo', { severidade: 'alta' })], [], null, new Map(),
+    [makeAlertRow('incoerencia', 'roxo', { severidade: 'critica', severidade_atual: 'alta' })], [], null, new Map(),
   )
   assertEquals(out[0].severidade, 'alta')
 })
@@ -689,6 +692,24 @@ Deno.test('attachAlerts: an active alert carries ativo=true and resolucao=null',
   const alerta = out.cargos[0].candidatos[0].alertas[0] as { ativo: boolean; resolucao: string | null }
   assertEquals(alerta.ativo, true)
   assertEquals(alerta.resolucao, null)
+})
+
+Deno.test('attachAlerts: carries severidadeAtual and severidadeAtualMotivo through for a reassessed resolved alert', () => {
+  const result: MatchResult = {
+    cargos: [{ cargo: 'presidente', candidatos: [makeCandidato('p1', 80)] }],
+    totalCandidatosAnalisados: 1, estado: 'SP',
+  }
+  const out = attachAlerts(result, [
+    makeAlertRow('ficha_suja', 'cinza', {
+      ativo: false, severidade: 'critica', severidade_atual: 'alta',
+      severidade_atual_motivo: 'Anulado por incompetência de foro; o mérito nunca foi rejulgado.',
+    }),
+  ])
+  const alerta = out.cargos[0].candidatos[0].alertas[0] as {
+    severidadeAtual: string; severidadeAtualMotivo: string | null
+  }
+  assertEquals(alerta.severidadeAtual, 'alta')
+  assertEquals(alerta.severidadeAtualMotivo, 'Anulado por incompetência de foro; o mérito nunca foi rejulgado.')
 })
 
 // ─── enrichResult ────────────────────────────────────────────────────────────

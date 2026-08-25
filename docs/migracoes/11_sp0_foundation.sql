@@ -297,15 +297,25 @@ CREATE POLICY "leitura_publica_candidate_dossiers"
 -- type incoerencia, divergencia_espectro or ressalva_evidencias renders
 -- badge_cor = NULL, because the original CASE has no ELSE.
 -- 2026-08-25: stopped excluding ativo=false outright. Rule D says a resolved
--- alert "não é deletado — apenas ativo = false e resolução preenchida" so it
+-- alert "não é deletado, apenas ativo = false e resolução preenchida" so it
 -- stays on record for transparency; the old WHERE pa.ativo = true silently
 -- defeated that by making every resolved alert permanently invisible to the
--- voter, no matter how well-sourced. validado stays the only trust gate —
--- it is orthogonal to whether the matter is still open. See
+-- voter, no matter how well-sourced. validado stays the only trust gate, and
+-- is orthogonal to whether the matter is still open. See
 -- docs/referencia/alertas.md and isAutoValidated() in ingest-research.ts,
 -- which was corrected in the same pass to stop treating "resolved" as a
 -- reason to withhold auto-validation for an otherwise layer-1-sourced
 -- ficha_suja/investigacao.
+--
+-- ativo/resolucao/data_resolucao are appended AFTER badge_cor/ordem_exibicao
+-- below, not before: this text originally had them first, but the SQL
+-- actually run against production (pasted directly into the Supabase
+-- dashboard, corrected there after a self-review caught the ordering bug)
+-- put them last, since CREATE OR REPLACE VIEW forbids moving an existing
+-- output column's position. This block was edited on 2026-08-25 to match
+-- what is actually live, confirmed by querying v_candidate_alerts directly:
+-- the text and the database had drifted apart, and the text was the one
+-- that was wrong.
 CREATE OR REPLACE VIEW v_candidate_alerts AS
 SELECT
   pa.politician_id,
@@ -317,11 +327,8 @@ SELECT
   pa.fonte_url,
   pa.fonte_nome,
   pa.data_ocorrencia,
-  pa.ativo,
-  pa.resolucao,
-  pa.data_resolucao,
   -- Badge para a UI. A resolved alert always renders gray regardless of
-  -- tipo — the point is that the tipo-specific colour (vermelho/laranja/...)
+  -- tipo: the point is that the tipo-specific colour (vermelho/laranja/...)
   -- reads as "current," and a resolved matter is explicitly not current.
   -- Switches on pa.tipo::text, not pa.tipo: the two new enum values are added
   -- by this same file, and PostgreSQL forbids using a pending enum value in
@@ -351,7 +358,10 @@ SELECT
     WHEN 'alta'    THEN 2
     WHEN 'media'   THEN 3
     WHEN 'baixa'   THEN 4
-  END AS ordem_exibicao
+  END AS ordem_exibicao,
+  pa.ativo,
+  pa.resolucao,
+  pa.data_resolucao
 FROM politician_alerts pa
 JOIN politicians p ON p.id = pa.politician_id
 WHERE pa.validado = true

@@ -21,7 +21,12 @@ export function AlertasBloco({ alertas }: AlertasBlocoProps) {
           <p className="mt-1 text-[13px] leading-relaxed text-gray-600">{alerta.descricao}</p>
           {!alerta.ativo && alerta.resolucao && (
             <p className="mt-1 rounded bg-gray-50 px-2 py-1 text-[13px] leading-relaxed text-gray-600">
-              <span className="font-semibold text-gray-700">Resolvido: </span>
+              <span
+                title="O caso não está mais em aberto: absolvição, anulação, prescrição ou decisão semelhante. Continua registrado, não é o mesmo que nunca ter existido."
+                className="cursor-help font-semibold text-gray-700"
+              >
+                Resolvido:{' '}
+              </span>
               {alerta.resolucao}
             </p>
           )}

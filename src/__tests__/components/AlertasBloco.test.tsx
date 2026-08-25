@@ -5,6 +5,8 @@ import type { Alerta } from '@/lib/types'
 const alerta: Alerta = {
   tipo: 'ficha_suja',
   severidade: 'critica',
+  severidadeAtual: 'critica',
+  severidadeAtualMotivo: null,
   titulo: 'Inelegível até 2032 por condenação do TRE-SP',
   descricao: 'Condenado por uso indevido dos meios de comunicação em 2024.',
   fonteUrl: 'https://tre-sp.example',
@@ -48,5 +50,16 @@ describe('AlertasBloco', () => {
     render(<AlertasBloco alertas={[alerta]} />)
     fireEvent.click(screen.getByRole('button', { name: /Alertas/ }))
     expect(screen.queryByText(/^Resolvido:/)).not.toBeInTheDocument()
+  })
+
+  it('explains what "Resolvido" means via a hover on the label', () => {
+    const resolvido: Alerta = {
+      ...alerta,
+      ativo: false,
+      resolucao: 'Condenação anulada pelo STF por incompetência de foro em 2021.',
+    }
+    render(<AlertasBloco alertas={[resolvido]} />)
+    fireEvent.click(screen.getByRole('button', { name: /Alertas/ }))
+    expect(screen.getByTitle(/não está mais em aberto/i)).toHaveTextContent('Resolvido:')
   })
 })

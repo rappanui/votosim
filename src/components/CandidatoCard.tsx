@@ -35,7 +35,9 @@ const CONFIANCA_TITLE =
 const ALERTAS_TITLE =
   'Alertas são acusações documentadas sobre conduta: ficha suja, investigações ou controvérsias ' +
   'curadas. "Ficha suja" é gerado automaticamente a partir de certidões do TSE; os demais passam ' +
-  'por curadoria humana antes de aparecer aqui. Nenhum alerta exclui o candidato do resultado.'
+  'por curadoria humana antes de aparecer aqui. Nenhum alerta exclui o candidato do resultado. ' +
+  'Um alerta resolvido continua contando: a cor aqui reflete o quanto ele ainda deveria pesar hoje, ' +
+  'não a gravidade histórica do que aconteceu. Veja os detalhes de cada alerta abaixo.'
 const OBSERVACOES_TITLE =
   'Observações são ressalvas sobre como avaliamos o candidato: contradições entre discurso e ' +
   'conduta, ou avisos sobre a qualidade da evidência usada. Nunca são acusações.'
@@ -77,8 +79,18 @@ export function CandidatoCard({ candidato }: CandidatoCardProps) {
   // observações takes feminine (observação). The observation counter is
   // omitted entirely at zero: nothing to caveat is the default state, not a
   // finding, unlike alertas.
-  const alertaCor = corPorSeveridade(candidato.alertas)
-  const alertaLabel = `Alertas: ${rotuloPorSeveridade(candidato.alertas, 'masc')}`
+  //
+  // Driven by severidadeAtual, not severidade: severidade is a historical
+  // fact that never changes, but a resolved alert's present-day weight can
+  // be reassessed calmer (never worse). Coloring the counter by the raw
+  // historical value would make a resolved critica alert paint the whole
+  // card red, the same "reads as current" failure the ativo/resolucao
+  // fix already solved at the badge level. severidadeAtual equals
+  // severidade whenever nothing was reassessed, so this changes nothing
+  // for the common case. Observações have no such distinction to make.
+  const alertasPorSeveridadeAtual = candidato.alertas.map(a => ({ severidade: a.severidadeAtual }))
+  const alertaCor = corPorSeveridade(alertasPorSeveridadeAtual)
+  const alertaLabel = `Alertas: ${rotuloPorSeveridade(alertasPorSeveridadeAtual, 'masc')}`
   const observacaoCor = corPorSeveridade(candidato.observacoes)
   const observacaoLabel = `Observações: ${rotuloPorSeveridade(candidato.observacoes, 'fem')}`
 

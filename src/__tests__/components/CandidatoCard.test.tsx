@@ -283,8 +283,8 @@ describe('CandidatoCard', () => {
     const candidato = makeCandidate({
       temAlertas: true,
       alertas: [{
-        tipo: 'ficha_suja', severidade: 'critica', titulo: 'T', descricao: 'D',
-        fonteUrl: 'https://x.example', badgeCor: 'vermelho', ativo: true, resolucao: null,
+        tipo: 'ficha_suja', severidade: 'critica', severidadeAtual: 'critica', severidadeAtualMotivo: null,
+        titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'vermelho', ativo: true, resolucao: null,
       }],
     })
     render(<CandidatoCard candidato={candidato} />)
@@ -293,8 +293,9 @@ describe('CandidatoCard', () => {
 
   it('pluralizes the alert counter', () => {
     const alerta = {
-      tipo: 'ficha_suja' as const, severidade: 'critica' as const, titulo: 'T', descricao: 'D',
-      fonteUrl: 'https://x.example', badgeCor: 'vermelho' as const, ativo: true, resolucao: null,
+      tipo: 'ficha_suja' as const, severidade: 'critica' as const, severidadeAtual: 'critica' as const,
+      severidadeAtualMotivo: null, titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example',
+      badgeCor: 'vermelho' as const, ativo: true, resolucao: null,
     }
     render(<CandidatoCard candidato={makeCandidate({ temAlertas: true, alertas: [alerta, alerta] })} />)
     expect(screen.getByText('Alertas: 2 críticos detectados')).toBeInTheDocument()
@@ -314,8 +315,8 @@ describe('CandidatoCard', () => {
     const candidato = makeCandidate({
       temAlertas: true,
       alertas: [
-        { tipo: 'ficha_suja', severidade: 'critica', titulo: 'T1', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'vermelho', ativo: true, resolucao: null },
-        { tipo: 'polemica', severidade: 'baixa', titulo: 'T2', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza', ativo: true, resolucao: null },
+        { tipo: 'ficha_suja', severidade: 'critica', severidadeAtual: 'critica', severidadeAtualMotivo: null, titulo: 'T1', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'vermelho', ativo: true, resolucao: null },
+        { tipo: 'polemica', severidade: 'baixa', severidadeAtual: 'baixa', severidadeAtualMotivo: null, titulo: 'T2', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza', ativo: true, resolucao: null },
       ],
     })
     render(<CandidatoCard candidato={candidato} />)
@@ -324,7 +325,7 @@ describe('CandidatoCard', () => {
   })
 
   it('colors the alert counter amber when the most severe alert present is media', () => {
-    const media = { tipo: 'polemica' as const, severidade: 'media' as const, titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza' as const, ativo: true, resolucao: null }
+    const media = { tipo: 'polemica' as const, severidade: 'media' as const, severidadeAtual: 'media' as const, severidadeAtualMotivo: null, titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza' as const, ativo: true, resolucao: null }
     render(<CandidatoCard candidato={makeCandidate({ temAlertas: true, alertas: [media, media] })} />)
     const label = screen.getByText('Alertas: 2 moderados detectados')
     expect(label.closest('[title]')?.className).toContain('text-amber-700')
@@ -333,11 +334,27 @@ describe('CandidatoCard', () => {
   it('colors the alert counter gray when the most severe alert present is baixa', () => {
     const candidato = makeCandidate({
       temAlertas: true,
-      alertas: [{ tipo: 'polemica', severidade: 'baixa', titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza', ativo: true, resolucao: null }],
+      alertas: [{ tipo: 'polemica', severidade: 'baixa', severidadeAtual: 'baixa', severidadeAtualMotivo: null, titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza', ativo: true, resolucao: null }],
     })
     render(<CandidatoCard candidato={candidato} />)
     const label = screen.getByText('Alertas: 1 leve detectado')
     expect(label.closest('[title]')?.className).toContain('text-gray-500')
+  })
+
+  it('drives the alert counter by severidadeAtual, not the historical severidade, for a resolved alert reassessed calmer', () => {
+    const candidato = makeCandidate({
+      temAlertas: true,
+      alertas: [{
+        tipo: 'ficha_suja', severidade: 'critica', severidadeAtual: 'alta',
+        severidadeAtualMotivo: 'Anulado por incompetência de foro; o mérito nunca foi rejulgado.',
+        titulo: 'T', descricao: 'D', fonteUrl: 'https://x.example', badgeCor: 'cinza',
+        ativo: false, resolucao: 'Anulado pelo STF em 2021.',
+      }],
+    })
+    render(<CandidatoCard candidato={candidato} />)
+    const label = screen.getByText('Alertas: 1 grave detectado')
+    expect(label.closest('[title]')?.className).toContain('text-warning')
+    expect(screen.queryByText(/crítico/)).not.toBeInTheDocument()
   })
 
   it('shows the observation counter in the collapsed card, severity-labeled', () => {

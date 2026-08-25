@@ -32,13 +32,23 @@ export interface PerfilUsuario {
 
 export interface Alerta {
   tipo: AlertType
+  // The historical fact of how grave the documented matter was. Never
+  // changes, even once the matter is resolved.
   severidade: AlertSeverity
+  // How much this should still weigh on a voter's present-day judgment.
+  // Equal to severidade for an active alert, or a resolved one never
+  // reassessed (the view coalesces NULL to severidade, so this is always
+  // present). Only ever equal to or calmer than severidade, never worse.
+  // severidadeAtualMotivo explains why, quoting the resolution language;
+  // present only when severidadeAtual differs from severidade.
+  severidadeAtual: AlertSeverity
+  severidadeAtualMotivo: string | null
   titulo: string
   descricao: string
   fonteUrl: string
   badgeCor: BadgeCor
   // ativo=false means resolved (absolved, conviction annulled, case
-  // archived) — the matter is still on record for transparency, just no
+  // archived). The matter is still on record for transparency, just no
   // longer current. resolucao is only non-null when ativo is false.
   ativo: boolean
   resolucao: string | null

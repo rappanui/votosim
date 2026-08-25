@@ -88,6 +88,8 @@ export interface ResearchPosition {
 
 export interface ResearchAlert {
   tipo: string
+  /** Historical fact: how grave the documented matter was. Never revised
+   *  once a resolution happens; severidadeAtual carries that instead. */
   severidade: string
   titulo: string
   descricao: string
@@ -95,7 +97,7 @@ export interface ResearchAlert {
   fonteRefs: string[]
   /**
    * Rule D of docs/legado/base/04_schema_alerts.md: a resolved matter (charges
-   * dropped, conviction overturned, absolved) is never deleted or omitted —
+   * dropped, conviction overturned, absolved) is never deleted or omitted,
    * only marked inactive with the resolution on record, for transparency.
    * null means the matter is still open. Non-null maps to ativo=false and
    * this text becomes politician_alerts.resolucao.
@@ -103,6 +105,19 @@ export interface ResearchAlert {
   resolucao: string | null
   /** ISO date the resolution became final, or null if unknown even though resolved. */
   dataResolucao: string | null
+  /**
+   * How much a resolved matter should still weigh on a voter's present-day
+   * judgment, distinct from severidade. Only meaningful when resolucao is
+   * set; omit or leave null for an active alert, or a resolved one whose
+   * present-day weight was not reassessed (defaults to severidade
+   * downstream). Never a graver tier than severidade: a resolution cannot
+   * manufacture new evidence of wrongdoing. See E2's resolution taxonomy in
+   * docs/procedimentos/pesquisa-de-candidato.md.
+   */
+  severidadeAtual?: string | null
+  /** The specific resolution language that grounds severidadeAtual, quoted
+   *  or closely paraphrased. Required whenever severidadeAtual is set. */
+  severidadeAtualMotivo?: string | null
 }
 
 export interface ResearchDossier {
@@ -334,7 +349,30 @@ export function validateResearch(input: unknown): string[] {
       checkNullableString(a.resolucao, `${label}.resolucao`, errors)
       checkIsoDate(a.dataResolucao, `${label}.dataResolucao`, errors)
       if ((a.dataResolucao !== null && a.dataResolucao !== undefined) && !a.resolucao) {
-        errors.push(`${label}: dataResolucao present without resolucao — resolucao is required to record a resolution`)
+        errors.push(`${label}: dataResolucao present without resolucao, which is required to record a resolution`)
+      }
+
+      const severidadeAtual = a.severidadeAtual ?? null
+      const severidadeAtualMotivo = a.severidadeAtualMotivo ?? null
+      checkNullableString(severidadeAtual, `${label}.severidadeAtual`, errors)
+      checkNullableString(severidadeAtualMotivo, `${label}.severidadeAtualMotivo`, errors)
+      if (severidadeAtual !== null) {
+        if (!SEVERIDADES.includes(severidadeAtual as typeof SEVERIDADES[number])) {
+          errors.push(`${label}.severidadeAtual: invalid`)
+        }
+        if (!a.resolucao) {
+          errors.push(`${label}.severidadeAtual: only meaningful on a resolved alert, but resolucao is null`)
+        }
+        if (typeof severidadeAtualMotivo !== 'string' || !severidadeAtualMotivo.trim()) {
+          errors.push(`${label}.severidadeAtualMotivo: required whenever severidadeAtual is set`)
+        }
+        const severidadeIdx = SEVERIDADES.indexOf(a.severidade as typeof SEVERIDADES[number])
+        const atualIdx = SEVERIDADES.indexOf(severidadeAtual as typeof SEVERIDADES[number])
+        if (severidadeIdx !== -1 && atualIdx !== -1 && atualIdx < severidadeIdx) {
+          errors.push(`${label}.severidadeAtual: cannot be graver than severidade`)
+        }
+      } else if (severidadeAtualMotivo !== null) {
+        errors.push(`${label}.severidadeAtualMotivo: set without severidadeAtual`)
       }
 
       const resolved = checkRefs(a.fonteRefs, label)
