@@ -1,15 +1,18 @@
 # Procedimentos
 
-**Context:** Documentos que se lê do início ao fim para executar alguma coisa —
-por um agente de IA ou por uma pessoa. Diferente de `docs/referencia/`, que se
-consulta pulando pra dentro.
+> **Status:** válido · **Atualizado em:** 2026-08-24
+> **Contexto:** índice desta pasta. Leitor: um agente de IA ou uma pessoa,
+> dependendo do procedimento — cada documento diz qual dos dois no próprio
+> bloco de Contexto. Documentos que se lê do início ao fim para executar
+> alguma coisa. Diferente de `docs/referencia/`, que se consulta pulando pra
+> dentro.
 
 ---
 
 ## Convenções desta pasta
 
 - **Sem limite de linhas.** Um procedimento que omite um passo está quebrado;
-  completude vence concisão. `docs/referencia/` é que tem o teto de 200 linhas.
+  completude vence concisão. `docs/referencia/` mira em torno de 200 linhas.
 - **Pode repetir fatos** que moram na referência — quem executa não pode se dar
   ao luxo de seguir um link. Mas **todo fato repetido nomeia sua fonte**, para
   que a deriva seja encontrável com um grep.

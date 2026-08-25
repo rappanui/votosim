@@ -1,90 +1,97 @@
-# VotoSim — Candidate Research Runbook
+# VotoSim — Runbook de pesquisa de candidato
 
-**Context:** This is the operator's step-by-step for running the per-candidate
-research pipeline end to end — from picking the next candidate off the queue
-to a confirmed write into the database. Read this when you are actually
-running the pipeline. Read `docs/procedimentos/pesquisa-de-candidato.md` instead when
-you need the content rules the research agent follows (the five stages, the
-source layers, the framing trap, the output contract) — this document assumes
-that one and does not repeat it.
+> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
+> **Contexto:** este é o passo a passo do operador para rodar o pipeline de
+> pesquisa por candidato de ponta a ponta — de escolher o próximo candidato
+> da fila até uma gravação confirmada no banco. Leitor: uma pessoa (o
+> operador que dispara e acompanha o pipeline). Leia isto quando estiver de
+> fato rodando o pipeline. Leia `docs/procedimentos/pesquisa-de-candidato.md`
+> em vez deste quando precisar das regras de conteúdo que o agente de
+> pesquisa segue (os cinco estágios, as camadas de fonte, a armadilha de
+> enquadramento, o contrato de saída) — este documento pressupõe aquele e não
+> o repete.
 
-All commands below run from `scripts/`.
+Todos os comandos abaixo rodam a partir de `scripts/`.
 
 ---
 
-## 1. Pick the next candidate
+## 1. Escolha o próximo candidato
 
 ```
 npm run next-candidates -- --limit=10
 ```
 
-Lists candidacies with outstanding enrichment work, in `v_enrichment_queue`
-order (presidents first, then by state, then by tier and viability). A row
-marked `NEVER SEEDED` has no `enrichment_ledger` rows at all — run
-`npm run bootstrap-ledger` before researching it, or `ingest-research` will
-reject the run at the end with "no ledger rows" (see step 4).
+Lista candidaturas com trabalho de enriquecimento pendente, na ordem de
+`v_enrichment_queue` (presidentes primeiro, depois por estado, depois por
+tier e viabilidade). Uma linha marcada `NEVER SEEDED` não tem nenhuma linha
+em `enrichment_ledger` — rode `npm run bootstrap-ledger` antes de pesquisá-la,
+ou `ingest-research` vai rejeitar a execução no final com "no ledger rows"
+(ver passo 4).
 
-Add `--cargo=presidente` (or another office) to filter.
+Acrescente `--cargo=presidente` (ou outro cargo) para filtrar.
 
-Pick a `tse_sequencial` from the list.
+Escolha um `tse_sequencial` da lista.
 
-## 2. Build the brief
+## 2. Monte o brief
 
 ```
 npm run build-brief -- <tse_sequencial>
 ```
 
-Reads the candidate's official material (government plan PDF, when filed;
-declared social accounts; the 14 questionnaire themes with both their
-affirmation and their disambiguating context) from Supabase and the TSE data
-extracts, and writes:
+Lê o material oficial do candidato (PDF do plano de governo, quando
+protocolado; contas sociais declaradas; os 14 temas do questionário, com a
+afirmação de cada um e o contexto que a desambigua) do Supabase e dos
+extratos de dados do TSE, e grava:
 
 ```
 data/briefs/<tse_sequencial>.md
 ```
 
-This is the entire input the research agent gets. It contains nothing the
-agent needs to look up elsewhere and nothing it doesn't need.
+Este é todo o input que o agente de pesquisa recebe. Não contém nada que o
+agente precise procurar em outro lugar, e nada que ele não precise.
 
-## 3. Run the research agent
+## 3. Rode o agente de pesquisa
 
-Dispatch the research agent — following the five stages (E1–E5) in
-`docs/procedimentos/pesquisa-de-candidato.md` — with `data/briefs/<tse_sequencial>.md`
-as its input. The agent writes its output document to:
+Dispare o agente de pesquisa — seguindo os cinco estágios (E1–E5) de
+`docs/procedimentos/pesquisa-de-candidato.md` — com `data/briefs/<tse_sequencial>.md`
+como input. O agente grava o documento de saída em:
 
 ```
 data/research/<tse_sequencial>.json
 ```
 
-The document must match the shape `scripts/lib/research-contract.ts` defines
-exactly: all 14 themes, every position and alert sourced, `tseSequencial` set
-to the candidate you just built the brief for.
+O documento precisa bater exatamente com o formato definido em
+`modules/ingest-candidates/src/lib/research-contract.ts`: os 14 temas, toda posição e todo alerta
+com fonte, `tseSequencial` definido para o candidato para o qual você acabou
+de montar o brief.
 
-The agent dispatch also returns two numbers you will need in step 4:
-- **tokens** — total tokens consumed by the run
-- **duration** — wall-clock time in milliseconds
+O disparo do agente também retorna dois números que você vai precisar no
+passo 4:
+- **tokens** — total de tokens consumidos pela execução
+- **duration** — tempo de parede em milissegundos
 
-These feed the instrumented pilot's cost-per-candidate measurement. The agent
-itself has no way to know either number — only the dispatch layer does — so
-they are supplied by the operator, not by the agent's own output.
+Esses números alimentam a medição de custo por candidato do piloto
+instrumentado. O próprio agente não tem como saber nenhum dos dois números —
+só a camada de disparo sabe — então eles são fornecidos pelo operador, não
+pela saída do próprio agente.
 
-## 4. Ingest
+## 4. Ingira
 
 ```
 npm run ingest-research -- data/research/<tse_sequencial>.json --confirm --tokens=<N> --duracao-ms=<N>
 ```
 
-`--tokens` and `--duracao-ms` are the two numbers from step 3. Both are
-optional — omit either if the dispatch layer didn't report it — but include
-them whenever available; they're the only source of that data for the pilot's
-cost measurement, and once omitted they cannot be reconstructed after the
-fact.
+`--tokens` e `--duracao-ms` são os dois números do passo 3. Ambos são
+opcionais — omita qualquer um deles se a camada de disparo não o reportou —
+mas inclua-os sempre que disponíveis; são a única fonte desse dado para a
+medição de custo do piloto, e uma vez omitidos não podem ser reconstruídos
+depois.
 
-### The confirmation step
+### O passo de confirmação
 
-`ingest-research` first validates the document, then resolves
-`tseSequencial` against `candidacies` and prints the resolved identity
-prominently, before writing anything:
+`ingest-research` primeiro valida o documento, depois resolve
+`tseSequencial` contra `candidacies` e imprime a identidade resolvida com
+destaque, antes de gravar qualquer coisa:
 
 ```
 ================================================================
@@ -94,24 +101,25 @@ prominently, before writing anything:
 ================================================================
 ```
 
-**Stop and check this line against the dossier you produced before
-confirming.** `tseSequencial` is hand-copied by the agent into the JSON; one
-transposed digit resolves to a different real politician, and everything
-after this point — including a `ficha_suja` alert — gets attributed to
-whoever it resolves to. This is the only point a human actually verifies the
-match; there is no downstream check.
+**Pare e confira esta linha contra o dossiê que você produziu antes de
+confirmar.** `tseSequencial` é copiado à mão pelo agente para o JSON; um
+dígito transposto resolve para um político real diferente, e tudo a partir
+daí — inclusive um alerta `ficha_suja` — é atribuído a quem quer que ele
+resolva. Este é o único ponto em que um humano de fato verifica a
+correspondência; não há checagem a jusante.
 
-Run the command **without** `--confirm` first if you want to see this
-resolution and the would-write counts (sources / positions / alerts) without
-touching the database at all — it prints the same identity banner, then exits
-0 having written nothing. Once the printed candidate matches the dossier's
-subject, re-run with `--confirm` to actually write.
+Rode o comando **sem** `--confirm` primeiro se quiser ver essa resolução e as
+contagens que seriam gravadas (fontes / posições / alertas) sem tocar no
+banco de dados de forma alguma — ele imprime o mesmo banner de identidade,
+depois sai com código 0 sem ter gravado nada. Assim que o candidato impresso
+bater com o assunto do dossiê, rode de novo com `--confirm` para de fato
+gravar.
 
-### If ingestion fails validation
+### Se a ingestão falhar na validação
 
-`ingest-research` runs `validateResearch()` before resolving the candidacy or
-touching the database. On failure it prints every problem found — not just
-the first — and exits non-zero:
+`ingest-research` roda `validateResearch()` antes de resolver a candidatura
+ou tocar no banco de dados. Em caso de falha, imprime todo problema
+encontrado — não só o primeiro — e sai com código diferente de zero:
 
 ```
 [ingest-research] N validation error(s) — nothing was written:
@@ -120,27 +128,29 @@ the first — and exits non-zero:
   ...
 ```
 
-**Nothing was written.** Fix the JSON at `data/research/<tse_sequencial>.json`
-— usually by sending the errors back to the research agent so it can correct
-its own output — and re-run the same `ingest-research` command. There is no
-partial state to clean up: validation happens before any database call.
+**Nada foi gravado.** Corrija o JSON em
+`data/research/<tse_sequencial>.json` — normalmente enviando os erros de
+volta ao agente de pesquisa para que ele corrija a própria saída — e rode de
+novo o mesmo comando `ingest-research`. Não há estado parcial para limpar: a
+validação acontece antes de qualquer chamada ao banco.
 
-### If ingestion fails after `--confirm`
+### Se a ingestão falhar depois de `--confirm`
 
-A failure after this point (a database error, a crashed process) leaves the
-candidacy's `enrichment_ledger` rows at `em_progresso` rather than reverting
-to whatever they were before — this is deliberate, so the candidate stays
-visible in `v_enrichment_queue` instead of silently dropping out. Re-running
-`ingest-research` with the same JSON (once the underlying problem is fixed)
-picks it back up; re-running is always safe, since each run replaces the
-candidate's own prior research rather than duplicating it.
+Uma falha depois deste ponto (um erro de banco de dados, um processo que
+travou) deixa as linhas de `enrichment_ledger` da candidatura em
+`em_progresso` em vez de reverter ao que eram antes — isso é deliberado, para
+que o candidato continue visível em `v_enrichment_queue` em vez de sumir
+silenciosamente. Rodar `ingest-research` de novo com o mesmo JSON (uma vez
+corrigido o problema de origem) retoma de onde parou; rodar de novo é sempre
+seguro, já que cada execução substitui a pesquisa anterior do próprio
+candidato em vez de duplicá-la.
 
-## 5. Verify
+## 5. Verifique
 
 ```
 npm run next-candidates -- --limit=10
 ```
 
-The candidate you just ingested should no longer appear (unless a stage was
-`nao_aplicavel` and stayed that way, which is correct — see
-`docs/referencia/schema-adicoes-sp0.md`).
+O candidato que você acabou de ingerir não deve mais aparecer (a menos que
+um estágio estivesse `nao_aplicavel` e tenha permanecido assim, o que é
+correto — ver `docs/referencia/schema-adicoes-sp0.md`).

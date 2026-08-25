@@ -1,4 +1,10 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "supabase", "scripts", "export"]
+  "exclude": [
+    "node_modules",
+    "supabase",
+    "scripts",
+    "export",
+    "modules"
+  ]
 }
