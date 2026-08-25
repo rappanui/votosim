@@ -1,13 +1,15 @@
 # Subir o ambiente local
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 19:10
+> **Status:** válido · **Atualizado em:** 2026-08-25 14:10
 
 **Contexto:** Passo a passo para colocar o VotoSim rodando na sua máquina —
 o app Next.js contra o Supabase remoto, e, quando necessário, a Edge Function
 de match localmente. Leia isto para começar a desenvolver; para saber qual
 variável cada peça lê, veja `docs/referencia/variaveis-de-ambiente.md`
 (fatos daqui que também aparecem lá citam a fonte). Verificado contra
-`README.md` da raiz, `package.json` e `tsconfig.app.json` em 2026-08-24.
+`README.md` da raiz, `package.json` e `tsconfig.app.json` em 2026-08-24; a
+seção de typecheck e build foi reconferida contra `next.config.ts` e uma
+execução de `tsc` em 2026-08-25.
 
 ---
 
@@ -74,15 +76,31 @@ npm test
 ```
 
 `npm test` roda **`typecheck && jest`** — não só `jest`. O typecheck
-(`npm run typecheck`) usa `tsc --noEmit -p tsconfig.app.json`, e
-`tsconfig.app.json` **exclui `supabase/`, `scripts/` e `export/`**
-(`"exclude": ["node_modules", "supabase", "scripts", "export"]`). Um `tsc`
-rodado sobre o projeto inteiro, sem esse escopo, ainda reporta ~127 erros —
-todos vindos dos imports por URL que o Deno usa dentro de
-`supabase/functions/` (`import { serve } from "https://deno.land/..."`), que
-o compilador do TypeScript do Node não sabe resolver. Não são bugs a
-corrigir: são dois mundos de módulo diferentes (Deno vs. Node) que o projeto
-não tenta unificar sob um único `tsc`.
+(`npm run typecheck`) usa `tsc --noEmit -p tsconfig.app.json`, que
+**exclui `supabase/`, `scripts/`, `export/` e `modules/`**
+(`"exclude": ["node_modules", "supabase", "scripts", "export", "modules"]`).
+
+**O `npm run build` usa o mesmo escopo**, via `typescript.tsconfigPath` no
+`next.config.ts`. Sem isso o `next build` cai no `tsconfig.json` da raiz, que
+inclui `**/*.ts` excluindo só `node_modules` — e a build quebrava no primeiro
+erro de uma pasta que o compilador do Next não governa.
+
+Um `tsc` rodado sobre o projeto inteiro (`npx tsc --noEmit -p tsconfig.json`)
+reporta **128 erros**, medidos em 2026-08-25, de três origens — nenhuma delas
+um bug a corrigir:
+
+| Origem | Erros | Por quê |
+|---|---|---|
+| `supabase/functions/` | 104 | Roda em **Deno**: `import ... from "https://deno.land/..."` e o global `Deno`, que o TypeScript do Node não resolve. |
+| `scripts/` | 16 | Imports com sufixo `.ts`, além de 2 erros de tipo reais em `ingest-tse.ts`. |
+| `modules/ingest-candidates/` | 8 | Também imports com sufixo `.ts`. |
+
+Os sufixos `.ts` **estão corretos onde vivem**: `scripts/` e `modules/` rodam
+sob **`tsx`** (`tsx <arquivo>.ts` e `tsx --test *.test.ts`, nos `package.json`
+de cada pasta), onde o import precisa do sufixo. Corrigi-los para agradar a
+build do Next quebraria a execução real. São mundos de módulo diferentes
+(Deno, tsx, bundler do Next) que o projeto deliberadamente não unifica sob um
+único `tsc` — daí o escopo, e não uma faxina de imports.
 
 Para rodar só o typecheck:
 
