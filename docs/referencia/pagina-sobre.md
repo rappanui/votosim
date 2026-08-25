@@ -64,7 +64,7 @@ lá foi atrás disso.
 
 Duas regras são verificadas por teste, não por revisão:
 
-- nenhum texto contém travessão, conforme o `AGENTS.md`;
+- nenhum texto contém travessão, que é convenção de escrita do projeto;
 - nenhum texto promete recomendação de voto.
 
 ## Os arquivos

@@ -107,5 +107,8 @@ Ambiente completo e ordem de deploy em
 ## Este NÃO é o Next.js que você conhece
 
 A versão usada aqui (16.2.9) tem breaking changes em relação ao que consta em
-dados de treinamento de modelos. Ver [`AGENTS.md`](AGENTS.md) — e leia
-`node_modules/next/dist/docs/` antes de escrever código.
+dados de treinamento de modelos. **Leia `node_modules/next/dist/docs/` antes de
+escrever código**, e confira ali a API que você pretende usar em vez de confiar
+na memória. Exemplos que já morderam: `params` de página é uma `Promise` e
+exige `await`, e o typecheck da build sai do `tsconfig.app.json`, não do
+`tsconfig.json` da raiz.

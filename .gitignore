@@ -44,8 +44,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# project-local claude config
+# project-local agent config. Both files were tracked until 2026-08-25 and are
+# still in the history; from here on they live only on each machine, so an
+# agent's instructions are not part of what the project publishes.
 CLAUDE.md
+AGENTS.md
 docs/superpowers/
 .superpowers/
 

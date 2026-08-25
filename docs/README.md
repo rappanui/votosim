@@ -1,6 +1,6 @@
 # Documentação do VotoSim
 
-> **Status:** válido · **Atualizado em:** 2026-08-24 20:45
+> **Status:** válido · **Atualizado em:** 2026-08-25 20:57
 > **Contexto:** porta de entrada de `docs/`. Leia isto primeiro para saber
 > onde procurar; ele não repete o conteúdo de cada pasta, só diz onde está.
 
@@ -41,10 +41,28 @@ repositório — por isso é módulo, e não só uma subpasta de `scripts/`. Ver
 
 ## Todo documento declara a própria validade
 
-Todo arquivo em `docs/` começa com um bloco `**Status:**` logo após o
-título — ver `AGENTS.md` na raiz para o formato exato e por que ele existe.
+Todo arquivo em `docs/` começa com um bloco `**Status:**` logo após o título,
+nesta forma:
+
+```markdown
+# Título que diz sozinho o que o documento é
+
+> **Status:** válido · **Atualizado em:** 2026-08-24 17:20
+> **Contexto:** uma ou duas frases sobre o que este documento cobre e quando lê-lo.
+```
+
+Quando um documento é superado, o bloco vira:
+
+```markdown
+> **Status:** ⚠️ DEPRECIADO em 2026-08-24 · **Última atualização real:** 2026-06-30
+> **Motivo:** descreve o pipeline Groq, removido do projeto.
+> **Substituído por:** `docs/referencia/pipeline-de-pesquisa.md`
+```
+
 **Não confie em um documento sem esse bloco no topo**, e não confie no nome
-do arquivo sozinho: nomes já mentiram sobre o conteúdo neste projeto.
+do arquivo sozinho: nomes já mentiram sobre o conteúdo neste projeto. Quem
+editar um documento atualiza a data do bloco junto; data escrita à mão passa
+a mentir no instante em que alguém edita sem tocá-la.
 
 ## Para quem chega agora
 
